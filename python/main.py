@@ -62,7 +62,9 @@ class MoCapSyncApp(ctk.CTk):
         self.lbl_cams_found.pack(anchor="w")
 
         ctk.CTkLabel(left, text="Resolution:").pack(anchor="w", pady=(10, 0))
-        self.res_combo = ctk.CTkComboBox(left, values=["1280x800", "1280x720", "640x400"])
+        res_options = ["3840x2160 (4K)", "2560x1440 (1440p)", "1920x1080 (1080p)", "1280x800", "1280x720 (720p)", "1024x768", "800x600", "640x480", "640x400", "320x240"]
+        self.res_combo = ctk.CTkComboBox(left, values=res_options)
+        self.res_combo.set("1280x720 (720p)")
         self.res_combo.pack(fill="x")
 
         self.lbl_exposure = ctk.CTkLabel(left, text="Exposure (Shutter Speed): 1/32s")
@@ -71,6 +73,17 @@ class MoCapSyncApp(ctk.CTk):
         self.exposure_slider.set(-5)
         self.exposure_slider.pack(fill="x")
         
+        self.lbl_gain = ctk.CTkLabel(left, text="Gain: 0")
+        self.lbl_gain.pack(anchor="w", pady=(10, 0))
+        self.gain_slider = ctk.CTkSlider(left, from_=0, to=255, command=self.update_gain_label)
+        self.gain_slider.set(0)
+        self.gain_slider.pack(fill="x")
+        
+        self.lbl_wb = ctk.CTkLabel(left, text="White Balance: 4000K")
+        self.lbl_wb.pack(anchor="w", pady=(10, 0))
+        self.wb_slider = ctk.CTkSlider(left, from_=2000, to=8000, command=self.update_wb_label)
+        self.wb_slider.set(4000)
+        self.wb_slider.pack(fill="x")
         self.btn_apply_cams = ctk.CTkButton(left, text="Apply Camera Settings", command=self.apply_camera_settings)
         self.btn_apply_cams.pack(fill="x", pady=15)
         
@@ -149,6 +162,12 @@ class MoCapSyncApp(ctk.CTk):
         denominator = 2 ** abs(val)
         self.lbl_exposure.configure(text=f"Exposure (Shutter Speed): 1/{denominator}s")
 
+    def update_gain_label(self, value):
+        self.lbl_gain.configure(text=f"Gain: {int(value)}")
+        
+    def update_wb_label(self, value):
+        self.lbl_wb.configure(text=f"White Balance: {int(value)}K")
+
     def log(self, message):
         self.txt_log.insert(tk.END, message + "\n")
         self.txt_log.see(tk.END)
@@ -181,11 +200,17 @@ class MoCapSyncApp(ctk.CTk):
         threading.Thread(target=scan).start()
 
     def apply_camera_settings(self):
-        w, h = map(int, self.res_combo.get().split('x'))
+        res_str = self.res_combo.get().split(' ')[0] # Get e.g. "1920x1080" from "1920x1080 (1080p)"
+        w, h = map(int, res_str.split('x'))
         fps = int(self.fps_entry.get())
         exp = int(self.exposure_slider.get())
+        gain = int(self.gain_slider.get())
+        wb = int(self.wb_slider.get())
+        
         for idx in self.camera_indices:
-            self.cam_mgr.apply_settings(idx, width=w, height=h, fps=fps, exposure_value=exp)
+            actual = self.cam_mgr.apply_settings(idx, width=w, height=h, fps=fps, exposure_value=exp, gain_value=gain, wb_value=wb)
+            if actual:
+                self.log(f"Cam {idx} ACCEPTED: Res={actual['width']}x{actual['height']}, FPS={actual['fps']}, Exp={actual['exposure']}, Gain={actual['gain']}, WB={actual['wb']}")
         self.log("Settings applied to all cameras.")
 
     def connect_arduino(self):
@@ -221,7 +246,8 @@ class MoCapSyncApp(ctk.CTk):
             is_calib = (self.record_type.get() == "calibration")
             save_dir = self.proj_mgr.get_recording_folder(is_calib)
             
-            w, h = map(int, self.res_combo.get().split('x'))
+            res_str = self.res_combo.get().split(' ')[0]
+            w, h = map(int, res_str.split('x'))
             fps = int(self.fps_entry.get())
             codec = self.codec_combo.get()
             

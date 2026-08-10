@@ -1,11 +1,12 @@
-# MoCapST - OV9281 Hardware Sync & Recording Station
+# MoCapST - Universal Hardware Sync & Recording Station
 
-MoCapST ist eine spezialisierte Steuerungs- und Aufnahme-Software für markerloses Motion Capturing (spezifisch optimiert für **FreeMoCap**). Sie ermöglicht die hardware-synchrone Aufzeichnung von mehreren Global-Shutter-Kameras (wie der OV9281) mithilfe eines Arduino-Triggers.
+MoCapST ist eine spezialisierte Steuerungs- und Aufnahme-Software für markerloses Motion Capturing (spezifisch optimiert für **FreeMoCap**). Sie ermöglicht die hardware-synchrone Aufzeichnung von mehreren Kameras (z.B. OV9281, ELP Webcams) mithilfe eines Arduino-Triggers oder als generische Multicam-Recording-Station.
 
 ## Features
 
-- **Arduino Hardware Triggering:** Nutzt einen Arduino als hochpräzise Master-Clock, um alle Kameras auf die Millisekunde genau auszulösen.
-- **Kamera-Kontrolle:** Voller Zugriff auf Auflösung und manuellen Shutter Speed (Belichtung) über UVC/DirectShow.
+- **Universeller Kamera-Support:** Dank dynamischem "Try and Check" der Auflösungen kompatibel mit unterschiedlichsten USB-Kameras (ELP, Arducam, etc.).
+- **Erweiterte Kamera-Kontrolle:** Voller Zugriff auf Auflösung, manuellen Shutter Speed (Belichtung), manuellen Gain und White Balance über UVC/DirectShow, um störendes Auto-Flackern zu verhindern.
+- **Arduino Hardware Triggering:** Nutzt einen Arduino als hochpräzise Master-Clock, um unterstützte Hardware-Trigger-Kameras exakt auszulösen.
 - **Multi-Threaded Recording:** Dedizierte Hintergrund-Threads für jede Kamera garantieren eine Aufnahme ohne Frame-Drops, selbst bei 6 Kameras gleichzeitig.
 - **FreeMoCap Integration:** Speichert Aufnahmen automatisch in der Ordnerstruktur, die FreeMoCap für "Pre-recorded Data" (`synchronized_videos`) erwartet.
 - **Live Preview:** Gleichzeitige Vorschau von bis zu 6 Kameras im Raster-Format.
