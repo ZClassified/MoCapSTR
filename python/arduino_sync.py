@@ -50,6 +50,7 @@ class ArduinoSync:
                 return True
         except Exception as e:
             print(f"Error sending command to Arduino: {e}")
+            self.is_connected = False
             return False
             
     def set_fps(self, fps):
