@@ -4,6 +4,7 @@ from camera_manager import CameraManager
 from arduino_sync import ArduinoSync
 from project_manager import ProjectManager
 from recorder import MultiCamManager
+from preset_manager import PresetManager
 import cv2
 from PIL import Image, ImageTk
 import threading
@@ -26,6 +27,7 @@ class MoCapSyncApp(ctk.CTk):
         self.arduino = ArduinoSync()
         self.proj_mgr = ProjectManager()
         self.recorder = MultiCamManager()
+        self.preset_mgr = PresetManager()
         
         self.camera_indices = []
         self.preview_labels = {} # Grid for previews
@@ -53,77 +55,161 @@ class MoCapSyncApp(ctk.CTk):
     def build_setup_tab(self, parent):
         parent.grid_columnconfigure(0, weight=1)
         parent.grid_columnconfigure(1, weight=1)
+        parent.grid_columnconfigure(2, weight=1)
         
-        left = ctk.CTkFrame(parent, fg_color="transparent")
-        left.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
+        # --- Top Bar: PRESETS ---
+        preset_frame = ctk.CTkFrame(parent)
+        preset_frame.grid(row=0, column=0, columnspan=3, padx=10, pady=(10, 5), sticky="ew")
         
-        right = ctk.CTkFrame(parent, fg_color="transparent")
-        right.grid(row=0, column=1, padx=10, pady=10, sticky="nsew")
+        ctk.CTkLabel(preset_frame, text="Presets:").pack(side="left", padx=10, pady=5)
+        self.preset_combo = ctk.CTkComboBox(preset_frame, values=["Default"] + self.preset_mgr.get_preset_names())
+        self.preset_combo.pack(side="left", padx=5, pady=5)
         
-        # Cameras
-        ctk.CTkLabel(left, text="Camera Setup", font=ctk.CTkFont(size=20, weight="bold")).pack(anchor="w", pady=(0, 10))
+        self.preset_name_entry = ctk.CTkEntry(preset_frame, placeholder_text="New Preset Name")
+        self.preset_name_entry.pack(side="left", padx=10, pady=5)
         
-        # Backend Selector
-        backend_frame = ctk.CTkFrame(left, fg_color="transparent")
-        backend_frame.pack(fill="x", pady=5)
-        ctk.CTkLabel(backend_frame, text="Backend:").pack(side="left")
-        self.backend_combo = ctk.CTkComboBox(backend_frame, values=["DSHOW", "MSMF", "ANY"], width=100)
+        self.btn_save_preset = ctk.CTkButton(preset_frame, text="Save Preset", command=self.save_preset)
+        self.btn_save_preset.pack(side="left", padx=5, pady=5)
+        self.btn_load_preset = ctk.CTkButton(preset_frame, text="Load Preset", command=self.load_preset)
+        self.btn_load_preset.pack(side="left", padx=5, pady=5)
+        
+        # --- Column 1: Camera Settings ---
+        col1_container = ctk.CTkFrame(parent, fg_color="transparent")
+        col1_container.grid(row=1, column=0, padx=10, pady=5, sticky="nsew")
+        
+        # Card 1: Camera Connection
+        conn_frame = ctk.CTkFrame(col1_container)
+        conn_frame.pack(fill="x", pady=5)
+        ctk.CTkLabel(conn_frame, text="1. Camera Connection", font=ctk.CTkFont(weight="bold")).pack(anchor="w", padx=10, pady=5)
+        
+        backend_f = ctk.CTkFrame(conn_frame, fg_color="transparent")
+        backend_f.pack(fill="x", padx=10, pady=5)
+        ctk.CTkLabel(backend_f, text="Backend:").pack(side="left")
+        self.backend_combo = ctk.CTkComboBox(backend_f, values=["DSHOW", "MSMF", "ANY"], width=100)
         self.backend_combo.set("DSHOW")
         self.backend_combo.pack(side="right")
         
-        self.btn_scan = ctk.CTkButton(left, text="Scan & Open Cameras", command=self.scan_cameras)
-        self.btn_scan.pack(fill="x", pady=5)
-        self.lbl_cams_found = ctk.CTkLabel(left, text="Cameras found: 0")
-        self.lbl_cams_found.pack(anchor="w")
+        self.btn_scan = ctk.CTkButton(conn_frame, text="Scan & Open Cameras", command=self.scan_cameras)
+        self.btn_scan.pack(fill="x", padx=10, pady=5)
+        self.lbl_cams_found = ctk.CTkLabel(conn_frame, text="Cameras found: 0")
+        self.lbl_cams_found.pack(anchor="w", padx=10, pady=(0, 5))
 
-        ctk.CTkLabel(left, text="Resolution:").pack(anchor="w", pady=(10, 0))
+        # Card 2: Sensor Settings
+        sensor_frame = ctk.CTkFrame(col1_container)
+        sensor_frame.pack(fill="x", pady=5)
+        ctk.CTkLabel(sensor_frame, text="2. Sensor Settings", font=ctk.CTkFont(weight="bold")).pack(anchor="w", padx=10, pady=5)
+        
         res_options = ["3840x2160 (4K)", "2560x1440 (1440p)", "1920x1080 (1080p)", "1280x800", "1280x720 (720p)", "1024x768", "800x600", "640x480", "640x400", "320x240"]
-        self.res_combo = ctk.CTkComboBox(left, values=res_options)
+        self.res_combo = ctk.CTkComboBox(sensor_frame, values=res_options)
         self.res_combo.set("1280x720 (720p)")
-        self.res_combo.pack(fill="x")
-
-        self.lbl_exposure = ctk.CTkLabel(left, text="Exposure (Shutter Speed): 1/128s")
-        self.lbl_exposure.pack(anchor="w", pady=(10, 0))
-        self.exposure_slider = ctk.CTkSlider(left, from_=-11, to=-3, number_of_steps=8, command=self.update_exposure_label)
+        self.res_combo.pack(fill="x", padx=10, pady=5)
+        
+        self.lbl_exposure = ctk.CTkLabel(sensor_frame, text="Exposure (Shutter Speed): 1/128s")
+        self.lbl_exposure.pack(anchor="w", padx=10)
+        self.exposure_slider = ctk.CTkSlider(sensor_frame, from_=-11, to=-3, number_of_steps=8, command=self.update_exposure_label)
         self.exposure_slider.set(-7)
-        self.exposure_slider.pack(fill="x")
+        self.exposure_slider.pack(fill="x", padx=10, pady=5)
         
-        self.lbl_gain = ctk.CTkLabel(left, text="Gain: 0")
-        self.lbl_gain.pack(anchor="w", pady=(10, 0))
-        self.gain_slider = ctk.CTkSlider(left, from_=0, to=255, command=self.update_gain_label)
+        self.lbl_gain = ctk.CTkLabel(sensor_frame, text="Gain: 0")
+        self.lbl_gain.pack(anchor="w", padx=10)
+        self.gain_slider = ctk.CTkSlider(sensor_frame, from_=0, to=255, command=self.update_gain_label)
         self.gain_slider.set(0)
-        self.gain_slider.pack(fill="x")
+        self.gain_slider.pack(fill="x", padx=10, pady=5)
         
-        self.lbl_wb = ctk.CTkLabel(left, text="White Balance: 5600K")
-        self.lbl_wb.pack(anchor="w", pady=(10, 0))
-        self.wb_slider = ctk.CTkSlider(left, from_=2000, to=8000, number_of_steps=60, command=self.update_wb_label)
+        self.lbl_wb = ctk.CTkLabel(sensor_frame, text="White Balance: 5600K")
+        self.lbl_wb.pack(anchor="w", padx=10)
+        self.wb_slider = ctk.CTkSlider(sensor_frame, from_=2000, to=8000, number_of_steps=60, command=self.update_wb_label)
         self.wb_slider.set(5600)
-        self.wb_slider.pack(fill="x")
-        self.btn_apply_cams = ctk.CTkButton(left, text="Apply Camera Settings", command=self.apply_camera_settings)
-        self.btn_apply_cams.pack(fill="x", pady=15)
+        self.wb_slider.pack(fill="x", padx=10, pady=5)
         
-        # Arduino
-        ctk.CTkLabel(right, text="Arduino Hardware Sync", font=ctk.CTkFont(size=20, weight="bold")).pack(anchor="w", pady=(0, 10))
+        self.btn_apply_cams = ctk.CTkButton(sensor_frame, text="Apply Camera Settings", command=self.apply_camera_settings)
+        self.btn_apply_cams.pack(fill="x", padx=10, pady=10)
+
+        # --- Column 2: Hardware Sync ---
+        col2_container = ctk.CTkFrame(parent, fg_color="transparent")
+        col2_container.grid(row=1, column=1, padx=10, pady=5, sticky="nsew")
+        
+        # Card 3: Arduino Sync
+        sync_frame = ctk.CTkFrame(col2_container)
+        sync_frame.pack(fill="x", pady=5)
+        ctk.CTkLabel(sync_frame, text="3. Hardware Sync", font=ctk.CTkFont(weight="bold")).pack(anchor="w", padx=10, pady=5)
+        
         ports = ArduinoSync.get_available_ports()
-        self.port_combo = ctk.CTkComboBox(right, values=ports if ports else ["No Ports Found"])
-        self.port_combo.pack(fill="x", pady=5)
+        self.port_combo = ctk.CTkComboBox(sync_frame, values=ports if ports else ["No Ports Found"])
+        self.port_combo.pack(fill="x", padx=10, pady=5)
         
-        self.btn_connect = ctk.CTkButton(right, text="Connect Arduino", command=self.connect_arduino)
-        self.btn_connect.pack(fill="x", pady=5)
+        self.btn_connect = ctk.CTkButton(sync_frame, text="Connect Arduino", command=self.connect_arduino)
+        self.btn_connect.pack(fill="x", padx=10, pady=5)
         
-        ctk.CTkLabel(right, text="Target Framerate (FPS):").pack(anchor="w", pady=(10, 0))
-        self.fps_entry = ctk.CTkEntry(right)
+        f_fps = ctk.CTkFrame(sync_frame, fg_color="transparent")
+        f_fps.pack(fill="x", padx=10, pady=5)
+        ctk.CTkLabel(f_fps, text="Target Framerate (FPS):").pack(side="left")
+        self.fps_entry = ctk.CTkEntry(f_fps, width=60)
         self.fps_entry.insert(0, "60")
-        self.fps_entry.pack(fill="x")
+        self.fps_entry.pack(side="right")
         
-        self.btn_start_sync = ctk.CTkButton(right, text="START HARDWARE TRIGGER", fg_color="green", hover_color="darkgreen", command=self.start_sync, state="disabled")
-        self.btn_start_sync.pack(fill="x", pady=10)
-        self.btn_stop_sync = ctk.CTkButton(right, text="STOP HARDWARE TRIGGER", fg_color="red", hover_color="darkred", command=self.stop_sync, state="disabled")
-        self.btn_stop_sync.pack(fill="x", pady=5)
+        self.btn_start_sync = ctk.CTkButton(sync_frame, text="START HARDWARE TRIGGER", fg_color="green", hover_color="darkgreen", command=self.start_sync, state="disabled")
+        self.btn_start_sync.pack(fill="x", padx=10, pady=5)
+        self.btn_stop_sync = ctk.CTkButton(sync_frame, text="STOP HARDWARE TRIGGER", fg_color="red", hover_color="darkred", command=self.stop_sync, state="disabled")
+        self.btn_stop_sync.pack(fill="x", padx=10, pady=5)
+
+        # --- Column 3: Charuco Board ---
+        col3_container = ctk.CTkFrame(parent, fg_color="transparent")
+        col3_container.grid(row=1, column=2, padx=10, pady=5, sticky="nsew")
+
+        # Card 4: Charuco Calibration Settings
+        calib_frame = ctk.CTkFrame(col3_container)
+        calib_frame.pack(fill="x", pady=5)
+        ctk.CTkLabel(calib_frame, text="4. Charuco Board (FreeMoCap)", font=ctk.CTkFont(weight="bold")).pack(anchor="w", padx=10, pady=5)
         
-        # Log
-        self.txt_log = ctk.CTkTextbox(parent, height=150)
-        self.txt_log.grid(row=1, column=0, columnspan=2, sticky="nsew", pady=20)
+        d_frame = ctk.CTkFrame(calib_frame, fg_color="transparent")
+        d_frame.pack(fill="x", padx=10, pady=2)
+        ctk.CTkLabel(d_frame, text="Dictionary:").pack(side="left")
+        self.charuco_dict = ctk.CTkComboBox(d_frame, values=["DICT_4X4_50", "DICT_4X4_100", "DICT_5X5_50", "DICT_5X5_100", "DICT_6X6_250"])
+        self.charuco_dict.set("DICT_4X4_50")
+        self.charuco_dict.pack(side="right")
+        
+        sq_frame = ctk.CTkFrame(calib_frame, fg_color="transparent")
+        sq_frame.pack(fill="x", padx=10, pady=2)
+        ctk.CTkLabel(sq_frame, text="Squares X/Y:").pack(side="left")
+        self.charuco_x = ctk.CTkEntry(sq_frame, width=40)
+        self.charuco_x.insert(0, "5")
+        self.charuco_x.pack(side="right")
+        ctk.CTkLabel(sq_frame, text="x").pack(side="right", padx=5)
+        self.charuco_y = ctk.CTkEntry(sq_frame, width=40)
+        self.charuco_y.insert(0, "3")
+        self.charuco_y.pack(side="right")
+        
+        size_frame = ctk.CTkFrame(calib_frame, fg_color="transparent")
+        size_frame.pack(fill="x", padx=10, pady=2)
+        ctk.CTkLabel(size_frame, text="Square Size (mm):").pack(side="left")
+        self.charuco_sq_size = ctk.CTkEntry(size_frame, width=60)
+        self.charuco_sq_size.insert(0, "51")
+        self.charuco_sq_size.pack(side="right")
+        
+        marker_frame = ctk.CTkFrame(calib_frame, fg_color="transparent")
+        marker_frame.pack(fill="x", padx=10, pady=2)
+        ctk.CTkLabel(marker_frame, text="Marker Size (mm):").pack(side="left")
+        self.charuco_marker_size = ctk.CTkEntry(marker_frame, width=60)
+        self.charuco_marker_size.insert(0, "38")
+        self.charuco_marker_size.pack(side="right")
+        
+        self.btn_preview_charuco = ctk.CTkButton(calib_frame, text="Update Board Preview", command=self.update_charuco_preview)
+        self.btn_preview_charuco.pack(fill="x", padx=10, pady=(10, 2))
+        
+        self.lbl_charuco_preview = ctk.CTkLabel(calib_frame, text="No Preview")
+        self.lbl_charuco_preview.pack(pady=5)
+
+        # --- Bottom Row: Log ---
+        log_container = ctk.CTkFrame(parent, fg_color="transparent")
+        log_container.grid(row=2, column=0, columnspan=3, padx=10, pady=5, sticky="nsew")
+        
+        log_frame = ctk.CTkFrame(log_container)
+        log_frame.pack(fill="both", expand=True, pady=0)
+        ctk.CTkLabel(log_frame, text="System Log", font=ctk.CTkFont(weight="bold")).pack(anchor="w", padx=10, pady=5)
+        
+        self.txt_log = ctk.CTkTextbox(log_frame, height=120)
+        self.txt_log.pack(fill="both", expand=True, padx=10, pady=(0, 10))
         self.txt_log.tag_config("success", foreground="#00FF00")
         self.txt_log.tag_config("error", foreground="#FF4444")
         self.log("Welcome to MoCap Recording Station.")
@@ -180,6 +266,9 @@ class MoCapSyncApp(ctk.CTk):
         self.btn_record_live = ctk.CTkButton(self.preview_top_bar, text="⏺ START RECORDING", fg_color="darkred", hover_color="red", command=self.toggle_record)
         self.btn_record_live.pack(side="left", padx=10)
         
+        self.chk_charuco = ctk.CTkCheckBox(self.preview_top_bar, text="Show Charuco")
+        self.chk_charuco.pack(side="left", padx=10)
+        
         self.lbl_live_stats = ctk.CTkLabel(self.preview_top_bar, text="Ready | Space: -- GB", font=ctk.CTkFont(size=16, weight="bold"))
         self.lbl_live_stats.pack(side="left", padx=20)
         
@@ -196,6 +285,110 @@ class MoCapSyncApp(ctk.CTk):
             self.preview_frame.grid_columnconfigure(j, weight=1)
             
     # --- LOGIC ---
+    def save_preset(self):
+        name = self.preset_name_entry.get()
+        if not name:
+            self.log("Please enter a preset name.", "error")
+            return
+            
+        data = {
+            "backend": self.backend_combo.get(),
+            "resolution": self.res_combo.get(),
+            "exposure": self.exposure_slider.get(),
+            "gain": self.gain_slider.get(),
+            "wb": self.wb_slider.get(),
+            "fps": self.fps_entry.get(),
+            "charuco_dict": self.charuco_dict.get(),
+            "charuco_x": self.charuco_x.get(),
+            "charuco_y": self.charuco_y.get(),
+            "charuco_sq_size": self.charuco_sq_size.get(),
+            "charuco_marker_size": self.charuco_marker_size.get()
+        }
+        self.preset_mgr.save_preset(name, data)
+        self.preset_combo.configure(values=["Default"] + self.preset_mgr.get_preset_names())
+        self.preset_combo.set(name)
+        self.log(f"Preset '{name}' saved.", "success")
+        
+    def load_preset(self):
+        name = self.preset_combo.get()
+        if name == "Default" or not name:
+            return
+            
+        data = self.preset_mgr.get_preset(name)
+        if data:
+            self.backend_combo.set(data.get("backend", "DSHOW"))
+            self.res_combo.set(data.get("resolution", "1280x720 (720p)"))
+            self.exposure_slider.set(data.get("exposure", -7))
+            self.update_exposure_label(data.get("exposure", -7))
+            self.gain_slider.set(data.get("gain", 0))
+            self.update_gain_label(data.get("gain", 0))
+            self.wb_slider.set(data.get("wb", 5600))
+            self.update_wb_label(data.get("wb", 5600))
+            
+            self.fps_entry.delete(0, 'end')
+            self.fps_entry.insert(0, data.get("fps", "60"))
+            
+            self.charuco_dict.set(data.get("charuco_dict", "DICT_4X4_50"))
+            self.charuco_x.delete(0, 'end')
+            self.charuco_x.insert(0, data.get("charuco_x", "11"))
+            self.charuco_y.delete(0, 'end')
+            self.charuco_y.insert(0, data.get("charuco_y", "8"))
+            self.charuco_sq_size.delete(0, 'end')
+            self.charuco_sq_size.insert(0, data.get("charuco_sq_size", "30"))
+            self.charuco_marker_size.delete(0, 'end')
+            self.charuco_marker_size.insert(0, data.get("charuco_marker_size", "22"))
+            
+            self.log(f"Preset '{name}' loaded.", "success")
+            self.update_charuco_preview()
+
+    def update_charuco_preview(self):
+        try:
+            dict_str = self.charuco_dict.get()
+            x = int(self.charuco_x.get())
+            y = int(self.charuco_y.get())
+            
+            sq_size = float(self.charuco_sq_size.get())
+            marker_size = float(self.charuco_marker_size.get())
+            
+            dict_mapping = {
+                "DICT_4X4_50": cv2.aruco.DICT_4X4_50,
+                "DICT_4X4_100": cv2.aruco.DICT_4X4_100,
+                "DICT_5X5_50": cv2.aruco.DICT_5X5_50,
+                "DICT_5X5_100": cv2.aruco.DICT_5X5_100,
+                "DICT_6X6_250": cv2.aruco.DICT_6X6_250
+            }
+            dict_id = dict_mapping.get(dict_str, cv2.aruco.DICT_4X4_50)
+            
+            if hasattr(cv2.aruco, 'getPredefinedDictionary'):
+                aruco_dict = cv2.aruco.getPredefinedDictionary(dict_id)
+            else:
+                aruco_dict = cv2.aruco.Dictionary_get(dict_id)
+                
+            if hasattr(cv2.aruco, 'CharucoBoard'):
+                board = cv2.aruco.CharucoBoard((x, y), sq_size, marker_size, aruco_dict)
+                if hasattr(board, 'generateImage'):
+                    img_cv = board.generateImage((x * 40, y * 40))
+                else:
+                    img_cv = board.draw((x * 40, y * 40))
+            else:
+                board = cv2.aruco.CharucoBoard_create(x, y, sq_size, marker_size, aruco_dict)
+                img_cv = board.draw((x * 40, y * 40))
+                
+            if len(img_cv.shape) == 2:
+                img_cv = cv2.cvtColor(img_cv, cv2.COLOR_GRAY2RGB)
+                
+            img_pil = Image.fromarray(img_cv)
+            
+            target_w = 250
+            aspect = img_pil.height / img_pil.width
+            target_h = int(target_w * aspect)
+            
+            ctk_img = ctk.CTkImage(light_image=img_pil, dark_image=img_pil, size=(target_w, target_h))
+            self.lbl_charuco_preview.configure(image=ctk_img, text="")
+            
+        except Exception as e:
+            self.log(f"Charuco preview failed: {e}", "error")
+
     def get_free_space(self):
         try:
             import shutil
@@ -393,6 +586,40 @@ class MoCapSyncApp(ctk.CTk):
                 if target_w > 10 and target_h > 10:
                     # Convert BGR to RGB (creates a new array, safe to modify)
                     rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    
+                    # --- Live Charuco Detection ---
+                    if getattr(self, 'chk_charuco', None) and self.chk_charuco.get() == 1:
+                        try:
+                            dict_str = self.charuco_dict.get()
+                            dict_mapping = {
+                                "DICT_4X4_50": cv2.aruco.DICT_4X4_50,
+                                "DICT_4X4_100": cv2.aruco.DICT_4X4_100,
+                                "DICT_5X5_50": cv2.aruco.DICT_5X5_50,
+                                "DICT_5X5_100": cv2.aruco.DICT_5X5_100,
+                                "DICT_6X6_250": cv2.aruco.DICT_6X6_250
+                            }
+                            dict_id = dict_mapping.get(dict_str, cv2.aruco.DICT_4X4_50)
+                            
+                            # Handle different OpenCV versions for getPredefinedDictionary
+                            if hasattr(cv2.aruco, 'getPredefinedDictionary'):
+                                aruco_dict = cv2.aruco.getPredefinedDictionary(dict_id)
+                            else:
+                                aruco_dict = cv2.aruco.Dictionary_get(dict_id)
+                                
+                            if hasattr(cv2.aruco, 'DetectorParameters'):
+                                parameters = cv2.aruco.DetectorParameters()
+                            else:
+                                parameters = cv2.aruco.DetectorParameters_create()
+                                
+                            gray = cv2.cvtColor(rgb_frame, cv2.COLOR_RGB2GRAY)
+                            corners, ids, rejected = cv2.aruco.detectMarkers(gray, aruco_dict, parameters=parameters)
+                            
+                            if corners and len(corners) > 0:
+                                cv2.aruco.drawDetectedMarkers(rgb_frame, corners, ids)
+                        except Exception as e:
+                            self.log(f"Charuco Error: {e}", "error")
+                            self.chk_charuco.deselect()
+                    # ------------------------------
                     
                     # --- FPS Overlay ---
                     fps = 0.0
