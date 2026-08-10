@@ -612,7 +612,12 @@ class MoCapSyncApp(ctk.CTk):
                                 parameters = cv2.aruco.DetectorParameters_create()
                                 
                             gray = cv2.cvtColor(rgb_frame, cv2.COLOR_RGB2GRAY)
-                            corners, ids, rejected = cv2.aruco.detectMarkers(gray, aruco_dict, parameters=parameters)
+                            
+                            if hasattr(cv2.aruco, 'ArucoDetector'):
+                                detector = cv2.aruco.ArucoDetector(aruco_dict, parameters)
+                                corners, ids, rejected = detector.detectMarkers(gray)
+                            else:
+                                corners, ids, rejected = cv2.aruco.detectMarkers(gray, aruco_dict, parameters=parameters)
                             
                             if corners and len(corners) > 0:
                                 cv2.aruco.drawDetectedMarkers(rgb_frame, corners, ids)
