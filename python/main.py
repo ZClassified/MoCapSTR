@@ -57,6 +57,15 @@ class MoCapSyncApp(ctk.CTk):
         
         # Cameras
         ctk.CTkLabel(left, text="Camera Setup", font=ctk.CTkFont(size=20, weight="bold")).pack(anchor="w", pady=(0, 10))
+        
+        # Backend Selector
+        backend_frame = ctk.CTkFrame(left, fg_color="transparent")
+        backend_frame.pack(fill="x", pady=5)
+        ctk.CTkLabel(backend_frame, text="Backend:").pack(side="left")
+        self.backend_combo = ctk.CTkComboBox(backend_frame, values=["DSHOW", "MSMF", "ANY"], width=100)
+        self.backend_combo.set("DSHOW")
+        self.backend_combo.pack(side="right")
+        
         self.btn_scan = ctk.CTkButton(left, text="Scan & Open Cameras", command=self.scan_cameras)
         self.btn_scan.pack(fill="x", pady=5)
         self.lbl_cams_found = ctk.CTkLabel(left, text="Cameras found: 0")
@@ -190,13 +199,13 @@ class MoCapSyncApp(ctk.CTk):
         self.txt_log.see(tk.END)
 
     def scan_cameras(self):
-        self.log("Scanning for cameras...")
+        self.log("Scanning for cameras (this may take a few seconds)...")
+        self.btn_scan.configure(state="disabled")
+        
         def scan():
-            self.camera_indices = self.cam_mgr.find_cameras(6) # Limit to 6
+            backend = self.backend_combo.get()
+            self.camera_indices = self.cam_mgr.find_and_open_cameras(6, backend_name=backend)
             self.lbl_cams_found.configure(text=f"Cameras found: {len(self.camera_indices)} ({self.camera_indices})")
-            
-            for idx in self.camera_indices:
-                self.cam_mgr.open_camera(idx)
                 
             # Setup preview grid
             for widget in self.preview_frame.winfo_children():
@@ -229,6 +238,8 @@ class MoCapSyncApp(ctk.CTk):
                 rot_menu.set("0°")
                 rot_menu.grid(row=1, column=0, pady=2, sticky="ew")
                 
+            self.btn_scan.configure(state="normal")
+            
             # Start background grabbing threads
             self.recorder.start_workers(self.cam_mgr.cameras)
             self.log("Workers started. Go to Live Preview tab to see feeds.")
