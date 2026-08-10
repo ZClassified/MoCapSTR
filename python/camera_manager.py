@@ -36,32 +36,44 @@ class CameraManager:
         for index in list(self.cameras.keys()):
             self.close_camera(index)
             
-    def apply_settings(self, index, width=1280, height=800, fps=60, exposure_value=None):
+    def apply_settings(self, index, width=1280, height=800, fps=60, exposure_value=None, gain_value=None, wb_value=None):
         """
         Applies settings to a specific camera.
-        Note: The scale and meaning of exposure_value depends heavily on the camera driver (UVC).
-        Usually in OpenCV with DSHOW, exposure is a negative value like -4 to -8, meaning 2^val seconds.
-        For hardware trigger mode, some cameras require specific vendor extension commands (not standard OpenCV).
+        Reads back the actual values the driver accepted and returns them.
         """
         if index in self.cameras:
             cap = self.cameras[index]
             
-            # Disable auto exposure first if we want to set it manually
-            # cv2.CAP_PROP_AUTO_EXPOSURE: 0.25 (manual), 0.75 (auto) usually for UVC
-            cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.25)
+            # Disable auto settings
+            cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.25) # Manual
+            cap.set(cv2.CAP_PROP_AUTO_WB, 0) # Manual WB
             
             if exposure_value is not None:
                 cap.set(cv2.CAP_PROP_EXPOSURE, exposure_value)
+            if gain_value is not None:
+                cap.set(cv2.CAP_PROP_GAIN, gain_value)
+            if wb_value is not None:
+                cap.set(cv2.CAP_PROP_WB_TEMPERATURE, wb_value)
                 
             cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
             cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
             cap.set(cv2.CAP_PROP_FPS, fps)
             
+            # Read back ACTUAL values
+            actual_w = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+            actual_h = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+            actual_fps = cap.get(cv2.CAP_PROP_FPS)
+            actual_exp = cap.get(cv2.CAP_PROP_EXPOSURE)
+            actual_gain = cap.get(cv2.CAP_PROP_GAIN)
+            actual_wb = cap.get(cv2.CAP_PROP_WB_TEMPERATURE)
+            
             return {
-                "width": cap.get(cv2.CAP_PROP_FRAME_WIDTH),
-                "height": cap.get(cv2.CAP_PROP_FRAME_HEIGHT),
-                "fps": cap.get(cv2.CAP_PROP_FPS),
-                "exposure": cap.get(cv2.CAP_PROP_EXPOSURE)
+                "width": int(actual_w) if actual_w else None,
+                "height": int(actual_h) if actual_h else None,
+                "fps": actual_fps,
+                "exposure": actual_exp,
+                "gain": actual_gain,
+                "wb": actual_wb
             }
         return None
         
