@@ -15,8 +15,25 @@ class CameraManager:
         elif backend_name == "ANY":
             backend = cv2.CAP_ANY
             
+        try:
+            from pygrabber.dshow_graph import FilterGraph
+            graph = FilterGraph()
+            device_names = graph.get_input_devices()
+        except ImportError:
+            device_names = []
+            
         available_cams = []
         for i in range(max_index):
+            if i < len(device_names):
+                cam_name = device_names[i].lower()
+                is_blackmagic = "blackmagic" in cam_name or "decklink" in cam_name
+                if camera_type == "USB Webcams" and is_blackmagic:
+                    print(f"Skipping index {i} ({device_names[i]}) - USB Webcams mode active.")
+                    continue
+                if camera_type == "Blackmagic SDI" and not is_blackmagic:
+                    print(f"Skipping index {i} ({device_names[i]}) - Blackmagic SDI mode active.")
+                    continue
+                    
             cap = cv2.VideoCapture(i, backend)
             if cap.isOpened():
                 if camera_type == "Blackmagic SDI":
@@ -27,8 +44,11 @@ class CameraManager:
                     cap.set(cv2.CAP_PROP_FPS, target_fps)
                     # We do NOT force MJPG for SDI, as it is uncompressed raw data
                 else:
-                    # Attempt to force MJPG (helps ELP webcams on MSMF avoid freezing)
+                    print(f"Setting USB Webcam format to MJPG {target_w}x{target_h} @ {target_fps}fps on index {i}")
                     cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
+                    cap.set(cv2.CAP_PROP_FRAME_WIDTH, target_w)
+                    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, target_h)
+                    cap.set(cv2.CAP_PROP_FPS, target_fps)
                 
                 # Try to grab a frame to ensure it's a real camera and not a dead virtual interface
                 ret, _ = cap.read()
@@ -71,6 +91,7 @@ class CameraManager:
             if wb_value is not None:
                 cap.set(cv2.CAP_PROP_WB_TEMPERATURE, wb_value)
                 
+            cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
             cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
             cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
             cap.set(cv2.CAP_PROP_FPS, fps)

@@ -6,7 +6,7 @@ import queue
 import subprocess
 
 class CameraWorker(threading.Thread):
-    def __init__(self, cam_id, cap):
+    def __init__(self, cam_id, cap, target_fps=50):
         super().__init__()
         self.cam_id = cam_id
         self.cap = cap
@@ -21,9 +21,10 @@ class CameraWorker(threading.Thread):
         self.last_fps_time = time.time()
         self.frame_count_for_fps = 0
         
-        # Erhöhter Puffer (150 Frames = 3 Sekunden bei 50fps), 
-        # um die Startverzögerung von FFmpeg (insbesondere bei Hardware-Encodern wie AMF) abzufangen.
-        self.frame_queue = queue.Queue(maxsize=150)
+        # Dynamischer Puffer (3 Sekunden bei Ziel-FPS), 
+        # um die Startverzögerung von FFmpeg abzufangen.
+        buffer_size = int(target_fps * 3)
+        self.frame_queue = queue.Queue(maxsize=buffer_size)
         self.writer_thread = None
         self.frames_recorded = 0
         
@@ -244,11 +245,11 @@ class MultiCamManager:
             "XVID (.avi) - High Comp": ("XVID", ".avi")
         }
         
-    def start_workers(self, cameras):
+    def start_workers(self, cameras, target_fps=50):
         """Starts background grabbing for all opened cameras"""
         for idx, cap in cameras.items():
             if idx not in self.workers:
-                worker = CameraWorker(f"Cam_{idx}", cap)
+                worker = CameraWorker(f"Cam_{idx}", cap, target_fps)
                 worker.start()
                 self.workers[idx] = worker
                 
