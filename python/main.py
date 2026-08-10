@@ -77,10 +77,10 @@ class MoCapSyncApp(ctk.CTk):
         self.res_combo.set("1280x720 (720p)")
         self.res_combo.pack(fill="x")
 
-        self.lbl_exposure = ctk.CTkLabel(left, text="Exposure (Shutter Speed): 1/32s")
+        self.lbl_exposure = ctk.CTkLabel(left, text="Exposure (Shutter Speed): 1/128s")
         self.lbl_exposure.pack(anchor="w", pady=(10, 0))
         self.exposure_slider = ctk.CTkSlider(left, from_=-11, to=-3, number_of_steps=8, command=self.update_exposure_label)
-        self.exposure_slider.set(-5)
+        self.exposure_slider.set(-7)
         self.exposure_slider.pack(fill="x")
         
         self.lbl_gain = ctk.CTkLabel(left, text="Gain: 0")
@@ -89,10 +89,10 @@ class MoCapSyncApp(ctk.CTk):
         self.gain_slider.set(0)
         self.gain_slider.pack(fill="x")
         
-        self.lbl_wb = ctk.CTkLabel(left, text="White Balance: 4000K")
+        self.lbl_wb = ctk.CTkLabel(left, text="White Balance: 5600K")
         self.lbl_wb.pack(anchor="w", pady=(10, 0))
-        self.wb_slider = ctk.CTkSlider(left, from_=2000, to=8000, command=self.update_wb_label)
-        self.wb_slider.set(4000)
+        self.wb_slider = ctk.CTkSlider(left, from_=2000, to=8000, number_of_steps=60, command=self.update_wb_label)
+        self.wb_slider.set(5600)
         self.wb_slider.pack(fill="x")
         self.btn_apply_cams = ctk.CTkButton(left, text="Apply Camera Settings", command=self.apply_camera_settings)
         self.btn_apply_cams.pack(fill="x", pady=15)
