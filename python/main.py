@@ -206,9 +206,28 @@ class MoCapSyncApp(ctk.CTk):
             for i, idx in enumerate(self.camera_indices):
                 row = i // 3
                 col = i % 3
-                lbl = tk.Label(self.preview_frame, bg="black")
-                lbl.grid(row=row, column=col, sticky="nsew", padx=2, pady=2)
+                
+                # Container for this camera
+                cam_frame = ctk.CTkFrame(self.preview_frame)
+                cam_frame.grid(row=row, column=col, sticky="nsew", padx=2, pady=2)
+                cam_frame.grid_rowconfigure(0, weight=1)
+                cam_frame.grid_columnconfigure(0, weight=1)
+                
+                # Label for video
+                lbl = tk.Label(cam_frame, bg="black")
+                lbl.grid(row=0, column=0, sticky="nsew")
                 self.preview_labels[idx] = lbl
+                
+                # Rotation Dropdown
+                def make_rot_callback(cam_id):
+                    def callback(choice):
+                        deg = int(choice.split('°')[0])
+                        self.recorder.set_camera_rotation(cam_id, deg)
+                    return callback
+                
+                rot_menu = ctk.CTkOptionMenu(cam_frame, values=["0°", "90° (Portrait)", "180°", "270° (Portrait)"], command=make_rot_callback(idx))
+                rot_menu.set("0°")
+                rot_menu.grid(row=1, column=0, pady=2, sticky="ew")
                 
             # Start background grabbing threads
             self.recorder.start_workers(self.cam_mgr.cameras)
@@ -263,13 +282,11 @@ class MoCapSyncApp(ctk.CTk):
             is_calib = (self.record_type.get() == "calibration")
             save_dir = self.proj_mgr.get_recording_folder(is_calib)
             
-            res_str = self.res_combo.get().split(' ')[0]
-            w, h = map(int, res_str.split('x'))
             fps = int(self.fps_entry.get())
             codec = self.codec_combo.get()
             
             self.log(f"Starting recording to: {save_dir}")
-            self.recorder.start_recording(save_dir, fps, (w, h), codec)
+            self.recorder.start_recording(save_dir, fps, codec)
             
             self.btn_record.configure(text="⏹ STOP RECORDING", fg_color="red", hover_color="darkred")
         else:

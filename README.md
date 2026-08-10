@@ -9,7 +9,7 @@ MoCapST ist eine spezialisierte Steuerungs- und Aufnahme-Software für markerlos
 - **Arduino Hardware Triggering:** Nutzt einen Arduino als hochpräzise Master-Clock, um unterstützte Hardware-Trigger-Kameras exakt auszulösen.
 - **Multi-Threaded Recording:** Dedizierte Hintergrund-Threads für jede Kamera garantieren eine Aufnahme ohne Frame-Drops, selbst bei 6 Kameras gleichzeitig.
 - **FreeMoCap Integration:** Speichert Aufnahmen automatisch in der Ordnerstruktur, die FreeMoCap für "Pre-recorded Data" (`synchronized_videos`) erwartet.
-- **Live Preview:** Gleichzeitige Vorschau von bis zu 6 Kameras im Raster-Format.
+- **Live Preview & Rotation:** Gleichzeitige Vorschau von bis zu 6 Kameras im Raster-Format. Jede Kamera kann individuell in der Software gedreht werden (0°, 90°, 180°, 270°), was MoCap-Setups mit Hochkant-Kameras (Portrait Mode) massiv erleichtert.
 
 ---
 
