@@ -1,7 +1,7 @@
 # Active Context
 
-**Current Status:** MoCap Live-Preview UI enhancements implemented (FPS overlay, Record Timer, Space Warning, Dropped Frames Warning).
-**Last Modified:** 2026-08-10 11:53:00
+**Current Status:** Implemented Preset System, modernized Setup UI, and added live FreeMoCap Charuco detection in the preview tab.
+**Last Modified:** 2026-08-10 12:45:00
 
 ---
 
@@ -18,3 +18,5 @@ This ensures that the next AI assistant immediately knows what was just done and
 ## Recent Changes
 - **2026-08-10:** Added dynamic FPS counter overlay to camera previews with color coding (Green/Yellow/Red) based on target framerate.
 - **2026-08-10:** Added top control bar in Live Preview tab including Recording Timer, Frame Counter, Disk Space Warning, and live Dropped Frame detection.
+- **2026-08-10:** Implemented `PresetManager` to save/load all UI settings to `presets.json`. Overhauled the Setup Tab UI using `CTkFrame` cards for better grouping.
+- **2026-08-10:** Added FreeMoCap specific Charuco Board parameters (Dictionary, Grid, Sizes) and a live `cv2.aruco` detection overlay in the Live Preview tab.
