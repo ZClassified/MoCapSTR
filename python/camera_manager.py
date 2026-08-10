@@ -4,28 +4,33 @@ class CameraManager:
     def __init__(self):
         self.cameras = {} # Dictionary mapping index to cv2.VideoCapture object
         
-    def find_cameras(self, max_index=10):
-        """Scans for available cameras using DirectShow on Windows."""
-        print("Scanning for cameras...")
+    def find_and_open_cameras(self, max_index=6, backend_name="DSHOW"):
+        """Scans for available cameras and keeps them open to avoid Windows lockups."""
+        self.close_all()
+        print(f"Scanning for cameras using {backend_name}...")
+        
+        backend = cv2.CAP_DSHOW
+        if backend_name == "MSMF":
+            backend = cv2.CAP_MSMF
+        elif backend_name == "ANY":
+            backend = cv2.CAP_ANY
+            
         available_cams = []
         for i in range(max_index):
-            # CAP_DSHOW is often required on Windows to set exposure properly
-            cap = cv2.VideoCapture(i, cv2.CAP_DSHOW)
+            cap = cv2.VideoCapture(i, backend)
             if cap.isOpened():
-                ret, frame = cap.read()
+                # Try to grab a frame to ensure it's a real camera and not a dead virtual interface
+                ret, _ = cap.read()
                 if ret:
+                    self.cameras[i] = cap
                     available_cams.append(i)
+                else:
+                    cap.release()
+            else:
                 cap.release()
-        print(f"Found cameras at indices: {available_cams}")
+                
+        print(f"Successfully opened cameras at indices: {available_cams}")
         return available_cams
-        
-    def open_camera(self, index):
-        if index not in self.cameras:
-            cap = cv2.VideoCapture(index, cv2.CAP_DSHOW)
-            if cap.isOpened():
-                self.cameras[index] = cap
-                return True
-        return False
         
     def close_camera(self, index):
         if index in self.cameras:
