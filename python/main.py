@@ -152,7 +152,7 @@ class MoCapSyncApp(ctk.CTk):
         f_fps.pack(fill="x", padx=10, pady=5)
         ctk.CTkLabel(f_fps, text="Target Framerate (FPS):").pack(side="left")
         self.fps_entry = ctk.CTkEntry(f_fps, width=60)
-        self.fps_entry.insert(0, "60")
+        self.fps_entry.insert(0, "50")
         self.fps_entry.pack(side="right")
         
         self.btn_start_sync = ctk.CTkButton(sync_frame, text="START HARDWARE TRIGGER", fg_color="green", hover_color="darkgreen", command=self.start_sync, state="disabled")
@@ -382,7 +382,7 @@ class MoCapSyncApp(ctk.CTk):
             self.update_wb_label(data.get("wb", 5600))
             
             self.fps_entry.delete(0, 'end')
-            self.fps_entry.insert(0, data.get("fps", "60"))
+            self.fps_entry.insert(0, data.get("fps", "50"))
             
             self.charuco_dict.set(data.get("charuco_dict", "DICT_4X4_50"))
             self.charuco_x.delete(0, 'end')
@@ -502,7 +502,7 @@ class MoCapSyncApp(ctk.CTk):
             try:
                 target_fps = int(self.fps_entry.get())
             except ValueError:
-                target_fps = 60
+                target_fps = 50
                 
             self.camera_indices = self.cam_mgr.find_and_open_cameras(
                 6, 
@@ -714,7 +714,7 @@ class MoCapSyncApp(ctk.CTk):
                     try:
                         target_fps = float(self.fps_entry.get())
                     except ValueError:
-                        target_fps = 60.0
+                        target_fps = 50.0
                         
                     # Determine color based on deviation
                     diff = abs(fps - target_fps)

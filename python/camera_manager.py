@@ -4,7 +4,7 @@ class CameraManager:
     def __init__(self):
         self.cameras = {} # Dictionary mapping index to cv2.VideoCapture object
         
-    def find_and_open_cameras(self, max_index=6, backend_name="DSHOW", camera_type="USB Webcams", target_w=1280, target_h=720, target_fps=60):
+    def find_and_open_cameras(self, max_index=6, backend_name="DSHOW", camera_type="USB Webcams", target_w=1280, target_h=720, target_fps=50):
         """Scans for available cameras and keeps them open to avoid Windows lockups."""
         self.close_all()
         print(f"Scanning for cameras using {backend_name} (Type: {camera_type})...")
@@ -52,7 +52,7 @@ class CameraManager:
         for index in list(self.cameras.keys()):
             self.close_camera(index)
             
-    def apply_settings(self, index, width=1280, height=800, fps=60, exposure_value=None, gain_value=None, wb_value=None):
+    def apply_settings(self, index, width=1280, height=800, fps=50, exposure_value=None, gain_value=None, wb_value=None):
         """
         Applies settings to a specific camera.
         Reads back the actual values the driver accepted and returns them.
@@ -107,7 +107,7 @@ if __name__ == "__main__":
     if cams:
         idx = cams[0]
         cam_mgr.open_camera(idx)
-        print("Settings applied:", cam_mgr.apply_settings(idx, 1280, 800, 60))
+        print("Settings applied:", cam_mgr.apply_settings(idx, 1280, 800, 50))
         frame = cam_mgr.get_frame(idx)
         if frame is not None:
             print("Successfully captured a frame of shape:", frame.shape)
