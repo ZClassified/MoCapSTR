@@ -2,11 +2,13 @@ import tkinter as tk
 import customtkinter as ctk
 from camera_manager import CameraManager
 from arduino_sync import ArduinoSync
+from project_manager import ProjectManager
+from recorder import MultiCamManager
 import cv2
-from PIL import Image
+from PIL import Image, ImageTk
 import threading
+import os
 
-# Configuration
 ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme("blue")
 
@@ -14,162 +16,253 @@ class MoCapSyncApp(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("OV9281 MoCap Sync Controller")
-        self.geometry("900x700")
-
+        self.title("OV9281 MoCap Recording Station")
+        self.geometry("1100x800")
+        
+        # Managers
         self.cam_mgr = CameraManager()
         self.arduino = ArduinoSync()
+        self.proj_mgr = ProjectManager()
+        self.recorder = MultiCamManager()
         
         self.camera_indices = []
+        self.preview_labels = {} # Grid for previews
         
         self.build_ui()
+        self.after(50, self.update_preview) # Start preview loop
         
     def build_ui(self):
-        # Grid layout
-        self.grid_columnconfigure(0, weight=1)
-        self.grid_columnconfigure(1, weight=1)
-        self.grid_rowconfigure(0, weight=1)
-
-        # Left Panel (Controls)
-        self.left_panel = ctk.CTkFrame(self)
-        self.left_panel.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
+        self.tabview = ctk.CTkTabview(self)
+        self.tabview.pack(fill="both", expand=True, padx=10, pady=10)
         
-        # Right Panel (Status / Preview)
-        self.right_panel = ctk.CTkFrame(self)
-        self.right_panel.grid(row=0, column=1, padx=10, pady=10, sticky="nsew")
-
-        self.build_camera_controls(self.left_panel)
-        self.build_arduino_controls(self.left_panel)
-        self.build_status_panel(self.right_panel)
-
-    def build_camera_controls(self, parent):
-        frame = ctk.CTkFrame(parent, fg_color="transparent")
-        frame.pack(fill="x", padx=10, pady=10)
+        self.tab_setup = self.tabview.add("1. Setup & Cameras")
+        self.tab_record = self.tabview.add("2. Project & Recording")
+        self.tab_preview = self.tabview.add("3. Live Preview")
         
-        ctk.CTkLabel(frame, text="Camera Settings", font=ctk.CTkFont(size=20, weight="bold")).pack(anchor="w", pady=(0, 10))
+        self.build_setup_tab(self.tab_setup)
+        self.build_record_tab(self.tab_record)
+        self.build_preview_tab(self.tab_preview)
+
+    # --- TAB 1: SETUP ---
+    def build_setup_tab(self, parent):
+        parent.grid_columnconfigure(0, weight=1)
+        parent.grid_columnconfigure(1, weight=1)
         
-        self.btn_scan = ctk.CTkButton(frame, text="Scan Cameras", command=self.scan_cameras)
+        left = ctk.CTkFrame(parent, fg_color="transparent")
+        left.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
+        
+        right = ctk.CTkFrame(parent, fg_color="transparent")
+        right.grid(row=0, column=1, padx=10, pady=10, sticky="nsew")
+        
+        # Cameras
+        ctk.CTkLabel(left, text="Camera Setup", font=ctk.CTkFont(size=20, weight="bold")).pack(anchor="w", pady=(0, 10))
+        self.btn_scan = ctk.CTkButton(left, text="Scan & Open Cameras", command=self.scan_cameras)
         self.btn_scan.pack(fill="x", pady=5)
-        
-        self.lbl_cams_found = ctk.CTkLabel(frame, text="Cameras found: 0")
+        self.lbl_cams_found = ctk.CTkLabel(left, text="Cameras found: 0")
         self.lbl_cams_found.pack(anchor="w")
 
-        # Resolution
-        ctk.CTkLabel(frame, text="Resolution:").pack(anchor="w", pady=(10, 0))
-        self.res_combo = ctk.CTkComboBox(frame, values=["1280x800", "1280x720", "640x400"])
+        ctk.CTkLabel(left, text="Resolution:").pack(anchor="w", pady=(10, 0))
+        self.res_combo = ctk.CTkComboBox(left, values=["1280x800", "1280x720", "640x400"])
         self.res_combo.pack(fill="x")
 
-        # Exposure Slider
-        self.lbl_exposure = ctk.CTkLabel(frame, text="Exposure (Shutter Speed): 1/32s")
+        self.lbl_exposure = ctk.CTkLabel(left, text="Exposure (Shutter Speed): 1/32s")
         self.lbl_exposure.pack(anchor="w", pady=(10, 0))
-        self.exposure_slider = ctk.CTkSlider(frame, from_=-11, to=-3, number_of_steps=8, command=self.update_exposure_label)
+        self.exposure_slider = ctk.CTkSlider(left, from_=-11, to=-3, number_of_steps=8, command=self.update_exposure_label)
         self.exposure_slider.set(-5)
         self.exposure_slider.pack(fill="x")
         
-        self.btn_apply_cams = ctk.CTkButton(frame, text="Apply Camera Settings", command=self.apply_camera_settings)
+        self.btn_apply_cams = ctk.CTkButton(left, text="Apply Camera Settings", command=self.apply_camera_settings)
         self.btn_apply_cams.pack(fill="x", pady=15)
-
-    def build_arduino_controls(self, parent):
-        frame = ctk.CTkFrame(parent, fg_color="transparent")
-        frame.pack(fill="x", padx=10, pady=20)
         
-        ctk.CTkLabel(frame, text="Arduino Hardware Sync", font=ctk.CTkFont(size=20, weight="bold")).pack(anchor="w", pady=(0, 10))
-        
-        # COM Port Selection
+        # Arduino
+        ctk.CTkLabel(right, text="Arduino Hardware Sync", font=ctk.CTkFont(size=20, weight="bold")).pack(anchor="w", pady=(0, 10))
         ports = ArduinoSync.get_available_ports()
-        self.port_combo = ctk.CTkComboBox(frame, values=ports if ports else ["No Ports Found"])
+        self.port_combo = ctk.CTkComboBox(right, values=ports if ports else ["No Ports Found"])
         self.port_combo.pack(fill="x", pady=5)
         
-        self.btn_connect = ctk.CTkButton(frame, text="Connect Arduino", command=self.connect_arduino)
+        self.btn_connect = ctk.CTkButton(right, text="Connect Arduino", command=self.connect_arduino)
         self.btn_connect.pack(fill="x", pady=5)
         
-        # FPS Setting
-        ctk.CTkLabel(frame, text="Target Framerate (FPS):").pack(anchor="w", pady=(10, 0))
-        self.fps_entry = ctk.CTkEntry(frame)
+        ctk.CTkLabel(right, text="Target Framerate (FPS):").pack(anchor="w", pady=(10, 0))
+        self.fps_entry = ctk.CTkEntry(right)
         self.fps_entry.insert(0, "60")
         self.fps_entry.pack(fill="x")
         
-        # Trigger Control
-        self.btn_start = ctk.CTkButton(frame, text="START SYNC TRIGGER", fg_color="green", hover_color="darkgreen", command=self.start_sync, state="disabled")
-        self.btn_start.pack(fill="x", pady=10)
+        self.btn_start_sync = ctk.CTkButton(right, text="START HARDWARE TRIGGER", fg_color="green", hover_color="darkgreen", command=self.start_sync, state="disabled")
+        self.btn_start_sync.pack(fill="x", pady=10)
+        self.btn_stop_sync = ctk.CTkButton(right, text="STOP HARDWARE TRIGGER", fg_color="red", hover_color="darkred", command=self.stop_sync, state="disabled")
+        self.btn_stop_sync.pack(fill="x", pady=5)
         
-        self.btn_stop = ctk.CTkButton(frame, text="STOP SYNC TRIGGER", fg_color="red", hover_color="darkred", command=self.stop_sync, state="disabled")
-        self.btn_stop.pack(fill="x", pady=5)
+        # Log
+        self.txt_log = ctk.CTkTextbox(parent, height=150)
+        self.txt_log.grid(row=1, column=0, columnspan=2, sticky="nsew", pady=20)
+        self.log("Welcome to MoCap Recording Station.")
 
-    def build_status_panel(self, parent):
-        ctk.CTkLabel(parent, text="System Status", font=ctk.CTkFont(size=20, weight="bold")).pack(anchor="w", padx=10, pady=(10, 10))
+    # --- TAB 2: RECORDING ---
+    def build_record_tab(self, parent):
+        parent.grid_columnconfigure(0, weight=1)
         
-        self.txt_log = ctk.CTkTextbox(parent, height=500)
-        self.txt_log.pack(fill="both", expand=True, padx=10, pady=10)
-        self.log("Application started.")
-        self.log("Ready to scan cameras and connect Arduino.")
+        # Project Config
+        frame_proj = ctk.CTkFrame(parent)
+        frame_proj.pack(fill="x", padx=10, pady=10)
+        
+        ctk.CTkLabel(frame_proj, text="Project Settings", font=ctk.CTkFont(weight="bold")).pack(anchor="w", padx=10, pady=(10,0))
+        
+        ctk.CTkLabel(frame_proj, text="Project Name (e.g. LivingRoom_Setup_1):").pack(anchor="w", padx=10, pady=(5,0))
+        self.proj_name_entry = ctk.CTkEntry(frame_proj)
+        self.proj_name_entry.insert(0, "My_MoCap_Project")
+        self.proj_name_entry.pack(fill="x", padx=10, pady=(0, 10))
+        
+        # Recording Config
+        frame_rec = ctk.CTkFrame(parent)
+        frame_rec.pack(fill="x", padx=10, pady=10)
+        
+        ctk.CTkLabel(frame_rec, text="Recording Setup", font=ctk.CTkFont(weight="bold")).pack(anchor="w", padx=10, pady=(10,0))
+        
+        ctk.CTkLabel(frame_rec, text="Video Codec:").pack(anchor="w", padx=10)
+        self.codec_combo = ctk.CTkComboBox(frame_rec, values=list(self.recorder.get_supported_codecs().keys()))
+        self.codec_combo.pack(fill="x", padx=10, pady=(0, 10))
+        
+        ctk.CTkLabel(frame_rec, text="Record Type:").pack(anchor="w", padx=10)
+        self.record_type = ctk.StringVar(value="motion")
+        ctk.CTkRadioButton(frame_rec, text="Motion Take (Normal)", variable=self.record_type, value="motion").pack(anchor="w", padx=10, pady=5)
+        ctk.CTkRadioButton(frame_rec, text="Calibration (Charuco)", variable=self.record_type, value="calibration").pack(anchor="w", padx=10, pady=5)
+        
+        # Big Record Buttons
+        self.btn_record = ctk.CTkButton(parent, text="⏺ START RECORDING", fg_color="darkred", hover_color="red", height=60, font=ctk.CTkFont(size=24, weight="bold"), command=self.toggle_record)
+        self.btn_record.pack(fill="x", padx=10, pady=20)
+
+    # --- TAB 3: PREVIEW ---
+    def build_preview_tab(self, parent):
+        # We will dynamically create a grid of up to 6 labels
+        self.preview_frame = ctk.CTkFrame(parent, fg_color="transparent")
+        self.preview_frame.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        for i in range(2):
+            self.preview_frame.grid_rowconfigure(i, weight=1)
+        for j in range(3):
+            self.preview_frame.grid_columnconfigure(j, weight=1)
+            
+    # --- LOGIC ---
+    def update_exposure_label(self, value):
+        val = int(value)
+        denominator = 2 ** abs(val)
+        self.lbl_exposure.configure(text=f"Exposure (Shutter Speed): 1/{denominator}s")
 
     def log(self, message):
         self.txt_log.insert(tk.END, message + "\n")
         self.txt_log.see(tk.END)
 
-    def update_exposure_label(self, value):
-        val = int(value)
-        # Exposure in OpenCV DirectShow is typically 2^value seconds
-        denominator = 2 ** abs(val)
-        self.lbl_exposure.configure(text=f"Exposure (Shutter Speed): 1/{denominator}s")
-
     def scan_cameras(self):
-        self.btn_scan.configure(state="disabled")
         self.log("Scanning for cameras...")
-        
         def scan():
-            self.camera_indices = self.cam_mgr.find_cameras(5)
+            self.camera_indices = self.cam_mgr.find_cameras(6) # Limit to 6
             self.lbl_cams_found.configure(text=f"Cameras found: {len(self.camera_indices)} ({self.camera_indices})")
-            self.log(f"Found {len(self.camera_indices)} cameras.")
+            
             for idx in self.camera_indices:
                 self.cam_mgr.open_camera(idx)
-            self.btn_scan.configure(state="normal")
+                
+            # Setup preview grid
+            for widget in self.preview_frame.winfo_children():
+                widget.destroy()
+            self.preview_labels.clear()
+            
+            for i, idx in enumerate(self.camera_indices):
+                row = i // 3
+                col = i % 3
+                lbl = tk.Label(self.preview_frame, bg="black")
+                lbl.grid(row=row, column=col, sticky="nsew", padx=2, pady=2)
+                self.preview_labels[idx] = lbl
+                
+            # Start background grabbing threads
+            self.recorder.start_workers(self.cam_mgr.cameras)
+            self.log("Workers started. Go to Live Preview tab to see feeds.")
             
         threading.Thread(target=scan).start()
 
     def apply_camera_settings(self):
-        try:
-            res_str = self.res_combo.get()
-            w, h = map(int, res_str.split('x'))
-            fps = int(self.fps_entry.get())
-            exp = int(self.exposure_slider.get())
-            
-            for idx in self.camera_indices:
-                res = self.cam_mgr.apply_settings(idx, width=w, height=h, fps=fps, exposure_value=exp)
-                self.log(f"Cam {idx} settings applied: {res}")
-        except Exception as e:
-            self.log(f"Error applying camera settings: {e}")
+        w, h = map(int, self.res_combo.get().split('x'))
+        fps = int(self.fps_entry.get())
+        exp = int(self.exposure_slider.get())
+        for idx in self.camera_indices:
+            self.cam_mgr.apply_settings(idx, width=w, height=h, fps=fps, exposure_value=exp)
+        self.log("Settings applied to all cameras.")
 
     def connect_arduino(self):
         port = self.port_combo.get()
-        if port and port != "No Ports Found":
-            self.log(f"Connecting to Arduino on {port}...")
-            if self.arduino.connect(port):
-                self.log("Arduino connected successfully!")
-                self.btn_connect.configure(text="Connected", fg_color="gray", state="disabled")
-                self.btn_start.configure(state="normal")
-            else:
-                self.log("Failed to connect to Arduino.")
+        if self.arduino.connect(port):
+            self.log("Arduino connected!")
+            self.btn_connect.configure(text="Connected", state="disabled")
+            self.btn_start_sync.configure(state="normal")
 
     def start_sync(self):
-        try:
-            fps = int(self.fps_entry.get())
-            self.arduino.set_fps(fps)
-            self.arduino.start_trigger()
-            self.log(f"Hardware trigger started at {fps} FPS!")
-            self.btn_start.configure(state="disabled")
-            self.btn_stop.configure(state="normal")
-        except Exception as e:
-            self.log(f"Error starting sync: {e}")
+        fps = int(self.fps_entry.get())
+        self.arduino.set_fps(fps)
+        self.arduino.start_trigger()
+        self.log("Hardware Trigger STARTED!")
+        self.btn_start_sync.configure(state="disabled")
+        self.btn_stop_sync.configure(state="normal")
 
     def stop_sync(self):
         self.arduino.stop_trigger()
-        self.log("Hardware trigger stopped.")
-        self.btn_stop.configure(state="disabled")
-        self.btn_start.configure(state="normal")
+        self.log("Hardware Trigger STOPPED.")
+        self.btn_stop_sync.configure(state="disabled")
+        self.btn_start_sync.configure(state="normal")
+
+    def toggle_record(self):
+        if not self.recorder.is_recording:
+            # START
+            proj_name = self.proj_name_entry.get()
+            if not proj_name:
+                self.log("Error: Enter a project name.")
+                return
+                
+            self.proj_mgr.set_project(proj_name)
+            is_calib = (self.record_type.get() == "calibration")
+            save_dir = self.proj_mgr.get_recording_folder(is_calib)
+            
+            w, h = map(int, self.res_combo.get().split('x'))
+            fps = int(self.fps_entry.get())
+            codec = self.codec_combo.get()
+            
+            self.log(f"Starting recording to: {save_dir}")
+            self.recorder.start_recording(save_dir, fps, (w, h), codec)
+            
+            self.btn_record.configure(text="⏹ STOP RECORDING", fg_color="red", hover_color="darkred")
+        else:
+            # STOP
+            self.recorder.stop_recording()
+            self.btn_record.configure(text="⏺ START RECORDING", fg_color="darkred", hover_color="red")
+            self.log("Recording stopped and saved.")
+
+    def update_preview(self):
+        # Update UI with latest frames
+        frames = self.recorder.get_latest_frames()
+        for idx, frame in frames.items():
+            if idx in self.preview_labels:
+                # Resize keeping aspect ratio for UI
+                lbl = self.preview_labels[idx]
+                target_w = lbl.winfo_width()
+                target_h = lbl.winfo_height()
+                if target_w > 10 and target_h > 10:
+                    # Convert BGR to RGB
+                    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    img = Image.fromarray(rgb_frame)
+                    
+                    # Letterboxing thumbnail
+                    img.thumbnail((target_w, target_h), Image.Resampling.LANCZOS)
+                    # Create new image with black background
+                    new_img = Image.new("RGB", (target_w, target_h), (0, 0, 0))
+                    new_img.paste(img, ((target_w - img.size[0]) // 2, (target_h - img.size[1]) // 2))
+                    
+                    photo = ImageTk.PhotoImage(image=new_img)
+                    lbl.configure(image=photo)
+                    lbl.image = photo # Keep reference
+                    
+        self.after(50, self.update_preview) # ~20 FPS UI update
 
     def on_closing(self):
+        self.recorder.stop_workers()
         self.arduino.disconnect()
         self.cam_mgr.close_all()
         self.destroy()
