@@ -16,6 +16,10 @@ class CameraWorker(threading.Thread):
         self.frames_recorded = 0
         self.rotation_degrees = 0
         
+        self.current_fps = 0.0
+        self.last_fps_time = time.time()
+        self.frame_count_for_fps = 0
+        
     def set_rotation(self, degrees):
         self.rotation_degrees = degrees
         
@@ -49,10 +53,19 @@ class CameraWorker(threading.Thread):
                 elif self.rotation_degrees == 270:
                     frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
                     
+                # FPS calculation
+                self.frame_count_for_fps += 1
+                now = time.time()
+                if now - self.last_fps_time >= 1.0:
+                    self.current_fps = self.frame_count_for_fps / (now - self.last_fps_time)
+                    self.frame_count_for_fps = 0
+                    self.last_fps_time = now
+                    
                 # Always keep latest frame for UI preview
                 self.latest_frame = frame 
                 
                 # If recording, write to disk
+
                 if self.is_recording and self.writer:
                     self.writer.write(frame)
                     self.frames_recorded += 1
