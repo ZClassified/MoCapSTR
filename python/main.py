@@ -202,6 +202,10 @@ class MoCapSyncApp(ctk.CTk):
         self.log("Scanning for cameras (this may take a few seconds)...")
         self.btn_scan.configure(state="disabled")
         
+        # WICHTIG: Stoppe alte Aufnahme-Threads, bevor wir Kameras schließen/öffnen!
+        # Sonst greifen Threads auf geschlossene Kamera-Handles zu -> Freeze.
+        self.recorder.stop_workers()
+        
         def scan():
             backend = self.backend_combo.get()
             self.camera_indices = self.cam_mgr.find_and_open_cameras(6, backend_name=backend)
