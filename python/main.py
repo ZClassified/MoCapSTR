@@ -19,7 +19,7 @@ class MoCapSyncApp(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("MoCapSTR: Sync / Trigger / Record for FreeMoCap v1.0.0")
+        self.title("MoCapSTR: Sync / Trigger / Record for FreeMoCap v1.0.1")
         self.geometry("1100x800")
         
         # Managers
@@ -641,7 +641,7 @@ class MoCapSyncApp(ctk.CTk):
             max_frames = max(frame_counts) if frame_counts else 0
             min_frames = min(frame_counts) if frame_counts else 0
             
-            if max_frames - min_frames > 0:
+            if max_frames - min_frames > 5:
                 self.lbl_live_warning.configure(text=f"⚠️ SYNC WARNING: Frame drop! (Delta: {max_frames - min_frames})")
             else:
                 self.lbl_live_warning.configure(text="")
