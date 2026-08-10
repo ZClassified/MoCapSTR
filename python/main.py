@@ -89,6 +89,13 @@ class MoCapSyncApp(ctk.CTk):
         self.backend_combo.set("DSHOW")
         self.backend_combo.pack(side="right")
         
+        type_f = ctk.CTkFrame(conn_frame, fg_color="transparent")
+        type_f.pack(fill="x", padx=10, pady=5)
+        ctk.CTkLabel(type_f, text="Camera Type:").pack(side="left")
+        self.camera_type_combo = ctk.CTkComboBox(type_f, values=["USB Webcams", "Blackmagic SDI"], width=130, command=self.on_camera_type_change)
+        self.camera_type_combo.set("USB Webcams")
+        self.camera_type_combo.pack(side="right")
+        
         self.btn_scan = ctk.CTkButton(conn_frame, text="Scan & Open Cameras", command=self.scan_cameras)
         self.btn_scan.pack(fill="x", padx=10, pady=5)
         self.lbl_cams_found = ctk.CTkLabel(conn_frame, text="Cameras found: 0")
@@ -292,6 +299,19 @@ class MoCapSyncApp(ctk.CTk):
             self.preview_frame.grid_columnconfigure(j, weight=1)
             
     # --- LOGIC ---
+    def on_camera_type_change(self, choice):
+        is_sdi = (choice == "Blackmagic SDI")
+        state = "disabled" if is_sdi else "normal"
+        text_color = "gray50" if is_sdi else "white"
+        
+        self.exposure_slider.configure(state=state)
+        self.gain_slider.configure(state=state)
+        self.wb_slider.configure(state=state)
+        
+        self.lbl_exposure.configure(text_color=text_color)
+        self.lbl_gain.configure(text_color=text_color)
+        self.lbl_wb.configure(text_color=text_color)
+        
     def show_codec_info(self):
         info_win = ctk.CTkToplevel(self)
         info_win.title("Codec Recommendations")
@@ -323,6 +343,7 @@ class MoCapSyncApp(ctk.CTk):
             return
             
         data = {
+            "camera_type": self.camera_type_combo.get(),
             "backend": self.backend_combo.get(),
             "resolution": self.res_combo.get(),
             "exposure": self.exposure_slider.get(),
@@ -347,6 +368,10 @@ class MoCapSyncApp(ctk.CTk):
             
         data = self.preset_mgr.get_preset(name)
         if data:
+            cam_type = data.get("camera_type", "USB Webcams")
+            self.camera_type_combo.set(cam_type)
+            self.on_camera_type_change(cam_type)
+            
             self.backend_combo.set(data.get("backend", "DSHOW"))
             self.res_combo.set(data.get("resolution", "1280x720 (720p)"))
             self.exposure_slider.set(data.get("exposure", -7))
@@ -469,7 +494,24 @@ class MoCapSyncApp(ctk.CTk):
         
         def scan():
             backend = self.backend_combo.get()
-            self.camera_indices = self.cam_mgr.find_and_open_cameras(6, backend_name=backend)
+            cam_type = self.camera_type_combo.get()
+            
+            # Extract resolution and fps to pass to CameraManager for SDI
+            res_str = self.res_combo.get().split(' ')[0]
+            target_w, target_h = map(int, res_str.split('x'))
+            try:
+                target_fps = int(self.fps_entry.get())
+            except ValueError:
+                target_fps = 60
+                
+            self.camera_indices = self.cam_mgr.find_and_open_cameras(
+                6, 
+                backend_name=backend,
+                camera_type=cam_type,
+                target_w=target_w,
+                target_h=target_h,
+                target_fps=target_fps
+            )
             self.lbl_cams_found.configure(text=f"Cameras found: {len(self.camera_indices)} ({self.camera_indices})")
                 
             # Setup preview grid
