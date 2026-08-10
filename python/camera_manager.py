@@ -4,10 +4,10 @@ class CameraManager:
     def __init__(self):
         self.cameras = {} # Dictionary mapping index to cv2.VideoCapture object
         
-    def find_and_open_cameras(self, max_index=6, backend_name="DSHOW"):
+    def find_and_open_cameras(self, max_index=6, backend_name="DSHOW", camera_type="USB Webcams", target_w=1280, target_h=720, target_fps=60):
         """Scans for available cameras and keeps them open to avoid Windows lockups."""
         self.close_all()
-        print(f"Scanning for cameras using {backend_name}...")
+        print(f"Scanning for cameras using {backend_name} (Type: {camera_type})...")
         
         backend = cv2.CAP_DSHOW
         if backend_name == "MSMF":
@@ -19,8 +19,16 @@ class CameraManager:
         for i in range(max_index):
             cap = cv2.VideoCapture(i, backend)
             if cap.isOpened():
-                # Attempt to force MJPG (helps ELP webcams on MSMF avoid freezing)
-                cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
+                if camera_type == "Blackmagic SDI":
+                    # Blackmagic cards require the EXACT format to be set BEFORE they will output a frame
+                    print(f"Setting Blackmagic SDI format to {target_w}x{target_h} @ {target_fps}fps on index {i}")
+                    cap.set(cv2.CAP_PROP_FRAME_WIDTH, target_w)
+                    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, target_h)
+                    cap.set(cv2.CAP_PROP_FPS, target_fps)
+                    # We do NOT force MJPG for SDI, as it is uncompressed raw data
+                else:
+                    # Attempt to force MJPG (helps ELP webcams on MSMF avoid freezing)
+                    cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
                 
                 # Try to grab a frame to ensure it's a real camera and not a dead virtual interface
                 ret, _ = cap.read()
