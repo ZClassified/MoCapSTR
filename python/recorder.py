@@ -21,7 +21,9 @@ class CameraWorker(threading.Thread):
         self.last_fps_time = time.time()
         self.frame_count_for_fps = 0
         
-        self.frame_queue = queue.Queue(maxsize=30)
+        # Erhöhter Puffer (150 Frames = 3 Sekunden bei 50fps), 
+        # um die Startverzögerung von FFmpeg (insbesondere bei Hardware-Encodern wie AMF) abzufangen.
+        self.frame_queue = queue.Queue(maxsize=150)
         self.writer_thread = None
         self.frames_recorded = 0
         
@@ -86,11 +88,30 @@ class CameraWorker(threading.Thread):
                 '-pix_fmt', 'bgr24',
                 '-r', str(fps),
                 '-i', '-',
-                '-c:v', encoder,
-                '-preset', 'p6' if 'NVENC' in codec_selection else 'fast',
-                '-b:v', '50M',
-                output_path
+                '-c:v', encoder
             ]
+
+            # Quality settings based on encoder
+            if encoder == "libx264":
+                # CRF 17 is visually lossless
+                cmd.extend(['-preset', 'fast', '-crf', '17'])
+            elif encoder == "h264_nvenc":
+                # High quality CQ for NVENC
+                cmd.extend(['-preset', 'p6', '-rc', 'vbr', '-cq', '19', '-b:v', '20M', '-maxrate', '50M'])
+            elif encoder == "h264_amf":
+                # AMD Hardware Encoder
+                # Einfach eine sehr hohe Bitrate erzwingen, spezielle AMF flags 
+                # (wie -usage) verursachen auf manchen FFmpeg Versionen Crashes.
+                cmd.extend(['-b:v', '35M'])
+            elif encoder == "h264_qsv":
+                # Intel Hardware Encoder
+                cmd.extend(['-preset', 'veryfast', '-b:v', '30M'])
+            else:
+                # Generic fallback for Intel/AMD
+                cmd.extend(['-b:v', '25M'])
+                
+            cmd.append(output_path)
+            
             try:
                 process = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.DEVNULL)
             except FileNotFoundError:
@@ -99,7 +120,11 @@ class CameraWorker(threading.Thread):
                 writer = cv2.VideoWriter(output_path.replace(".mp4", ".avi"), fourcc, fps, resolution)
         else:
             fourcc = cv2.VideoWriter_fourcc(*codec_selection)
-            writer = cv2.VideoWriter(output_path, fourcc, fps, resolution)
+            # Versuche Qualitätsparameter mitzugeben (wird von manchen OpenCV-Backends unterstützt)
+            if hasattr(cv2, 'VIDEOWRITER_PROP_QUALITY'):
+                writer = cv2.VideoWriter(output_path, fourcc, fps, resolution, params=[cv2.VIDEOWRITER_PROP_QUALITY, 100])
+            else:
+                writer = cv2.VideoWriter(output_path, fourcc, fps, resolution)
             
         while self.is_recording or not self.frame_queue.empty():
             try:
@@ -108,8 +133,8 @@ class CameraWorker(threading.Thread):
                     try:
                         process.stdin.write(frame.tobytes())
                         self.frames_recorded += 1
-                    except BrokenPipeError:
-                        print(f"[{self.cam_id}] FFmpeg broken pipe!")
+                    except (BrokenPipeError, OSError) as e:
+                        print(f"[{self.cam_id}] FFmpeg pipe error: {e}")
                         self.is_recording = False
                 elif writer:
                     writer.write(frame)
