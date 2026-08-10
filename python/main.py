@@ -244,9 +244,16 @@ class MoCapSyncApp(ctk.CTk):
         
         ctk.CTkLabel(frame_rec, text="Recording Setup", font=ctk.CTkFont(weight="bold")).pack(anchor="w", padx=10, pady=(10,0))
         
-        ctk.CTkLabel(frame_rec, text="Video Codec:").pack(anchor="w", padx=10)
-        self.codec_combo = ctk.CTkComboBox(frame_rec, values=list(self.recorder.get_supported_codecs().keys()))
-        self.codec_combo.pack(fill="x", padx=10, pady=(0, 10))
+        codec_frame = ctk.CTkFrame(frame_rec, fg_color="transparent")
+        codec_frame.pack(fill="x", padx=10, pady=(0, 10))
+        
+        ctk.CTkLabel(codec_frame, text="Video Codec:").pack(side="left")
+        
+        self.btn_codec_info = ctk.CTkButton(codec_frame, text="ℹ️ Info", width=50, height=24, command=self.show_codec_info)
+        self.btn_codec_info.pack(side="right", padx=(5, 0))
+        
+        self.codec_combo = ctk.CTkComboBox(codec_frame, values=list(self.recorder.get_supported_codecs().keys()))
+        self.codec_combo.pack(side="right", fill="x", expand=True, padx=(10, 0))
         
         ctk.CTkLabel(frame_rec, text="Record Type:").pack(anchor="w", padx=10)
         self.record_type = ctk.StringVar(value="motion")
@@ -285,6 +292,30 @@ class MoCapSyncApp(ctk.CTk):
             self.preview_frame.grid_columnconfigure(j, weight=1)
             
     # --- LOGIC ---
+    def show_codec_info(self):
+        info_win = ctk.CTkToplevel(self)
+        info_win.title("Codec Recommendations")
+        info_win.geometry("500x480")
+        info_win.attributes("-topmost", True)
+        
+        text = (
+            "Hardware & Codec Empfehlungen:\n\n"
+            "• 2 Kameras (Geringe Last):\n"
+            "  Nutze 'MP4V' oder 'FFmpeg (CPU)'. Jede normale CPU schafft das mühelos ohne Frame-Drops.\n\n"
+            "• 4 Kameras (Mittlere Last):\n"
+            "  Nutze 'FFmpeg (NVIDIA/Intel/AMD)'. Hardware-Beschleunigung durch die Grafikkarte wird dringend empfohlen, um Dropouts zu vermeiden.\n\n"
+            "• 6+ Kameras (Hohe Last):\n"
+            "  Hardware-Beschleunigung ist PFLICHT! Zusätzlich musst du auf eine schnelle interne NVMe SSD speichern. "
+            "Du solltest die Kameras zudem auf mehrere USB-Controller verteilen (z.B. per PCIe-Erweiterungskarte), da der USB-Bus sonst überlastet.\n\n"
+            "Hinweis zu MJPG: Erzeugt gigantische Dateien, schont aber die CPU stark. Gut für sehr alte PCs ohne gute GPU, aber schlecht für die Festplatte."
+        )
+        
+        lbl = ctk.CTkLabel(info_win, text=text, justify="left", wraplength=460)
+        lbl.pack(padx=20, pady=20, fill="both", expand=True)
+        
+        btn_close = ctk.CTkButton(info_win, text="Verstanden", command=info_win.destroy)
+        btn_close.pack(pady=10)
+
     def save_preset(self):
         name = self.preset_name_entry.get()
         if not name:
@@ -550,6 +581,11 @@ class MoCapSyncApp(ctk.CTk):
         self.ui_tick += 1
         if self.ui_tick % 20 == 0 or self.ui_tick == 1:
             self.last_free_space = self.get_free_space()
+            
+            if self.recorder.is_recording and self.last_free_space < 2:
+                self.log("CRITICAL: Less than 2 GB free! Auto-stopping recording.", "error")
+                self.toggle_record()
+                
             if not self.recorder.is_recording:
                 space_str = f"Space: {self.last_free_space} GB"
                 color = "red" if self.last_free_space < 20 else ("white" if ctk.get_appearance_mode() == "Dark" else "black")
@@ -619,8 +655,10 @@ class MoCapSyncApp(ctk.CTk):
                             else:
                                 corners, ids, rejected = cv2.aruco.detectMarkers(gray, aruco_dict, parameters=parameters)
                             
+                            num_markers = 0
                             if corners and len(corners) > 0:
                                 cv2.aruco.drawDetectedMarkers(rgb_frame, corners, ids)
+                                num_markers = len(corners)
                         except Exception as e:
                             self.log(f"Charuco Error: {e}", "error")
                             self.chk_charuco.deselect()
@@ -646,6 +684,13 @@ class MoCapSyncApp(ctk.CTk):
                         color = (255, 0, 0) # Red (Significant deviation)
                         
                     text = f"FPS: {fps:.1f}"
+                    if getattr(self, 'chk_charuco', None) and self.chk_charuco.get() == 1:
+                        try:
+                            text += f" | Markers: {num_markers}"
+                            if num_markers < 8:
+                                color = (255, 165, 0) # Orange warning if few markers
+                        except NameError:
+                            pass
                     font = cv2.FONT_HERSHEY_SIMPLEX
                     # Smaller font scale (50% smaller)
                     font_scale = max(0.35, rgb_frame.shape[0] / 1600.0)
