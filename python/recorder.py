@@ -14,9 +14,18 @@ class CameraWorker(threading.Thread):
         self.writer = None
         self.latest_frame = None
         self.frames_recorded = 0
+        self.rotation_degrees = 0
         
-    def start_recording(self, output_path, fps, resolution, codec):
+    def set_rotation(self, degrees):
+        self.rotation_degrees = degrees
+        
+    def start_recording(self, output_path, fps, codec):
         fourcc = cv2.VideoWriter_fourcc(*codec)
+        # Dynamically get resolution from the currently grabbed (and potentially rotated) frame
+        resolution = (640, 480)
+        if self.latest_frame is not None:
+            resolution = (self.latest_frame.shape[1], self.latest_frame.shape[0])
+            
         self.writer = cv2.VideoWriter(output_path, fourcc, fps, resolution)
         self.frames_recorded = 0
         self.is_recording = True
@@ -33,9 +42,14 @@ class CameraWorker(threading.Thread):
         while self.is_running:
             ret, frame = self.cap.read()
             if ret:
+                if self.rotation_degrees == 90:
+                    frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
+                elif self.rotation_degrees == 180:
+                    frame = cv2.rotate(frame, cv2.ROTATE_180)
+                elif self.rotation_degrees == 270:
+                    frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
+                    
                 # Always keep latest frame for UI preview
-                # Make a small copy for UI to prevent locking the main frame if possible, 
-                # but direct reference is usually fine for Python GIL.
                 self.latest_frame = frame 
                 
                 # If recording, write to disk
@@ -76,7 +90,7 @@ class MultiCamManager:
             worker.join()
         self.workers.clear()
 
-    def start_recording(self, target_folder, fps, resolution, codec_selection):
+    def start_recording(self, target_folder, fps, codec_selection):
         if self.is_recording:
             return False
             
@@ -86,7 +100,7 @@ class MultiCamManager:
         for idx, worker in self.workers.items():
             filename = f"cam{idx}{ext}"
             output_path = os.path.join(target_folder, filename)
-            worker.start_recording(output_path, fps, resolution, codec_selection=fourcc_str)
+            worker.start_recording(output_path, fps, codec_selection=fourcc_str)
             
         self.is_recording = True
         return True
@@ -101,3 +115,7 @@ class MultiCamManager:
     def get_latest_frames(self):
         """Returns a dict of {cam_idx: frame} for preview"""
         return {idx: worker.latest_frame for idx, worker in self.workers.items() if worker.latest_frame is not None}
+        
+    def set_camera_rotation(self, cam_idx, degrees):
+        if cam_idx in self.workers:
+            self.workers[cam_idx].set_rotation(degrees)
