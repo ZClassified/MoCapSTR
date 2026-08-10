@@ -19,6 +19,9 @@ class CameraManager:
         for i in range(max_index):
             cap = cv2.VideoCapture(i, backend)
             if cap.isOpened():
+                # Attempt to force MJPG (helps ELP webcams on MSMF avoid freezing)
+                cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
+                
                 # Try to grab a frame to ensure it's a real camera and not a dead virtual interface
                 ret, _ = cap.read()
                 if ret:
