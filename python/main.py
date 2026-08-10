@@ -119,6 +119,8 @@ class MoCapSyncApp(ctk.CTk):
         # Log
         self.txt_log = ctk.CTkTextbox(parent, height=150)
         self.txt_log.grid(row=1, column=0, columnspan=2, sticky="nsew", pady=20)
+        self.txt_log.tag_config("success", foreground="#00FF00")
+        self.txt_log.tag_config("error", foreground="#FF4444")
         self.log("Welcome to MoCap Recording Station.")
 
     # --- TAB 2: RECORDING ---
@@ -194,8 +196,17 @@ class MoCapSyncApp(ctk.CTk):
     def update_wb_label(self, value):
         self.lbl_wb.configure(text=f"White Balance: {int(value)}K")
 
-    def log(self, message):
-        self.txt_log.insert(tk.END, message + "\n")
+    def log(self, message, level="info"):
+        tag = None
+        if level == "success":
+            tag = "success"
+        elif level == "error":
+            tag = "error"
+            
+        if tag:
+            self.txt_log.insert(tk.END, message + "\n", tag)
+        else:
+            self.txt_log.insert(tk.END, message + "\n")
         self.txt_log.see(tk.END)
 
     def scan_cameras(self):
@@ -261,13 +272,15 @@ class MoCapSyncApp(ctk.CTk):
         for idx in self.camera_indices:
             actual = self.cam_mgr.apply_settings(idx, width=w, height=h, fps=fps, exposure_value=exp, gain_value=gain, wb_value=wb)
             if actual:
-                self.log(f"Cam {idx} ACCEPTED: Res={actual['width']}x{actual['height']}, FPS={actual['fps']}, Exp={actual['exposure']}, Gain={actual['gain']}, WB={actual['wb']}")
+                self.log(f"Cam {idx} ACCEPTED: Res={actual['width']}x{actual['height']}, FPS={actual['fps']}, Exp={actual['exposure']}, Gain={actual['gain']}, WB={actual['wb']}", level="success")
+            else:
+                self.log(f"Cam {idx} FAILED to apply settings!", level="error")
         self.log("Settings applied to all cameras.")
 
     def connect_arduino(self):
         port = self.port_combo.get()
         if self.arduino.connect(port):
-            self.log("Arduino connected!")
+            self.log("Arduino connected!", level="success")
             self.btn_connect.configure(text="Connected", state="disabled")
             self.btn_start_sync.configure(state="normal")
 
@@ -275,7 +288,7 @@ class MoCapSyncApp(ctk.CTk):
         fps = int(self.fps_entry.get())
         self.arduino.set_fps(fps)
         self.arduino.start_trigger()
-        self.log("Hardware Trigger STARTED!")
+        self.log("Hardware Trigger STARTED!", level="success")
         self.btn_start_sync.configure(state="disabled")
         self.btn_stop_sync.configure(state="normal")
 
@@ -290,7 +303,7 @@ class MoCapSyncApp(ctk.CTk):
             # START
             proj_name = self.proj_name_entry.get()
             if not proj_name:
-                self.log("Error: Enter a project name.")
+                self.log("Error: Enter a project name.", level="error")
                 return
                 
             self.proj_mgr.set_project(proj_name)
