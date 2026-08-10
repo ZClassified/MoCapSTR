@@ -31,6 +31,7 @@ class MoCapSyncApp(ctk.CTk):
         
         self.camera_indices = []
         self.preview_labels = {} # Grid for previews
+        self.camera_enable_vars = {} # Stores IntVars for checkboxes
         
         self.record_start_time = 0
         self.ui_tick = 0
@@ -280,7 +281,7 @@ class MoCapSyncApp(ctk.CTk):
         self.btn_record_live = ctk.CTkButton(self.preview_top_bar, text="⏺ START RECORDING", fg_color="darkred", hover_color="red", command=self.toggle_record)
         self.btn_record_live.pack(side="left", padx=10)
         
-        self.chk_charuco = ctk.CTkCheckBox(self.preview_top_bar, text="Show Charuco")
+        self.chk_charuco = ctk.CTkCheckBox(self.preview_top_bar, text="Show Charuco", command=self.on_charuco_toggled)
         self.chk_charuco.pack(side="left", padx=10)
         
         self.lbl_live_stats = ctk.CTkLabel(self.preview_top_bar, text="Ready | Space: -- GB", font=ctk.CTkFont(size=16, weight="bold"))
@@ -298,6 +299,11 @@ class MoCapSyncApp(ctk.CTk):
         for j in range(3):
             self.preview_frame.grid_columnconfigure(j, weight=1)
             
+    def on_charuco_toggled(self):
+        show = (self.chk_charuco.get() == 1)
+        dict_str = self.charuco_dict.get()
+        self.recorder.set_charuco_settings(show, dict_str)
+        
     # --- LOGIC ---
     def on_camera_type_change(self, choice):
         is_sdi = (choice == "Blackmagic SDI")
@@ -534,6 +540,12 @@ class MoCapSyncApp(ctk.CTk):
                 lbl.grid(row=0, column=0, sticky="nsew")
                 self.preview_labels[idx] = lbl
                 
+                # Checkbox for enable/disable
+                enable_var = ctk.IntVar(value=1)
+                self.camera_enable_vars[idx] = enable_var
+                chk = ctk.CTkCheckBox(cam_frame, text="Aufnahme aktiv", variable=enable_var)
+                chk.grid(row=1, column=0, pady=(5,0))
+                
                 # Rotation Dropdown
                 def make_rot_callback(cam_id):
                     def callback(choice):
@@ -543,7 +555,7 @@ class MoCapSyncApp(ctk.CTk):
                 
                 rot_menu = ctk.CTkOptionMenu(cam_frame, values=["0°", "90° (Portrait)", "180°", "270° (Portrait)"], command=make_rot_callback(idx))
                 rot_menu.set("0°")
-                rot_menu.grid(row=1, column=0, pady=2, sticky="ew")
+                rot_menu.grid(row=2, column=0, pady=5, sticky="ew")
                 
             self.btn_scan.configure(state="normal")
             
@@ -605,8 +617,13 @@ class MoCapSyncApp(ctk.CTk):
             fps = int(self.fps_entry.get())
             codec = self.codec_combo.get()
             
+            enabled_cams = [idx for idx, var in self.camera_enable_vars.items() if var.get() == 1]
+            if not enabled_cams:
+                self.log("Error: No cameras enabled for recording.", level="error")
+                return
+            
             self.log(f"Starting recording to: {save_dir}")
-            self.recorder.start_recording(save_dir, fps, codec)
+            self.recorder.start_recording(save_dir, fps, codec, enabled_cams)
             self.record_start_time = time.time()
             
             self.btn_record.configure(text="⏹ STOP RECORDING", fg_color="red", hover_color="darkred")
@@ -665,47 +682,6 @@ class MoCapSyncApp(ctk.CTk):
                     # Convert BGR to RGB (creates a new array, safe to modify)
                     rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                     
-                    # --- Live Charuco Detection ---
-                    if getattr(self, 'chk_charuco', None) and self.chk_charuco.get() == 1:
-                        try:
-                            dict_str = self.charuco_dict.get()
-                            dict_mapping = {
-                                "DICT_4X4_50": cv2.aruco.DICT_4X4_50,
-                                "DICT_4X4_100": cv2.aruco.DICT_4X4_100,
-                                "DICT_5X5_50": cv2.aruco.DICT_5X5_50,
-                                "DICT_5X5_100": cv2.aruco.DICT_5X5_100,
-                                "DICT_6X6_250": cv2.aruco.DICT_6X6_250
-                            }
-                            dict_id = dict_mapping.get(dict_str, cv2.aruco.DICT_4X4_50)
-                            
-                            # Handle different OpenCV versions for getPredefinedDictionary
-                            if hasattr(cv2.aruco, 'getPredefinedDictionary'):
-                                aruco_dict = cv2.aruco.getPredefinedDictionary(dict_id)
-                            else:
-                                aruco_dict = cv2.aruco.Dictionary_get(dict_id)
-                                
-                            if hasattr(cv2.aruco, 'DetectorParameters'):
-                                parameters = cv2.aruco.DetectorParameters()
-                            else:
-                                parameters = cv2.aruco.DetectorParameters_create()
-                                
-                            gray = cv2.cvtColor(rgb_frame, cv2.COLOR_RGB2GRAY)
-                            
-                            if hasattr(cv2.aruco, 'ArucoDetector'):
-                                detector = cv2.aruco.ArucoDetector(aruco_dict, parameters)
-                                corners, ids, rejected = detector.detectMarkers(gray)
-                            else:
-                                corners, ids, rejected = cv2.aruco.detectMarkers(gray, aruco_dict, parameters=parameters)
-                            
-                            num_markers = 0
-                            if corners and len(corners) > 0:
-                                cv2.aruco.drawDetectedMarkers(rgb_frame, corners, ids)
-                                num_markers = len(corners)
-                        except Exception as e:
-                            self.log(f"Charuco Error: {e}", "error")
-                            self.chk_charuco.deselect()
-                    # ------------------------------
-                    
                     # --- FPS Overlay ---
                     fps = 0.0
                     if idx in self.recorder.workers:
@@ -726,13 +702,6 @@ class MoCapSyncApp(ctk.CTk):
                         color = (255, 0, 0) # Red (Significant deviation)
                         
                     text = f"FPS: {fps:.1f}"
-                    if getattr(self, 'chk_charuco', None) and self.chk_charuco.get() == 1:
-                        try:
-                            text += f" | Markers: {num_markers}"
-                            if num_markers < 8:
-                                color = (255, 165, 0) # Orange warning if few markers
-                        except NameError:
-                            pass
                     font = cv2.FONT_HERSHEY_SIMPLEX
                     # Smaller font scale (50% smaller)
                     font_scale = max(0.35, rgb_frame.shape[0] / 1600.0)

@@ -27,6 +27,31 @@ class CameraWorker(threading.Thread):
         self.writer_thread = None
         self.frames_recorded = 0
         
+        self.show_charuco = False
+        self.charuco_dict = None
+        self.charuco_params = None
+        
+    def set_charuco(self, show, dict_str=None):
+        self.show_charuco = show
+        if show and dict_str:
+            dict_mapping = {
+                "DICT_4X4_50": cv2.aruco.DICT_4X4_50,
+                "DICT_4X4_100": cv2.aruco.DICT_4X4_100,
+                "DICT_5X5_50": cv2.aruco.DICT_5X5_50,
+                "DICT_5X5_100": cv2.aruco.DICT_5X5_100,
+                "DICT_6X6_250": cv2.aruco.DICT_6X6_250
+            }
+            dict_id = dict_mapping.get(dict_str, cv2.aruco.DICT_4X4_50)
+            if hasattr(cv2.aruco, 'getPredefinedDictionary'):
+                self.charuco_dict = cv2.aruco.getPredefinedDictionary(dict_id)
+            else:
+                self.charuco_dict = cv2.aruco.Dictionary_get(dict_id)
+                
+            if hasattr(cv2.aruco, 'DetectorParameters'):
+                self.charuco_params = cv2.aruco.DetectorParameters()
+            else:
+                self.charuco_params = cv2.aruco.DetectorParameters_create()
+        
     def set_rotation(self, degrees):
         self.rotation_degrees = degrees
         
@@ -167,10 +192,29 @@ class CameraWorker(threading.Thread):
                     self.frame_count_for_fps = 0
                     self.last_fps_time = now
                     
+                # Charuco Detection offloading
+                preview_frame = frame
+                if self.show_charuco and self.charuco_dict is not None and self.charuco_params is not None:
+                    # Kopie erstellen, damit wir das saubere Bild aufnehmen
+                    preview_frame = frame.copy()
+                    gray = cv2.cvtColor(preview_frame, cv2.COLOR_BGR2GRAY)
+                    
+                    try:
+                        if hasattr(cv2.aruco, 'ArucoDetector'):
+                            detector = cv2.aruco.ArucoDetector(self.charuco_dict, self.charuco_params)
+                            corners, ids, rejected = detector.detectMarkers(gray)
+                        else:
+                            corners, ids, rejected = cv2.aruco.detectMarkers(gray, self.charuco_dict, parameters=self.charuco_params)
+                            
+                        if corners and len(corners) > 0:
+                            cv2.aruco.drawDetectedMarkers(preview_frame, corners, ids)
+                    except Exception as e:
+                        pass
+                        
                 # Always keep latest frame for UI preview
-                self.latest_frame = frame 
+                self.latest_frame = preview_frame 
                 
-                # If recording, write to queue
+                # If recording, write to queue (the clean frame, not preview_frame)
                 if self.is_recording:
                     try:
                         # Non-blocking put to avoid slowing down grabbing
@@ -215,7 +259,7 @@ class MultiCamManager:
             worker.join()
         self.workers.clear()
 
-    def start_recording(self, target_folder, fps, codec_selection):
+    def start_recording(self, target_folder, fps, codec_selection, enabled_cameras=None):
         if self.is_recording:
             return False
             
@@ -223,6 +267,8 @@ class MultiCamManager:
         fourcc_str, ext = codecs.get(codec_selection, ("MJPG", ".avi"))
         
         for idx, worker in self.workers.items():
+            if enabled_cameras is not None and idx not in enabled_cameras:
+                continue
             filename = f"cam{idx}{ext}"
             output_path = os.path.join(target_folder, filename)
             worker.start_recording(output_path, fps, codec_selection=fourcc_str)
@@ -244,3 +290,7 @@ class MultiCamManager:
     def set_camera_rotation(self, cam_idx, degrees):
         if cam_idx in self.workers:
             self.workers[cam_idx].set_rotation(degrees)
+            
+    def set_charuco_settings(self, show, dict_str):
+        for worker in self.workers.values():
+            worker.set_charuco(show, dict_str)
