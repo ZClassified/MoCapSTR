@@ -8,6 +8,7 @@ import cv2
 from PIL import Image, ImageTk
 import threading
 import os
+from tkinter import filedialog
 
 ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme("blue")
@@ -121,7 +122,16 @@ class MoCapSyncApp(ctk.CTk):
         
         ctk.CTkLabel(frame_proj, text="Project Settings", font=ctk.CTkFont(weight="bold")).pack(anchor="w", padx=10, pady=(10,0))
         
-        ctk.CTkLabel(frame_proj, text="Project Name (e.g. LivingRoom_Setup_1):").pack(anchor="w", padx=10, pady=(5,0))
+        # Save Directory
+        ctk.CTkLabel(frame_proj, text="Base Save Directory:").pack(anchor="w", padx=10, pady=(10,0))
+        dir_frame = ctk.CTkFrame(frame_proj, fg_color="transparent")
+        dir_frame.pack(fill="x", padx=10, pady=5)
+        self.lbl_save_dir = ctk.CTkLabel(dir_frame, text=self.proj_mgr.base_path, text_color="gray")
+        self.lbl_save_dir.pack(side="left", fill="x", expand=True, padx=(0,10))
+        self.btn_browse = ctk.CTkButton(dir_frame, text="Browse...", width=100, command=self.browse_directory)
+        self.btn_browse.pack(side="right")
+        
+        ctk.CTkLabel(frame_proj, text="Project Name (e.g. LivingRoom_Setup_1):").pack(anchor="w", padx=10, pady=(15,0))
         self.proj_name_entry = ctk.CTkEntry(frame_proj)
         self.proj_name_entry.insert(0, "My_MoCap_Project")
         self.proj_name_entry.pack(fill="x", padx=10, pady=(0, 10))
@@ -157,6 +167,13 @@ class MoCapSyncApp(ctk.CTk):
             self.preview_frame.grid_columnconfigure(j, weight=1)
             
     # --- LOGIC ---
+    def browse_directory(self):
+        new_dir = filedialog.askdirectory(title="Select MoCap Save Directory", initialdir=self.proj_mgr.base_path)
+        if new_dir:
+            self.proj_mgr.set_base_path(new_dir)
+            self.lbl_save_dir.configure(text=new_dir)
+            self.log(f"Base save directory set to: {new_dir}")
+
     def update_exposure_label(self, value):
         val = int(value)
         denominator = 2 ** abs(val)
