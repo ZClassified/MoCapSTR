@@ -8,6 +8,7 @@ import cv2
 from PIL import Image, ImageTk
 import threading
 import os
+import time
 from tkinter import filedialog
 
 ctk.set_appearance_mode("Dark")
@@ -28,6 +29,10 @@ class MoCapSyncApp(ctk.CTk):
         
         self.camera_indices = []
         self.preview_labels = {} # Grid for previews
+        
+        self.record_start_time = 0
+        self.ui_tick = 0
+        self.last_free_space = 0
         
         self.build_ui()
         self.after(50, self.update_preview) # Start preview loop
@@ -168,6 +173,19 @@ class MoCapSyncApp(ctk.CTk):
 
     # --- TAB 3: PREVIEW ---
     def build_preview_tab(self, parent):
+        # Top bar for controls and stats
+        self.preview_top_bar = ctk.CTkFrame(parent, fg_color="transparent")
+        self.preview_top_bar.pack(fill="x", padx=10, pady=(10, 0))
+        
+        self.btn_record_live = ctk.CTkButton(self.preview_top_bar, text="⏺ START RECORDING", fg_color="darkred", hover_color="red", command=self.toggle_record)
+        self.btn_record_live.pack(side="left", padx=10)
+        
+        self.lbl_live_stats = ctk.CTkLabel(self.preview_top_bar, text="Ready | Space: -- GB", font=ctk.CTkFont(size=16, weight="bold"))
+        self.lbl_live_stats.pack(side="left", padx=20)
+        
+        self.lbl_live_warning = ctk.CTkLabel(self.preview_top_bar, text="", text_color="red", font=ctk.CTkFont(size=16, weight="bold"))
+        self.lbl_live_warning.pack(side="right", padx=10)
+
         # We will dynamically create a grid of up to 6 labels
         self.preview_frame = ctk.CTkFrame(parent, fg_color="transparent")
         self.preview_frame.pack(fill="both", expand=True, padx=10, pady=10)
@@ -178,6 +196,14 @@ class MoCapSyncApp(ctk.CTk):
             self.preview_frame.grid_columnconfigure(j, weight=1)
             
     # --- LOGIC ---
+    def get_free_space(self):
+        try:
+            import shutil
+            total, used, free = shutil.disk_usage(self.proj_mgr.base_path)
+            return free // (2**30)
+        except Exception:
+            return 0
+
     def browse_directory(self):
         new_dir = filedialog.askdirectory(title="Select MoCap Save Directory", initialdir=self.proj_mgr.base_path)
         if new_dir:
@@ -315,15 +341,47 @@ class MoCapSyncApp(ctk.CTk):
             
             self.log(f"Starting recording to: {save_dir}")
             self.recorder.start_recording(save_dir, fps, codec)
+            self.record_start_time = time.time()
             
             self.btn_record.configure(text="⏹ STOP RECORDING", fg_color="red", hover_color="darkred")
+            self.btn_record_live.configure(text="⏹ STOP RECORDING", fg_color="red", hover_color="darkred")
         else:
             # STOP
             self.recorder.stop_recording()
             self.btn_record.configure(text="⏺ START RECORDING", fg_color="darkred", hover_color="red")
+            self.btn_record_live.configure(text="⏺ START RECORDING", fg_color="darkred", hover_color="red")
+            self.lbl_live_warning.configure(text="")
             self.log("Recording stopped and saved.")
 
     def update_preview(self):
+        self.ui_tick += 1
+        if self.ui_tick % 20 == 0 or self.ui_tick == 1:
+            self.last_free_space = self.get_free_space()
+            if not self.recorder.is_recording:
+                space_str = f"Space: {self.last_free_space} GB"
+                color = "red" if self.last_free_space < 20 else ("white" if ctk.get_appearance_mode() == "Dark" else "black")
+                self.lbl_live_stats.configure(text=f"Ready | {space_str}", text_color=color)
+
+        if self.recorder.is_recording:
+            elapsed = time.time() - self.record_start_time
+            mins, secs = divmod(int(elapsed), 60)
+            
+            frame_counts = [w.frames_recorded for w in self.recorder.workers.values()]
+            max_frames = max(frame_counts) if frame_counts else 0
+            min_frames = min(frame_counts) if frame_counts else 0
+            
+            if max_frames - min_frames > 0:
+                self.lbl_live_warning.configure(text=f"⚠️ SYNC WARNING: Frame drop! (Delta: {max_frames - min_frames})")
+            else:
+                self.lbl_live_warning.configure(text="")
+                
+            space_str = f"Space: {self.last_free_space} GB"
+            color = "red" if self.last_free_space < 20 else ("white" if ctk.get_appearance_mode() == "Dark" else "black")
+            if self.last_free_space < 20:
+                space_str = f"⚠️ LOW SPACE: {self.last_free_space} GB"
+                
+            self.lbl_live_stats.configure(text=f"Recording 🔴 | {mins:02d}:{secs:02d} | Frames: {max_frames} | {space_str}", text_color=color)
+
         # Update UI with latest frames
         frames = self.recorder.get_latest_frames()
         for idx, frame in frames.items():
@@ -333,8 +391,52 @@ class MoCapSyncApp(ctk.CTk):
                 target_w = lbl.winfo_width()
                 target_h = lbl.winfo_height()
                 if target_w > 10 and target_h > 10:
-                    # Convert BGR to RGB
+                    # Convert BGR to RGB (creates a new array, safe to modify)
                     rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    
+                    # --- FPS Overlay ---
+                    fps = 0.0
+                    if idx in self.recorder.workers:
+                        fps = self.recorder.workers[idx].current_fps
+                        
+                    try:
+                        target_fps = float(self.fps_entry.get())
+                    except ValueError:
+                        target_fps = 60.0
+                        
+                    # Determine color based on deviation
+                    diff = abs(fps - target_fps)
+                    if diff <= 0.5:
+                        color = (0, 255, 0) # Green (Perfect)
+                    elif diff <= 3.0:
+                        color = (255, 255, 0) # Yellow (Slight deviation)
+                    else:
+                        color = (255, 0, 0) # Red (Significant deviation)
+                        
+                    text = f"FPS: {fps:.1f}"
+                    font = cv2.FONT_HERSHEY_SIMPLEX
+                    # Smaller font scale (50% smaller)
+                    font_scale = max(0.35, rgb_frame.shape[0] / 1600.0)
+                    thickness = max(1, int(font_scale * 1.5))
+                    (text_w, text_h), baseline = cv2.getTextSize(text, font, font_scale, thickness)
+                    
+                    x, y = 20, int(20 + text_h)
+                    pad = 10
+                    
+                    # Fast semi-transparent background using ROI
+                    roi_x1, roi_y1 = max(0, x - pad), max(0, y - text_h - pad)
+                    roi_x2, roi_y2 = min(rgb_frame.shape[1], x + text_w + pad), min(rgb_frame.shape[0], y + baseline + pad)
+                    
+                    if roi_x2 > roi_x1 and roi_y2 > roi_y1:
+                        roi = rgb_frame[roi_y1:roi_y2, roi_x1:roi_x2]
+                        black_rect = roi.copy()
+                        black_rect[:] = 0
+                        cv2.addWeighted(black_rect, 0.5, roi, 0.5, 0, roi)
+                    
+                    # Draw text in chosen color
+                    cv2.putText(rgb_frame, text, (x, y), font, font_scale, color, thickness)
+                    # -------------------
+                    
                     img = Image.fromarray(rgb_frame)
                     
                     # Letterboxing thumbnail
