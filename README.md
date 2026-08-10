@@ -1,6 +1,6 @@
-# MoCapST - Universal Hardware Sync & Recording Station
+# MoCapSTR: Sync / Trigger / Record for FreeMoCap
 
-MoCapST ist eine spezialisierte Steuerungs- und Aufnahme-Software für markerloses Motion Capturing (spezifisch optimiert für **FreeMoCap**). Sie ermöglicht die hardware-synchrone Aufzeichnung von mehreren Kameras (z.B. OV9281, ELP Webcams) mithilfe eines Arduino-Triggers oder als generische Multicam-Recording-Station.
+MoCapSTR ist eine spezialisierte Steuerungs- und Aufnahme-Software für markerloses Motion Capturing (spezifisch optimiert für **FreeMoCap**). Sie ermöglicht die hardware-synchrone Aufzeichnung von mehreren Kameras (z.B. OV9281, ELP Webcams) mithilfe eines Arduino-Triggers oder als generische Multicam-Recording-Station.
 
 ## Features
 
@@ -29,8 +29,8 @@ MoCapST ist eine spezialisierte Steuerungs- und Aufnahme-Software für markerlos
 
 1. Klonen des Repositories:
    ```bash
-   git clone https://github.com/ZClassified/MoCapST.git
-   cd MoCapST
+   git clone https://github.com/ZClassified/MoCapSTR.git
+   cd MoCapSTR
    ```
 2. Python-Abhängigkeiten installieren:
    ```bash

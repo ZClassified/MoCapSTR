@@ -19,7 +19,7 @@ class MoCapSyncApp(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("OV9281 MoCap Recording Station")
+        self.title("MoCapSTR: Sync / Trigger / Record for FreeMoCap")
         self.geometry("1100x800")
         
         # Managers
