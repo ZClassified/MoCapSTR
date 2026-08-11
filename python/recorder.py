@@ -4,6 +4,7 @@ import os
 import time
 import queue
 import av
+import fractions
 
 class CameraWorker(threading.Thread):
     def __init__(self, cam_id, container, target_fps=50):
@@ -77,7 +78,13 @@ class CameraWorker(threading.Thread):
             self.output_container = av.open(output_path, mode='w')
             if codec_selection == "MJPG" or codec_selection == "mjpeg":
                 # Direct Stream Copy
-                self.output_stream = self.output_container.add_stream(template=self.stream)
+                self.output_stream = self.output_container.add_stream(self.stream.name)
+                self.output_stream.width = self.stream.codec_context.width
+                self.output_stream.height = self.stream.codec_context.height
+                if self.stream.codec_context.pix_fmt:
+                    self.output_stream.pix_fmt = self.stream.codec_context.pix_fmt
+                # Override time_base to match our target_fps for clean monotonic PTS
+                self.output_stream.time_base = fractions.Fraction(1, int(fps))
             else:
                 # Transcoding path (simplified fallback)
                 self.output_stream = self.output_container.add_stream(codec_selection, rate=fps)
@@ -120,13 +127,16 @@ class CameraWorker(threading.Thread):
                         if self.output_stream.type == packet.stream.type and self.output_stream.name == packet.stream.name:
                             # Stream Copy
                             packet.stream = self.output_stream
+                            packet.time_base = self.output_stream.time_base
+                            packet.pts = self.frames_recorded
+                            packet.dts = self.frames_recorded
                             self.output_container.mux(packet)
                         else:
                             # Trancoding path - highly simplified, requires decoded frames
                             pass 
                         self.frames_recorded += 1
                     except Exception as e:
-                        pass
+                        print(f"[{self.cam_id}] Mux error: {e}")
             except queue.Empty:
                 continue
 
