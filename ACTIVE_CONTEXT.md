@@ -1,7 +1,7 @@
 # Active Context
 
-**Current Status:** Bugfixes applied for PyAV frame drops and MKV timestamps (v1.0.6).
-**Last Modified:** 2026-08-11 11:20:00
+**Current Status:** Implemented Arduino Software-Integration in GUI (Auto-Trigger, FPS Matching, Presets).
+**Last Modified:** 2026-08-11 11:26:00
 
 ---
 
@@ -26,3 +26,4 @@ This ensures that the next AI assistant immediately knows what was just done and
 - **2026-08-11 (v1.1.0):** Major architectural refactor. Replaced `cv2.VideoCapture` with `PyAV` (FFmpeg) in `camera_manager.py` and `recorder.py`. Implemented Zero-Copy stream muxing (direct MJPEG to disk without CPU decoding) to eliminate RAM/CPU bottlenecks for 4+ camera setups. Separated UI preview decoding (limited to 15fps) from raw packet recording. Pre-configured native `decklink` PyAV format for Blackmagic SDI.
 - **2026-08-11:** UI Cleanup post-PyAV. Removed obsolete Backend selection, YUY2 format option, and White Balance slider. Re-wired Exposure and Gain to a dedicated "Sync Hardware Exposure" button that temporarily closes PyAV, opens OpenCV DSHOW to set hardware registers, and reopens PyAV. Optimized UI for MJPEG / SDI workflows.
 - **2026-08-11 (v1.0.6):** Fixed PyAV frame drops by offloading Charuco and rotation logic to a separate `PreviewWorker` thread, freeing up the `demux` thread. Increased DirectShow `rtbufsize` to 256M to prevent OS-level buffering drops. Fixed MKV 1000fps timestamp bug by correctly overriding `packet.time_base = 1/fps` before muxing.
+- **2026-08-11 (v1.0.7):** Implemented Arduino Software-Integration (Python GUI). Added "Auto-Trigger on Record" logic, automatic FPS matching when applying camera settings, a COM-Port refresh button, and integrated the Arduino port & trigger settings into the `PresetManager`.

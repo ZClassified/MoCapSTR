@@ -95,9 +95,15 @@ class SetupTab(ctk.CTkFrame):
         sync_frame.pack(fill="x", pady=5)
         ctk.CTkLabel(sync_frame, text="3. Hardware Sync", font=ctk.CTkFont(weight="bold")).pack(anchor="w", padx=10, pady=5)
         
+        port_f = ctk.CTkFrame(sync_frame, fg_color="transparent")
+        port_f.pack(fill="x", padx=10, pady=5)
+        
         ports = self.app.arduino.get_available_ports()
-        self.port_combo = ctk.CTkComboBox(sync_frame, values=ports if ports else ["No Ports Found"])
-        self.port_combo.pack(fill="x", padx=10, pady=5)
+        self.port_combo = ctk.CTkComboBox(port_f, values=ports if ports else ["No Ports Found"])
+        self.port_combo.pack(side="left", fill="x", expand=True, padx=(0, 5))
+        
+        self.btn_refresh_ports = ctk.CTkButton(port_f, text="🔄", width=30, command=self.refresh_ports)
+        self.btn_refresh_ports.pack(side="right")
         
         self.btn_connect = ctk.CTkButton(sync_frame, text="Connect Arduino", command=self.connect_arduino)
         self.btn_connect.pack(fill="x", padx=10, pady=5)
@@ -113,6 +119,10 @@ class SetupTab(ctk.CTkFrame):
         self.btn_start_sync.pack(fill="x", padx=10, pady=5)
         self.btn_stop_sync = ctk.CTkButton(sync_frame, text="STOP HARDWARE TRIGGER", fg_color="red", hover_color="darkred", command=self.stop_sync, state="disabled")
         self.btn_stop_sync.pack(fill="x", padx=10, pady=5)
+        
+        self.chk_auto_trigger_var = ctk.BooleanVar(value=True)
+        self.chk_auto_trigger = ctk.CTkCheckBox(sync_frame, text="Auto-Trigger on Record", variable=self.chk_auto_trigger_var)
+        self.chk_auto_trigger.pack(anchor="w", padx=10, pady=5)
 
         # --- Column 3: Charuco Board ---
         col3_container = ctk.CTkFrame(self, fg_color="transparent")
@@ -204,7 +214,9 @@ class SetupTab(ctk.CTkFrame):
             "charuco_x": self.charuco_x.get(),
             "charuco_y": self.charuco_y.get(),
             "charuco_sq_size": self.charuco_sq_size.get(),
-            "charuco_marker_size": self.charuco_marker_size.get()
+            "charuco_marker_size": self.charuco_marker_size.get(),
+            "arduino_port": self.port_combo.get(),
+            "arduino_auto_trigger": self.chk_auto_trigger_var.get()
         }
         self.app.preset_mgr.save_preset(name, data)
         self.preset_combo.configure(values=["Default"] + self.app.preset_mgr.get_preset_names())
@@ -240,6 +252,11 @@ class SetupTab(ctk.CTkFrame):
             self.charuco_sq_size.insert(0, data.get("charuco_sq_size", "51"))
             self.charuco_marker_size.delete(0, 'end')
             self.charuco_marker_size.insert(0, data.get("charuco_marker_size", "38"))
+            
+            arduino_port = data.get("arduino_port", "")
+            if arduino_port and arduino_port in self.port_combo._values:
+                self.port_combo.set(arduino_port)
+            self.chk_auto_trigger_var.set(data.get("arduino_auto_trigger", True))
             
             self.app.log(f"Preset '{name}' loaded.", "success")
             self.update_charuco_preview()
@@ -377,16 +394,34 @@ class SetupTab(ctk.CTkFrame):
             
         fmt = "MJPG" # Hardcoded optimization
         
+        actual_fps = fps
         for idx in self.app.camera_indices:
             actual = self.app.cam_mgr.apply_settings(idx, width=w, height=h, fps=fps, format_str=fmt)
             if actual:
                 self.app.log(f"Cam {idx} ACCEPTED: Fmt={actual.get('format', fmt)}, Res={actual['width']}x{actual['height']}, FPS={actual['fps']}", level="success")
+                actual_fps = actual.get('fps', fps)
             else:
                 self.app.log(f"Cam {idx} FAILED to apply settings!", level="error")
                 
-        self.app.recorder.start_workers(self.app.cam_mgr.cameras, target_fps=fps)
+        # Auto-match Arduino target FPS
+        self.fps_entry.delete(0, 'end')
+        self.fps_entry.insert(0, str(actual_fps))
+        if self.app.arduino.is_connected:
+            self.app.arduino.set_fps(actual_fps)
+            
+        self.app.recorder.start_workers(self.app.cam_mgr.cameras, target_fps=actual_fps)
         self.app.log("Settings applied to all cameras.")
 
+    def refresh_ports(self):
+        ports = self.app.arduino.get_available_ports()
+        if ports:
+            self.port_combo.configure(values=ports)
+            if self.port_combo.get() not in ports:
+                self.port_combo.set(ports[0])
+        else:
+            self.port_combo.configure(values=["No Ports Found"])
+            self.port_combo.set("No Ports Found")
+            
     def connect_arduino(self):
         port = self.port_combo.get()
         if self.app.arduino.connect(port):
