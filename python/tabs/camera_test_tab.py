@@ -11,7 +11,7 @@ class CameraTestTab(ctk.CTkFrame):
         self.is_scanning = False
         
         # Define formats to test
-        self.test_resolutions = [(1920, 1080), (1280, 720), (1024, 768), (800, 600), (640, 480)]
+        self.test_resolutions = [(1920, 1080), (1600, 1200), (1280, 1024), (1280, 720), (1024, 768), (800, 600), (640, 480)]
         self.test_fps = [60, 50, 30, 25, 15]
         self.test_fourcc = ["MJPG", "YUY2"]
         
@@ -34,10 +34,9 @@ class CameraTestTab(ctk.CTkFrame):
         self.cam_idx_combo.set("0")
         self.cam_idx_combo.pack(fill="x", padx=10, pady=(0, 15))
         
-        ctk.CTkLabel(self.left_panel, text="Backend:").pack(anchor="w", padx=10)
-        self.backend_combo = ctk.CTkComboBox(self.left_panel, values=["MSMF", "DSHOW", "ANY"])
-        self.backend_combo.set("MSMF")
-        self.backend_combo.pack(fill="x", padx=10, pady=(0, 15))
+        ctk.CTkLabel(self.left_panel, text="Custom Res (WxH):").pack(anchor="w", padx=10)
+        self.custom_res_entry = ctk.CTkEntry(self.left_panel, placeholder_text="e.g. 1280x1024")
+        self.custom_res_entry.pack(fill="x", padx=10, pady=(0, 15))
         
         self.btn_scan = ctk.CTkButton(self.left_panel, text="Run Full Scan", command=self.start_scan, fg_color="#2b5c8f", hover_color="#1d3f63")
         self.btn_scan.pack(fill="x", padx=10, pady=20)
@@ -48,6 +47,9 @@ class CameraTestTab(ctk.CTkFrame):
         self.progress_bar = ctk.CTkProgressBar(self.left_panel)
         self.progress_bar.set(0)
         self.progress_bar.pack(fill="x", padx=10, pady=10)
+        
+        self.summary_box = ctk.CTkTextbox(self.left_panel)
+        # We will pack this dynamically when the scan finishes
         
     def start_scan(self):
         if self.is_scanning:
@@ -66,25 +68,34 @@ class CameraTestTab(ctk.CTkFrame):
         self.progress_bar.set(0)
         
         idx = int(self.cam_idx_combo.get())
-        backend_name = self.backend_combo.get()
+        custom_res_str = self.custom_res_entry.get().strip()
         
-        threading.Thread(target=self.scan_worker, args=(idx, backend_name), daemon=True).start()
+        self.successful_formats = {"MJPG": [], "YUY2": []}
+        self.summary_box.pack_forget()
         
-    def scan_worker(self, idx, backend_name):
+        threading.Thread(target=self.scan_worker, args=(idx, custom_res_str), daemon=True).start()
+        
+    def scan_worker(self, idx, custom_res_str):
         backend = cv2.CAP_MSMF
-        if backend_name == "DSHOW":
-            backend = cv2.CAP_DSHOW
-        elif backend_name == "ANY":
-            backend = cv2.CAP_ANY
-            
-        total_tests = len(self.test_fourcc) * len(self.test_resolutions) * len(self.test_fps)
+        
+        # Build resolution list
+        resolutions_to_test = list(self.test_resolutions)
+        if custom_res_str:
+            try:
+                w, h = map(int, custom_res_str.lower().split('x'))
+                if (w, h) not in resolutions_to_test:
+                    resolutions_to_test.insert(0, (w, h))
+            except ValueError:
+                self.app.after(0, self.status_lbl.configure, text="Invalid custom res")
+                
+        total_tests = len(self.test_fourcc) * len(resolutions_to_test) * len(self.test_fps)
         current_test = 0
         
         for fourcc_str in self.test_fourcc:
             # Create a section header for the codec
             self.app.after(0, self.add_section_header, f"Format: {fourcc_str}")
             
-            for w, h in self.test_resolutions:
+            for w, h in resolutions_to_test:
                 for target_fps in self.test_fps:
                     
                     self.app.after(0, lambda t=f"Testing {w}x{h} @ {target_fps}fps ({fourcc_str})": self.status_lbl.configure(text=t))
@@ -94,6 +105,9 @@ class CameraTestTab(ctk.CTkFrame):
                     
                     # Add result card to UI
                     self.app.after(0, self.add_result_card, fourcc_str, w, h, target_fps, result)
+                    
+                    if result["status"] == "success":
+                        self.successful_formats[fourcc_str].append(f"{w}x{h} @ {target_fps}fps")
                     
                     current_test += 1
                     self.app.after(0, self.progress_bar.set, current_test / total_tests)
@@ -171,7 +185,25 @@ class CameraTestTab(ctk.CTkFrame):
         ctk.CTkLabel(info_frame, text=req_str, font=ctk.CTkFont(weight="bold"), anchor="w").pack(fill="x")
         ctk.CTkLabel(info_frame, text=detail_str, text_color=color, anchor="w").pack(fill="x")
         
+        # Auto-scroll to bottom
+        self.right_panel.update_idletasks()
+        self.right_panel._parent_canvas.yview_moveto(1.0)
+        
     def scan_finished(self):
         self.is_scanning = False
         self.btn_scan.configure(state="normal", text="Run Full Scan")
         self.status_lbl.configure(text="Scan Complete", text_color="#28a745")
+        
+        # Build summary report
+        report = "--- SUMMARY ---\n"
+        for fmt, configs in self.successful_formats.items():
+            report += f"\n[{fmt}]\n"
+            if configs:
+                for c in configs:
+                    report += f"✔️ {c}\n"
+            else:
+                report += "None fully supported.\n"
+                
+        self.summary_box.pack(fill="both", expand=True, padx=10, pady=10)
+        self.summary_box.delete("0.0", "end")
+        self.summary_box.insert("0.0", report)
