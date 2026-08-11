@@ -1,7 +1,7 @@
 # Active Context
 
-**Current Status:** Completed major UI refactoring (Tabs) and improved camera initialization robustness (v1.0.3).
-**Last Modified:** 2026-08-10 18:25:00
+**Current Status:** Fixed OpenCV dynamic resolution bugs and set MSMF as default backend.
+**Last Modified:** 2026-08-11 07:28:00
 
 ---
 
@@ -22,3 +22,4 @@ This ensures that the next AI assistant immediately knows what was just done and
 - **2026-08-10:** Added FreeMoCap specific Charuco Board parameters (Dictionary, Grid, Sizes) and a live `cv2.aruco` detection overlay in the Live Preview tab.
 - **2026-08-10:** Implemented Phase 1 of Blackmagic SDI Integration. Added "Camera Type" dropdown to UI to switch between USB and Blackmagic SDI. Modified CameraManager to apply resolution and framerate to DeckLink WDM filters before the first frame read to ensure successful initialization.
 - **2026-08-10 (v1.0.3):** Refactored `main.py` UI into modular tab classes (`SetupTab`, `RecordTab`, `PreviewTab`). Implemented dynamic RAM-buffer for `recorder.py`. Fixed critical DirectShow / OpenCV format negotiation issue by cleanly pausing threads before applying camera settings, and initializing USB cameras with target resolution upfront. Added `pygrabber` dependency to robustly filter camera names.
+- **2026-08-11:** Fixed dynamic resolution switching bug in `CameraManager.apply_settings` by forcing a full camera re-initialization on format changes, preventing 9 FPS fallback issues. Set MSMF as the default backend over DSHOW.

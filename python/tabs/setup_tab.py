@@ -43,8 +43,8 @@ class SetupTab(ctk.CTkFrame):
         backend_f = ctk.CTkFrame(conn_frame, fg_color="transparent")
         backend_f.pack(fill="x", padx=10, pady=5)
         ctk.CTkLabel(backend_f, text="Backend:").pack(side="left")
-        self.backend_combo = ctk.CTkComboBox(backend_f, values=["DSHOW", "MSMF", "ANY"], width=100)
-        self.backend_combo.set("DSHOW")
+        self.backend_combo = ctk.CTkComboBox(backend_f, values=["MSMF", "DSHOW", "ANY"], width=100)
+        self.backend_combo.set("MSMF")
         self.backend_combo.pack(side="right")
         
         type_f = ctk.CTkFrame(conn_frame, fg_color="transparent")
@@ -230,7 +230,7 @@ class SetupTab(ctk.CTkFrame):
             self.camera_type_combo.set(cam_type)
             self.on_camera_type_change(cam_type)
             
-            self.backend_combo.set(data.get("backend", "DSHOW"))
+            self.backend_combo.set(data.get("backend", "MSMF"))
             self.res_combo.set(data.get("resolution", "1280x720 (720p)"))
             self.exposure_slider.set(data.get("exposure", -7))
             self.update_exposure_label(data.get("exposure", -7))
