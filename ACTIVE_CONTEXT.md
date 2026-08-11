@@ -1,7 +1,7 @@
 # Active Context
 
-**Current Status:** Implemented Arduino Software-Integration in GUI (Auto-Trigger, FPS Matching, Presets).
-**Last Modified:** 2026-08-11 11:26:00
+**Current Status:** Implemented Arduino Hardware-Remote Buttons (Pin 3 & 4) via Async Serial Threading.
+**Last Modified:** 2026-08-11 19:17:00
 
 ---
 
@@ -28,3 +28,4 @@ This ensures that the next AI assistant immediately knows what was just done and
 - **2026-08-11 (v1.0.6):** Fixed PyAV frame drops by offloading Charuco and rotation logic to a separate `PreviewWorker` thread, freeing up the `demux` thread. Increased DirectShow `rtbufsize` to 256M to prevent OS-level buffering drops. Fixed MKV 1000fps timestamp bug by correctly overriding `packet.time_base = 1/fps` before muxing.
 - **2026-08-11 (v1.0.7):** Implemented Arduino Software-Integration (Python GUI). Added "Auto-Trigger on Record" logic, automatic FPS matching when applying camera settings, a COM-Port refresh button, and integrated the Arduino port & trigger settings into the `PresetManager`.
 - **2026-08-11 (v1.0.8):** Added FreeMoCap `session_info.json` metadata generation on record start. Implemented Camera Rotation Persistence (saves Portrait mode rotations to `presets.json`). Added a Watchdog `<PING>` to Arduino firmware and Python UI to instantly detect and warn on USB connection loss.
+- **2026-08-11 (v1.0.9):** Added hardware remote control functionality. Rewrote Arduino firmware and `arduino_sync.py` to use asynchronous threading, allowing physical push buttons on Arduino Pins 3 and 4 to toggle the Trigger and Recording states with zero UI latency.
