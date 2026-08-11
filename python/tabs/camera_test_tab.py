@@ -13,7 +13,7 @@ class CameraTestTab(ctk.CTkFrame):
         # Define formats to test
         self.test_resolutions = [(1920, 1080), (1600, 1200), (1280, 1024), (1280, 720), (1024, 768), (800, 600), (640, 480)]
         self.test_fps = [60, 50, 30, 25, 15]
-        self.test_fourcc = ["MJPG", "YUY2"]
+        self.test_fourcc = ["MJPG"]
         
         self.setup_ui()
         
@@ -35,8 +35,8 @@ class CameraTestTab(ctk.CTkFrame):
         self.cam_idx_combo.pack(fill="x", padx=10, pady=(0, 15))
         
         ctk.CTkLabel(self.left_panel, text="Format to Test:").pack(anchor="w", padx=10)
-        self.format_test_combo = ctk.CTkComboBox(self.left_panel, values=["Both (MJPG & YUY2)", "MJPG Only", "YUY2 Only"])
-        self.format_test_combo.set("Both (MJPG & YUY2)")
+        self.format_test_combo = ctk.CTkComboBox(self.left_panel, values=["MJPG Only"])
+        self.format_test_combo.set("MJPG Only")
         self.format_test_combo.pack(fill="x", padx=10, pady=(0, 15))
 
         ctk.CTkLabel(self.left_panel, text="Custom Res (WxH):").pack(anchor="w", padx=10)
@@ -82,14 +82,15 @@ class CameraTestTab(ctk.CTkFrame):
         self.all_successful_formats = {}
         self.summary_box.pack_forget()
         
+        import threading
         threading.Thread(target=self.scan_worker, args=(idx_val, custom_res_str, custom_only), daemon=True).start()
         
     def scan_worker(self, idx_val, custom_res_str, custom_only):
-        backend = cv2.CAP_MSMF
+        backend = "MSMF" # Dummy, ignored
         
         if idx_val == "All":
             self.app.after(0, lambda: self.status_lbl.configure(text="Discovering cameras..."))
-            cams_to_test = self.app.cam_mgr.find_and_open_cameras(10, backend_name="MSMF", camera_type="USB Webcams")
+            cams_to_test = self.app.cam_mgr.find_and_open_cameras(10, camera_type="USB Webcams")
             self.app.cam_mgr.close_all()
             if not cams_to_test:
                 self.app.after(0, lambda: self.status_lbl.configure(text="No cameras found"))
@@ -118,13 +119,7 @@ class CameraTestTab(ctk.CTkFrame):
             self.app.after(0, self.scan_finished)
             return
             
-        fmt_val = self.format_test_combo.get()
-        if fmt_val == "MJPG Only":
-            formats_to_test = ["MJPG"]
-        elif fmt_val == "YUY2 Only":
-            formats_to_test = ["YUY2"]
-        else:
-            formats_to_test = ["MJPG", "YUY2"]
+        formats_to_test = ["MJPG"]
                 
         total_tests = len(cams_to_test) * len(formats_to_test) * len(resolutions_to_test) * len(self.test_fps)
         current_test = 0
@@ -166,37 +161,52 @@ class CameraTestTab(ctk.CTkFrame):
         self.app.after(0, self.scan_finished)
         
     def test_format(self, idx, backend, fourcc_str, w, h, fps):
-        cap = cv2.VideoCapture(idx, backend)
-        if not cap.isOpened():
-            return {"status": "failed", "reason": "Failed to open camera"}
+        import av
+        device_names = self.app.cam_mgr._get_device_names()
+        if idx >= len(device_names):
+            return {"status": "failed", "reason": "Camera not found"}
             
-        # Try to enforce exact format
-        cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*fourcc_str))
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, w)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, h)
-        cap.set(cv2.CAP_PROP_FPS, fps)
+        cam_name = device_names[idx]
+        vcodec = 'mjpeg' if fourcc_str == "MJPG" else 'rawvideo'
         
-        # Grab a frame to let backend negotiate
-        ret, _ = cap.read()
-        
-        if not ret:
-            cap.release()
-            return {"status": "failed", "reason": "Could not grab frame"}
+        options = {
+            'video_size': f'{w}x{h}',
+            'framerate': str(fps),
+            'vcodec': vcodec
+        }
+        if fourcc_str == "YUY2":
+            options['pixel_format'] = 'yuyv422'
             
-        actual_w = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
-        actual_h = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
-        actual_fps = cap.get(cv2.CAP_PROP_FPS)
-        
-        cap.release()
-        
-        # Evaluate result
-        if actual_w == w and actual_h == h:
-            if abs(actual_fps - fps) <= 1.5:
-                return {"status": "success", "actual_w": actual_w, "actual_h": actual_h, "actual_fps": actual_fps}
+        try:
+            container = av.open(f'video={cam_name}', format='dshow', options=options)
+            stream = container.streams.video[0]
+            
+            # verify we can demux a packet
+            packet_found = False
+            for packet in container.demux(stream):
+                if packet.size > 0:
+                    packet_found = True
+                    break
+                    
+            if not packet_found:
+                container.close()
+                return {"status": "failed", "reason": "No packets received"}
+                
+            actual_w = stream.codec_context.width
+            actual_h = stream.codec_context.height
+            actual_fps = float(stream.average_rate) if stream.average_rate else fps
+            container.close()
+            
+            if actual_w == w and actual_h == h:
+                if abs(actual_fps - fps) <= 1.5:
+                    return {"status": "success", "actual_w": actual_w, "actual_h": actual_h, "actual_fps": actual_fps}
+                else:
+                    return {"status": "warning", "reason": "FPS Mismatch", "actual_w": actual_w, "actual_h": actual_h, "actual_fps": actual_fps}
             else:
-                return {"status": "warning", "reason": "FPS Mismatch", "actual_w": actual_w, "actual_h": actual_h, "actual_fps": actual_fps}
-        else:
-            return {"status": "error", "reason": "Resolution Mismatch", "actual_w": actual_w, "actual_h": actual_h, "actual_fps": actual_fps}
+                return {"status": "error", "reason": "Resolution Mismatch", "actual_w": actual_w, "actual_h": actual_h, "actual_fps": actual_fps}
+                
+        except Exception as e:
+            return {"status": "failed", "reason": "Rejected by driver"}
 
     def add_section_header(self, title):
         lbl = ctk.CTkLabel(self.right_panel, text=title, font=ctk.CTkFont(size=18, weight="bold"), anchor="w")

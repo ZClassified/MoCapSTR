@@ -41,13 +41,6 @@ class SetupTab(ctk.CTkFrame):
         conn_frame.pack(fill="x", pady=5)
         ctk.CTkLabel(conn_frame, text="1. Camera Connection", font=ctk.CTkFont(weight="bold")).pack(anchor="w", padx=10, pady=5)
         
-        backend_f = ctk.CTkFrame(conn_frame, fg_color="transparent")
-        backend_f.pack(fill="x", padx=10, pady=5)
-        ctk.CTkLabel(backend_f, text="Backend:").pack(side="left")
-        self.backend_combo = ctk.CTkComboBox(backend_f, values=["MSMF", "DSHOW", "ANY"], width=100)
-        self.backend_combo.set("MSMF")
-        self.backend_combo.pack(side="right")
-        
         type_f = ctk.CTkFrame(conn_frame, fg_color="transparent")
         type_f.pack(fill="x", padx=10, pady=5)
         ctk.CTkLabel(type_f, text="Camera Type:").pack(side="left")
@@ -65,40 +58,33 @@ class SetupTab(ctk.CTkFrame):
         sensor_frame.pack(fill="x", pady=5)
         ctk.CTkLabel(sensor_frame, text="2. Sensor Settings", font=ctk.CTkFont(weight="bold")).pack(anchor="w", padx=10, pady=5)
         
-        format_f = ctk.CTkFrame(sensor_frame, fg_color="transparent")
-        format_f.pack(fill="x", padx=10, pady=5)
-        ctk.CTkLabel(format_f, text="Format:").pack(side="left")
-        self.btn_format_info = ctk.CTkButton(format_f, text=" i ", width=20, height=20, corner_radius=10, command=self.show_format_info)
-        self.btn_format_info.pack(side="left", padx=(5, 10))
-        self.format_combo = ctk.CTkComboBox(format_f, values=["MJPG", "YUY2"], width=100)
-        self.format_combo.set("MJPG")
-        self.format_combo.pack(side="right")
-        
         res_options = ["3840x2160 (4K)", "2560x1440 (1440p)", "1920x1080 (1080p)", "1280x800", "1280x720 (720p)", "1024x768", "800x600", "640x480", "640x400", "320x240"]
         self.res_combo = ctk.CTkComboBox(sensor_frame, values=res_options)
         self.res_combo.set("1280x720 (720p)")
         self.res_combo.pack(fill="x", padx=10, pady=5)
         
-        self.lbl_exposure = ctk.CTkLabel(sensor_frame, text="Exposure (Shutter Speed): 1/128s")
+        self.btn_apply_cams = ctk.CTkButton(sensor_frame, text="Apply Resolution / Reopen", command=self.apply_camera_settings)
+        self.btn_apply_cams.pack(fill="x", padx=10, pady=10)
+        
+        # Card 2.5: Hardware Exposure (USB Webcams Only)
+        exp_frame = ctk.CTkFrame(col1_container)
+        exp_frame.pack(fill="x", pady=5)
+        ctk.CTkLabel(exp_frame, text="Hardware Exposure (USB)", font=ctk.CTkFont(weight="bold")).pack(anchor="w", padx=10, pady=5)
+        
+        self.lbl_exposure = ctk.CTkLabel(exp_frame, text="Exposure (Shutter Speed): 1/128s")
         self.lbl_exposure.pack(anchor="w", padx=10)
-        self.exposure_slider = ctk.CTkSlider(sensor_frame, from_=-11, to=-3, number_of_steps=8, command=self.update_exposure_label)
+        self.exposure_slider = ctk.CTkSlider(exp_frame, from_=-11, to=-3, number_of_steps=8, command=self.update_exposure_label)
         self.exposure_slider.set(-7)
         self.exposure_slider.pack(fill="x", padx=10, pady=5)
         
-        self.lbl_gain = ctk.CTkLabel(sensor_frame, text="Gain: 0")
+        self.lbl_gain = ctk.CTkLabel(exp_frame, text="Gain: 0")
         self.lbl_gain.pack(anchor="w", padx=10)
-        self.gain_slider = ctk.CTkSlider(sensor_frame, from_=0, to=255, command=self.update_gain_label)
+        self.gain_slider = ctk.CTkSlider(exp_frame, from_=0, to=255, command=self.update_gain_label)
         self.gain_slider.set(0)
         self.gain_slider.pack(fill="x", padx=10, pady=5)
         
-        self.lbl_wb = ctk.CTkLabel(sensor_frame, text="White Balance: 5600K")
-        self.lbl_wb.pack(anchor="w", padx=10)
-        self.wb_slider = ctk.CTkSlider(sensor_frame, from_=2000, to=8000, number_of_steps=60, command=self.update_wb_label)
-        self.wb_slider.set(5600)
-        self.wb_slider.pack(fill="x", padx=10, pady=5)
-        
-        self.btn_apply_cams = ctk.CTkButton(sensor_frame, text="Apply Camera Settings", command=self.apply_camera_settings)
-        self.btn_apply_cams.pack(fill="x", padx=10, pady=10)
+        self.btn_sync_exposure = ctk.CTkButton(exp_frame, text="Sync Hardware Exposure", command=self.sync_exposure_cmd, fg_color="#d4a373", text_color="black", hover_color="#faedcd")
+        self.btn_sync_exposure.pack(fill="x", padx=10, pady=10)
 
         # --- Column 2: Hardware Sync ---
         col2_container = ctk.CTkFrame(self, fg_color="transparent")
@@ -197,14 +183,10 @@ class SetupTab(ctk.CTkFrame):
         
         self.exposure_slider.configure(state=state)
         self.gain_slider.configure(state=state)
-        self.wb_slider.configure(state=state)
+        self.btn_sync_exposure.configure(state=state)
         
         self.lbl_exposure.configure(text_color=text_color)
         self.lbl_gain.configure(text_color=text_color)
-        self.lbl_wb.configure(text_color=text_color)
-
-    def show_format_info(self):
-        messagebox.showinfo("Format Info", "MJPG: Often allows higher FPS/Resolutions for USB Webcams.\nYUY2: Uncompressed, higher quality but bandwidth intensive.")
 
     def save_preset(self):
         name = self.preset_name_entry.get()
@@ -214,12 +196,9 @@ class SetupTab(ctk.CTkFrame):
             
         data = {
             "camera_type": self.camera_type_combo.get(),
-            "backend": self.backend_combo.get(),
-            "format": self.format_combo.get(),
             "resolution": self.res_combo.get(),
             "exposure": self.exposure_slider.get(),
             "gain": self.gain_slider.get(),
-            "wb": self.wb_slider.get(),
             "fps": self.fps_entry.get(),
             "charuco_dict": self.charuco_dict.get(),
             "charuco_x": self.charuco_x.get(),
@@ -243,15 +222,11 @@ class SetupTab(ctk.CTkFrame):
             self.camera_type_combo.set(cam_type)
             self.on_camera_type_change(cam_type)
             
-            self.backend_combo.set(data.get("backend", "MSMF"))
-            self.format_combo.set(data.get("format", "MJPG"))
             self.res_combo.set(data.get("resolution", "1280x720 (720p)"))
             self.exposure_slider.set(data.get("exposure", -7))
             self.update_exposure_label(data.get("exposure", -7))
             self.gain_slider.set(data.get("gain", 0))
             self.update_gain_label(data.get("gain", 0))
-            self.wb_slider.set(data.get("wb", 5600))
-            self.update_wb_label(data.get("wb", 5600))
             
             self.fps_entry.delete(0, 'end')
             self.fps_entry.insert(0, data.get("fps", "50"))
@@ -324,9 +299,6 @@ class SetupTab(ctk.CTkFrame):
 
     def update_gain_label(self, value):
         self.lbl_gain.configure(text=f"Gain: {int(value)}")
-        
-    def update_wb_label(self, value):
-        self.lbl_wb.configure(text=f"White Balance: {int(value)}K")
 
     def scan_cameras(self):
         self.app.log("Scanning for cameras (this may take a few seconds)...")
@@ -335,7 +307,6 @@ class SetupTab(ctk.CTkFrame):
         self.app.recorder.stop_workers()
         
         def scan():
-            backend = self.backend_combo.get()
             cam_type = self.camera_type_combo.get()
             
             res_str = self.res_combo.get().split(' ')[0]
@@ -345,11 +316,10 @@ class SetupTab(ctk.CTkFrame):
             except ValueError:
                 target_fps = 50
                 
-            fmt = self.format_combo.get()
+            fmt = "MJPG" # Hardcoded optimization
                 
             self.app.camera_indices = self.app.cam_mgr.find_and_open_cameras(
                 6, 
-                backend_name=backend,
                 camera_type=cam_type,
                 target_w=target_w,
                 target_h=target_h,
@@ -368,6 +338,33 @@ class SetupTab(ctk.CTkFrame):
             
         threading.Thread(target=scan).start()
 
+    def sync_exposure_cmd(self):
+        exp = int(self.exposure_slider.get())
+        gain = int(self.gain_slider.get())
+        
+        self.btn_sync_exposure.configure(state="disabled", text="Syncing...")
+        self.app.log("Syncing Hardware Exposure... (PyAV streams will momentarily restart)")
+        self.app.recorder.stop_workers()
+        
+        def do_sync():
+            results = self.app.cam_mgr.sync_hardware_exposure(exp, gain)
+            for idx, res in results.items():
+                if res == "Success":
+                    self.app.log(f"Cam {idx}: Hardware Exposure Sync OK", "success")
+                else:
+                    self.app.log(f"Cam {idx}: Exposure Sync failed - {res}", "error")
+                    
+            try:
+                fps = int(self.fps_entry.get())
+            except:
+                fps = 50
+            self.app.recorder.start_workers(self.app.cam_mgr.cameras, target_fps=fps)
+            
+            self.btn_sync_exposure.configure(state="normal", text="Sync Hardware Exposure")
+            self.app.log("Exposure Sync Complete.")
+            
+        threading.Thread(target=do_sync).start()
+
     def apply_camera_settings(self):
         self.app.recorder.stop_workers()
         
@@ -377,15 +374,13 @@ class SetupTab(ctk.CTkFrame):
             fps = int(self.fps_entry.get())
         except ValueError:
             fps = 50
-        exp = int(self.exposure_slider.get())
-        gain = int(self.gain_slider.get())
-        wb = int(self.wb_slider.get())
-        fmt = self.format_combo.get()
+            
+        fmt = "MJPG" # Hardcoded optimization
         
         for idx in self.app.camera_indices:
-            actual = self.app.cam_mgr.apply_settings(idx, width=w, height=h, fps=fps, format_str=fmt, exposure_value=exp, gain_value=gain, wb_value=wb)
+            actual = self.app.cam_mgr.apply_settings(idx, width=w, height=h, fps=fps, format_str=fmt)
             if actual:
-                self.app.log(f"Cam {idx} ACCEPTED: Fmt={actual.get('format', fmt)}, Res={actual['width']}x{actual['height']}, FPS={actual['fps']}, Exp={actual['exposure']}, Gain={actual['gain']}, WB={actual['wb']}", level="success")
+                self.app.log(f"Cam {idx} ACCEPTED: Fmt={actual.get('format', fmt)}, Res={actual['width']}x{actual['height']}, FPS={actual['fps']}", level="success")
             else:
                 self.app.log(f"Cam {idx} FAILED to apply settings!", level="error")
                 
