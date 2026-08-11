@@ -3,8 +3,9 @@ import cv2
 class CameraManager:
     def __init__(self):
         self.cameras = {} # Dictionary mapping index to cv2.VideoCapture object
+        self.camera_info = {} # Dictionary mapping index to dict of {backend, camera_type}
         
-    def find_and_open_cameras(self, max_index=6, backend_name="DSHOW", camera_type="USB Webcams", target_w=1280, target_h=720, target_fps=50):
+    def find_and_open_cameras(self, max_index=6, backend_name="MSMF", camera_type="USB Webcams", target_w=1280, target_h=720, target_fps=50):
         """Scans for available cameras and keeps them open to avoid Windows lockups."""
         self.close_all()
         print(f"Scanning for cameras using {backend_name} (Type: {camera_type})...")
@@ -54,6 +55,7 @@ class CameraManager:
                 ret, _ = cap.read()
                 if ret:
                     self.cameras[i] = cap
+                    self.camera_info[i] = {"backend": backend, "camera_type": camera_type}
                     available_cams.append(i)
                 else:
                     cap.release()
@@ -67,6 +69,8 @@ class CameraManager:
         if index in self.cameras:
             self.cameras[index].release()
             del self.cameras[index]
+            if index in self.camera_info:
+                del self.camera_info[index]
             
     def close_all(self):
         for index in list(self.cameras.keys()):
@@ -75,11 +79,46 @@ class CameraManager:
     def apply_settings(self, index, width=1280, height=800, fps=50, exposure_value=None, gain_value=None, wb_value=None):
         """
         Applies settings to a specific camera.
+        If resolution or FPS changes, the camera is fully reopened to ensure Windows drivers accept the change.
         Reads back the actual values the driver accepted and returns them.
         """
         if index in self.cameras:
             cap = self.cameras[index]
             
+            # Check if we need a full restart of the stream for format changes
+            current_w = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+            current_h = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+            current_fps = cap.get(cv2.CAP_PROP_FPS)
+            
+            # Allow some tolerance for fps comparison due to float imprecision
+            needs_reopen = (current_w != width or current_h != height or abs(current_fps - fps) > 1.0)
+            
+            if needs_reopen and index in self.camera_info:
+                print(f"Format change detected for Cam {index}. Reopening camera to apply resolution/FPS...")
+                cap.release()
+                backend = self.camera_info[index]["backend"]
+                camera_type = self.camera_info[index]["camera_type"]
+                
+                cap = cv2.VideoCapture(index, backend)
+                if not cap.isOpened():
+                    print(f"Failed to reopen Cam {index}")
+                    return None
+                    
+                if camera_type == "Blackmagic SDI":
+                    cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+                    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+                    cap.set(cv2.CAP_PROP_FPS, fps)
+                else:
+                    cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
+                    cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+                    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+                    cap.set(cv2.CAP_PROP_FPS, fps)
+                
+                # Grab a frame to flush initial state
+                cap.read()
+                self.cameras[index] = cap
+            
+            # Apply other settings (exposure, gain, wb) which CAN be applied on-the-fly
             # Disable auto settings
             cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.25) # Manual
             cap.set(cv2.CAP_PROP_AUTO_WB, 0) # Manual WB
@@ -91,10 +130,12 @@ class CameraManager:
             if wb_value is not None:
                 cap.set(cv2.CAP_PROP_WB_TEMPERATURE, wb_value)
                 
-            cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
-            cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
-            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
-            cap.set(cv2.CAP_PROP_FPS, fps)
+            # Note: For non-reopen cases, we re-assert these just in case, but they usually fail on active streams
+            if not needs_reopen:
+                cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
+                cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+                cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+                cap.set(cv2.CAP_PROP_FPS, fps)
             
             # Read back ACTUAL values
             actual_w = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
