@@ -21,7 +21,7 @@ class MoCapSyncApp(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("MoCapSTR: Sync / Trigger / Record for FreeMoCap v1.0.6")
+        self.title("MoCapSTR: Sync / Trigger / Record for FreeMoCap v1.0.7")
         self.geometry("1100x800")
         
         # Managers
@@ -116,11 +116,29 @@ class MoCapSyncApp(ctk.CTk):
             self.recorder.start_recording(save_dir, fps, codec, enabled_cams)
             self.record_start_time = time.time()
             
+            # Auto-trigger Arduino if checked
+            if hasattr(self.setup_tab, 'chk_auto_trigger_var') and self.setup_tab.chk_auto_trigger_var.get():
+                if self.arduino.is_connected:
+                    self.arduino.start_trigger()
+                    self.setup_tab.btn_start_sync.configure(state="disabled")
+                    self.setup_tab.btn_stop_sync.configure(state="normal")
+                    self.log("Auto-Trigger Started", "success")
+                else:
+                    self.log("Warning: Auto-Trigger enabled but Arduino not connected!", "error")
+            
             self.record_tab.btn_record.configure(text="⏹ STOP RECORDING", fg_color="red", hover_color="darkred")
             self.preview_tab.btn_record_live.configure(text="⏹ STOP RECORDING", fg_color="red", hover_color="darkred")
         else:
             # STOP
             self.recorder.stop_recording()
+            
+            # Auto-stop Arduino if running
+            if self.arduino.is_running and hasattr(self.setup_tab, 'chk_auto_trigger_var') and self.setup_tab.chk_auto_trigger_var.get():
+                self.arduino.stop_trigger()
+                self.setup_tab.btn_stop_sync.configure(state="disabled")
+                self.setup_tab.btn_start_sync.configure(state="normal")
+                self.log("Auto-Trigger Stopped")
+                
             self.record_tab.btn_record.configure(text="⏺ START RECORDING", fg_color="darkred", hover_color="red")
             self.preview_tab.btn_record_live.configure(text="⏺ START RECORDING", fg_color="darkred", hover_color="red")
             self.preview_tab.lbl_live_warning.configure(text="")
