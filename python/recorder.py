@@ -6,6 +6,48 @@ import queue
 import av
 import fractions
 
+class PreviewWorker(threading.Thread):
+    def __init__(self, camera_worker):
+        super().__init__()
+        self.camera_worker = camera_worker
+        self.queue = queue.Queue(maxsize=2)
+        self.is_running = True
+        
+    def run(self):
+        while self.is_running:
+            try:
+                bgr_frame = self.queue.get(timeout=0.1)
+                
+                # Apply rotation
+                if self.camera_worker.rotation_degrees == 90:
+                    bgr_frame = cv2.rotate(bgr_frame, cv2.ROTATE_90_CLOCKWISE)
+                elif self.camera_worker.rotation_degrees == 180:
+                    bgr_frame = cv2.rotate(bgr_frame, cv2.ROTATE_180)
+                elif self.camera_worker.rotation_degrees == 270:
+                    bgr_frame = cv2.rotate(bgr_frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
+                    
+                # Charuco Detection offloading
+                if self.camera_worker.show_charuco and self.camera_worker.charuco_dict is not None and self.camera_worker.charuco_params is not None:
+                    gray = cv2.cvtColor(bgr_frame, cv2.COLOR_BGR2GRAY)
+                    try:
+                        if hasattr(cv2.aruco, 'ArucoDetector'):
+                            detector = cv2.aruco.ArucoDetector(self.camera_worker.charuco_dict, self.camera_worker.charuco_params)
+                            corners, ids, rejected = detector.detectMarkers(gray)
+                        else:
+                            corners, ids, rejected = cv2.aruco.detectMarkers(gray, self.camera_worker.charuco_dict, parameters=self.camera_worker.charuco_params)
+                            
+                        if corners and len(corners) > 0:
+                            cv2.aruco.drawDetectedMarkers(bgr_frame, corners, ids)
+                    except Exception as e:
+                        pass
+                        
+                self.camera_worker.latest_frame = bgr_frame
+            except queue.Empty:
+                pass
+                
+    def stop(self):
+        self.is_running = False
+
 class CameraWorker(threading.Thread):
     def __init__(self, cam_id, container, target_fps=50):
         super().__init__()
@@ -36,6 +78,9 @@ class CameraWorker(threading.Thread):
         self.output_container = None
         self.output_stream = None
         
+        self.preview_worker = PreviewWorker(self)
+        self.preview_worker.start()
+        
     def set_charuco(self, show, dict_str=None):
         self.show_charuco = show
         if show and dict_str:
@@ -65,6 +110,7 @@ class CameraWorker(threading.Thread):
             return
             
         self.frames_recorded = 0
+        self.recording_fps = fps
         while not self.packet_queue.empty():
             try:
                 self.packet_queue.get_nowait()
@@ -127,7 +173,7 @@ class CameraWorker(threading.Thread):
                         if self.output_stream.type == packet.stream.type and self.output_stream.name == packet.stream.name:
                             # Stream Copy
                             packet.stream = self.output_stream
-                            packet.time_base = self.output_stream.time_base
+                            packet.time_base = fractions.Fraction(1, int(self.recording_fps))
                             packet.pts = self.frames_recorded
                             packet.dts = self.frames_recorded
                             self.output_container.mux(packet)
@@ -157,52 +203,38 @@ class CameraWorker(threading.Thread):
                     self.frame_count_for_fps = 0
                     self.last_fps_time = now
 
-                # Enqueue packet for recording
+                # 1. Preview Frame dekodieren (VOR dem Queueing, um Race Conditions zu vermeiden)
+                bgr_frame = None
+                if now - self.last_preview_time >= (1.0 / 15.0):
+                    try:
+                        for frame in packet.decode():
+                            bgr_frame = frame.to_ndarray(format='bgr24')
+                            self.last_preview_time = now
+                            break # Only decode first frame in packet
+                    except Exception as e:
+                        pass
+                        
+                # 2. Enqueue packet for recording
                 if self.is_recording:
                     try:
                         self.packet_queue.put_nowait(packet)
                     except queue.Full:
                         print(f"[{self.cam_id}] Queue full! Dropping packet.")
                         
-                # Extract Preview Frame (Max 15 FPS to save CPU)
-                if now - self.last_preview_time >= (1.0 / 15.0):
+                # 3. An den PreviewWorker schicken
+                if bgr_frame is not None:
                     try:
-                        for frame in packet.decode():
-                            bgr_frame = frame.to_ndarray(format='bgr24')
-                            
-                            if self.rotation_degrees == 90:
-                                bgr_frame = cv2.rotate(bgr_frame, cv2.ROTATE_90_CLOCKWISE)
-                            elif self.rotation_degrees == 180:
-                                bgr_frame = cv2.rotate(bgr_frame, cv2.ROTATE_180)
-                            elif self.rotation_degrees == 270:
-                                bgr_frame = cv2.rotate(bgr_frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
-                                
-                            # Charuco Detection offloading
-                            if self.show_charuco and self.charuco_dict is not None and self.charuco_params is not None:
-                                gray = cv2.cvtColor(bgr_frame, cv2.COLOR_BGR2GRAY)
-                                try:
-                                    if hasattr(cv2.aruco, 'ArucoDetector'):
-                                        detector = cv2.aruco.ArucoDetector(self.charuco_dict, self.charuco_params)
-                                        corners, ids, rejected = detector.detectMarkers(gray)
-                                    else:
-                                        corners, ids, rejected = cv2.aruco.detectMarkers(gray, self.charuco_dict, parameters=self.charuco_params)
-                                        
-                                    if corners and len(corners) > 0:
-                                        cv2.aruco.drawDetectedMarkers(bgr_frame, corners, ids)
-                                except Exception as e:
-                                    pass
-                                    
-                            self.latest_frame = bgr_frame
-                            self.last_preview_time = now
-                            break # Only decode first frame in packet
-                    except Exception as e:
-                        pass
+                        self.preview_worker.queue.put_nowait(bgr_frame)
+                    except queue.Full:
+                        pass # Drop frame if worker is busy
         except Exception as e:
             print(f"[{self.cam_id}] Demux loop error: {e}")
             
     def stop(self):
         self.is_running = False
         self.stop_recording()
+        self.preview_worker.stop()
+        self.preview_worker.join()
 
 class MultiCamManager:
     def __init__(self):
