@@ -60,7 +60,8 @@ class CameraManager:
                     options = {
                         'video_size': f'{target_w}x{target_h}',
                         'framerate': str(target_fps),
-                        'vcodec': vcodec
+                        'vcodec': vcodec,
+                        'rtbufsize': '256M'
                     }
                     if target_format == "YUY2":
                         options['pixel_format'] = pixel_format
@@ -139,7 +140,8 @@ class CameraManager:
                         options = {
                             'video_size': f'{width}x{height}',
                             'framerate': str(fps),
-                            'vcodec': vcodec
+                            'vcodec': vcodec,
+                            'rtbufsize': '256M'
                         }
                         if format_str == "YUY2":
                             options['pixel_format'] = 'yuyv422'
@@ -246,7 +248,8 @@ class CameraManager:
                 options = {
                     'video_size': f'{info["width"]}x{info["height"]}',
                     'framerate': str(info["fps"]),
-                    'vcodec': vcodec
+                    'vcodec': vcodec,
+                    'rtbufsize': '256M'
                 }
                 container = av.open(f'video={cam_name}', format='dshow', options=options)
                 stream = container.streams.video[0]
