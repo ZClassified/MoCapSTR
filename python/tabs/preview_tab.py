@@ -75,3 +75,7 @@ class PreviewTab(ctk.CTkFrame):
             rot_menu = ctk.CTkOptionMenu(cam_frame, values=["0°", "90° (Portrait)", "180°", "270° (Portrait)"], command=make_rot_callback(idx))
             rot_menu.set("0°")
             rot_menu.grid(row=2, column=0, pady=5, sticky="ew")
+            
+            if not hasattr(self.app, 'rotation_menus'):
+                self.app.rotation_menus = {}
+            self.app.rotation_menus[idx] = rot_menu

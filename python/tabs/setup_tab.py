@@ -218,6 +218,12 @@ class SetupTab(ctk.CTkFrame):
             "arduino_port": self.port_combo.get(),
             "arduino_auto_trigger": self.chk_auto_trigger_var.get()
         }
+        
+        if hasattr(self.app, 'rotation_menus'):
+            rotations = {}
+            for idx, menu in self.app.rotation_menus.items():
+                rotations[str(idx)] = menu.get()
+            data["rotations"] = rotations
         self.app.preset_mgr.save_preset(name, data)
         self.preset_combo.configure(values=["Default"] + self.app.preset_mgr.get_preset_names())
         self.preset_combo.set(name)
@@ -257,6 +263,15 @@ class SetupTab(ctk.CTkFrame):
             if arduino_port and arduino_port in self.port_combo._values:
                 self.port_combo.set(arduino_port)
             self.chk_auto_trigger_var.set(data.get("arduino_auto_trigger", True))
+            
+            rotations = data.get("rotations", {})
+            if hasattr(self.app, 'rotation_menus'):
+                for idx_str, val in rotations.items():
+                    idx = int(idx_str)
+                    if idx in self.app.rotation_menus:
+                        self.app.rotation_menus[idx].set(val)
+                        deg = int(val.split('°')[0])
+                        self.app.recorder.set_camera_rotation(idx, deg)
             
             self.app.log(f"Preset '{name}' loaded.", "success")
             self.update_charuco_preview()

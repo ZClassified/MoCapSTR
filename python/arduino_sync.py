@@ -73,6 +73,26 @@ class ArduinoSync:
             return success
         return True
 
+    def ping(self):
+        if not self.is_connected or not self.serial_conn.is_open:
+            return False
+            
+        try:
+            self.serial_conn.write("<PING>\n".encode('utf-8'))
+            time.sleep(0.05)
+            if self.serial_conn.in_waiting:
+                response = self.serial_conn.readline().decode('utf-8').strip()
+                if response == "PONG":
+                    return True
+            # If no PONG response or not enough waiting
+            self.is_connected = False
+            return False
+        except Exception as e:
+            print(f"Error pinging Arduino: {e}")
+            self.is_connected = False
+            return False
+
+
 if __name__ == "__main__":
     # Simple test
     print("Available ports:", ArduinoSync.get_available_ports())
