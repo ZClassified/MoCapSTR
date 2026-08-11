@@ -50,6 +50,8 @@ void loop() {
       digitalWrite(TRIGGER_PIN, LOW);
       digitalWrite(LED_PIN, LOW);
       Serial.println("Trigger STOPPED");
+    } else if (inputString == "<PING>") {
+      Serial.println("PONG");
     } else {
       Serial.println("Error: Unknown command");
     }

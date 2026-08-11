@@ -1,5 +1,7 @@
 import tkinter as tk
 import customtkinter as ctk
+import json
+import os
 from camera_manager import CameraManager
 from arduino_sync import ArduinoSync
 from project_manager import ProjectManager
@@ -21,7 +23,7 @@ class MoCapSyncApp(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("MoCapSTR: Sync / Trigger / Record for FreeMoCap v1.0.7")
+        self.title("MoCapSTR: Sync / Trigger / Record for FreeMoCap v1.0.8")
         self.geometry("1100x800")
         
         # Managers
@@ -113,6 +115,25 @@ class MoCapSyncApp(ctk.CTk):
                 return
             
             self.log(f"Starting recording to: {save_dir}")
+            
+            # Generate session_info.json for FreeMoCap
+            try:
+                session_info = {
+                    "fps": fps,
+                    "codec": codec,
+                    "resolution": self.setup_tab.res_combo.get(),
+                    "charuco_dict": self.setup_tab.charuco_dict.get(),
+                    "charuco_x": int(self.setup_tab.charuco_x.get()),
+                    "charuco_y": int(self.setup_tab.charuco_y.get()),
+                    "charuco_sq_size": float(self.setup_tab.charuco_sq_size.get()),
+                    "charuco_marker_size": float(self.setup_tab.charuco_marker_size.get())
+                }
+                info_path = os.path.join(os.path.dirname(save_dir), "session_info.json")
+                with open(info_path, 'w', encoding='utf-8') as f:
+                    json.dump(session_info, f, indent=4)
+                self.log("Generated session_info.json", "success")
+            except Exception as e:
+                self.log(f"Failed to generate session_info.json: {e}", "error")
             self.recorder.start_recording(save_dir, fps, codec, enabled_cams)
             self.record_start_time = time.time()
             
@@ -154,6 +175,14 @@ class MoCapSyncApp(ctk.CTk):
             self.setup_tab.btn_start_sync.configure(state="normal")
             self.arduino.is_running = False
         
+        if self.ui_tick % 40 == 0:
+            if self.arduino.is_connected:
+                if not self.arduino.ping():
+                    self.preview_tab.lbl_live_warning.configure(text="⚠️ ARDUINO DISCONNECTED!")
+                    self.setup_tab.btn_stop_sync.configure(state="disabled")
+                    self.setup_tab.btn_start_sync.configure(state="normal")
+                    self.log("Arduino ping failed! Disconnected.", "error")
+                    
         if self.ui_tick % 20 == 0 or self.ui_tick == 1:
             self.last_free_space = self.get_free_space()
             
