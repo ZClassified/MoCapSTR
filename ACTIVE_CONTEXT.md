@@ -1,7 +1,7 @@
 # Active Context
 
-**Current Status:** Improved Camera Tester Tab with smart scan and multi-camera support (v1.0.5).
-**Last Modified:** 2026-08-11 08:39:00
+**Current Status:** UI cleanup post-PyAV refactor (v1.1.0).
+**Last Modified:** 2026-08-11 10:05:00
 
 ---
 
@@ -16,7 +16,6 @@ Welcome to the MoCapST project. This file (`ACTIVE_CONTEXT.md`) serves as the ce
 This ensures that the next AI assistant immediately knows what was just done and where the project currently stands.
 
 ## Recent Changes
-- **2026-08-10:** Added dynamic FPS counter overlay to camera previews with color coding (Green/Yellow/Red) based on target framerate.
 - **2026-08-10:** Added top control bar in Live Preview tab including Recording Timer, Frame Counter, Disk Space Warning, and live Dropped Frame detection.
 - **2026-08-10:** Implemented `PresetManager` to save/load all UI settings to `presets.json`. Overhauled the Setup Tab UI using `CTkFrame` cards for better grouping.
 - **2026-08-10:** Added FreeMoCap specific Charuco Board parameters (Dictionary, Grid, Sizes) and a live `cv2.aruco` detection overlay in the Live Preview tab.
@@ -24,3 +23,5 @@ This ensures that the next AI assistant immediately knows what was just done and
 - **2026-08-11 (v1.0.4):** Created `CameraTestTab` (Tab 4) to brute-force test camera capabilities. Added Format selector (MJPG / YUY2) to the Setup Tab and `CameraManager`, allowing users to explicitly choose uncompressed streams or compressed high-FPS streams. Added info button explaining the USB bandwidth differences.
 - **2026-08-11:** Enhanced `CameraTestTab` by removing DSHOW (to fix false positive format reporting), adding a custom resolution text input for arbitrary format testing, adding `1280x1024` and `1600x1200` to default tests, and generating a clean summary text report of fully successful formats at the end of the scan.
 - **2026-08-11 (v1.0.5):** Improved `CameraTestTab` by adding a "Scan All" option that reports identical available combinations across all connected cameras. Made the test smarter by short-circuiting and skipping unsupported resolutions. Added format selector and a "Scan Custom Res Only" button to test specific cases quickly.
+- **2026-08-11 (v1.1.0):** Major architectural refactor. Replaced `cv2.VideoCapture` with `PyAV` (FFmpeg) in `camera_manager.py` and `recorder.py`. Implemented Zero-Copy stream muxing (direct MJPEG to disk without CPU decoding) to eliminate RAM/CPU bottlenecks for 4+ camera setups. Separated UI preview decoding (limited to 15fps) from raw packet recording. Pre-configured native `decklink` PyAV format for Blackmagic SDI.
+- **2026-08-11:** UI Cleanup post-PyAV. Removed obsolete Backend selection, YUY2 format option, and White Balance slider. Re-wired Exposure and Gain to a dedicated "Sync Hardware Exposure" button that temporarily closes PyAV, opens OpenCV DSHOW to set hardware registers, and reopens PyAV. Optimized UI for MJPEG / SDI workflows.
