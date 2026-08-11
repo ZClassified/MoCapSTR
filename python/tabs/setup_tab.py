@@ -1,8 +1,9 @@
 import customtkinter as ctk
 import tkinter as tk
-from PIL import Image, ImageTk
-import cv2
+from tkinter import messagebox
+from PIL import Image
 import threading
+import cv2
 
 class SetupTab(ctk.CTkFrame):
     def __init__(self, parent, app):
@@ -63,6 +64,15 @@ class SetupTab(ctk.CTkFrame):
         sensor_frame = ctk.CTkFrame(col1_container)
         sensor_frame.pack(fill="x", pady=5)
         ctk.CTkLabel(sensor_frame, text="2. Sensor Settings", font=ctk.CTkFont(weight="bold")).pack(anchor="w", padx=10, pady=5)
+        
+        format_f = ctk.CTkFrame(sensor_frame, fg_color="transparent")
+        format_f.pack(fill="x", padx=10, pady=5)
+        ctk.CTkLabel(format_f, text="Format:").pack(side="left")
+        self.btn_format_info = ctk.CTkButton(format_f, text=" i ", width=20, height=20, corner_radius=10, command=self.show_format_info)
+        self.btn_format_info.pack(side="left", padx=(5, 10))
+        self.format_combo = ctk.CTkComboBox(format_f, values=["MJPG", "YUY2"], width=100)
+        self.format_combo.set("MJPG")
+        self.format_combo.pack(side="right")
         
         res_options = ["3840x2160 (4K)", "2560x1440 (1440p)", "1920x1080 (1080p)", "1280x800", "1280x720 (720p)", "1024x768", "800x600", "640x480", "640x400", "320x240"]
         self.res_combo = ctk.CTkComboBox(sensor_frame, values=res_options)
@@ -177,10 +187,9 @@ class SetupTab(ctk.CTkFrame):
         self.txt_log.pack(fill="both", expand=True, padx=10, pady=(0, 10))
         self.txt_log.tag_config("success", foreground="#00FF00")
         self.txt_log.tag_config("error", foreground="#FF4444")
-        self.app.txt_log = self.txt_log # Inject into app for app.log()
+        self.app.txt_log = self.txt_log 
         self.app.log("Welcome to MoCap Recording Station.")
 
-    # --- LOGIC ---
     def on_camera_type_change(self, choice):
         is_sdi = (choice == "Blackmagic SDI")
         state = "disabled" if is_sdi else "normal"
@@ -194,6 +203,9 @@ class SetupTab(ctk.CTkFrame):
         self.lbl_gain.configure(text_color=text_color)
         self.lbl_wb.configure(text_color=text_color)
 
+    def show_format_info(self):
+        messagebox.showinfo("Format Info", "MJPG: Often allows higher FPS/Resolutions for USB Webcams.\nYUY2: Uncompressed, higher quality but bandwidth intensive.")
+
     def save_preset(self):
         name = self.preset_name_entry.get()
         if not name:
@@ -203,6 +215,7 @@ class SetupTab(ctk.CTkFrame):
         data = {
             "camera_type": self.camera_type_combo.get(),
             "backend": self.backend_combo.get(),
+            "format": self.format_combo.get(),
             "resolution": self.res_combo.get(),
             "exposure": self.exposure_slider.get(),
             "gain": self.gain_slider.get(),
@@ -231,6 +244,7 @@ class SetupTab(ctk.CTkFrame):
             self.on_camera_type_change(cam_type)
             
             self.backend_combo.set(data.get("backend", "MSMF"))
+            self.format_combo.set(data.get("format", "MJPG"))
             self.res_combo.set(data.get("resolution", "1280x720 (720p)"))
             self.exposure_slider.set(data.get("exposure", -7))
             self.update_exposure_label(data.get("exposure", -7))
@@ -244,13 +258,13 @@ class SetupTab(ctk.CTkFrame):
             
             self.charuco_dict.set(data.get("charuco_dict", "DICT_4X4_50"))
             self.charuco_x.delete(0, 'end')
-            self.charuco_x.insert(0, data.get("charuco_x", "11"))
+            self.charuco_x.insert(0, data.get("charuco_x", "5"))
             self.charuco_y.delete(0, 'end')
-            self.charuco_y.insert(0, data.get("charuco_y", "8"))
+            self.charuco_y.insert(0, data.get("charuco_y", "3"))
             self.charuco_sq_size.delete(0, 'end')
-            self.charuco_sq_size.insert(0, data.get("charuco_sq_size", "30"))
+            self.charuco_sq_size.insert(0, data.get("charuco_sq_size", "51"))
             self.charuco_marker_size.delete(0, 'end')
-            self.charuco_marker_size.insert(0, data.get("charuco_marker_size", "22"))
+            self.charuco_marker_size.insert(0, data.get("charuco_marker_size", "38"))
             
             self.app.log(f"Preset '{name}' loaded.", "success")
             self.update_charuco_preview()
@@ -331,13 +345,16 @@ class SetupTab(ctk.CTkFrame):
             except ValueError:
                 target_fps = 50
                 
+            fmt = self.format_combo.get()
+                
             self.app.camera_indices = self.app.cam_mgr.find_and_open_cameras(
                 6, 
                 backend_name=backend,
                 camera_type=cam_type,
                 target_w=target_w,
                 target_h=target_h,
-                target_fps=target_fps
+                target_fps=target_fps,
+                target_format=fmt
             )
             self.lbl_cams_found.configure(text=f"Cameras found: {len(self.app.camera_indices)} ({self.app.camera_indices})")
                 
@@ -363,11 +380,12 @@ class SetupTab(ctk.CTkFrame):
         exp = int(self.exposure_slider.get())
         gain = int(self.gain_slider.get())
         wb = int(self.wb_slider.get())
+        fmt = self.format_combo.get()
         
         for idx in self.app.camera_indices:
-            actual = self.app.cam_mgr.apply_settings(idx, width=w, height=h, fps=fps, exposure_value=exp, gain_value=gain, wb_value=wb)
+            actual = self.app.cam_mgr.apply_settings(idx, width=w, height=h, fps=fps, format_str=fmt, exposure_value=exp, gain_value=gain, wb_value=wb)
             if actual:
-                self.app.log(f"Cam {idx} ACCEPTED: Res={actual['width']}x{actual['height']}, FPS={actual['fps']}, Exp={actual['exposure']}, Gain={actual['gain']}, WB={actual['wb']}", level="success")
+                self.app.log(f"Cam {idx} ACCEPTED: Fmt={actual.get('format', fmt)}, Res={actual['width']}x{actual['height']}, FPS={actual['fps']}, Exp={actual['exposure']}, Gain={actual['gain']}, WB={actual['wb']}", level="success")
             else:
                 self.app.log(f"Cam {idx} FAILED to apply settings!", level="error")
                 
