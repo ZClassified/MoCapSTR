@@ -5,7 +5,7 @@ class CameraManager:
         self.cameras = {} # Dictionary mapping index to cv2.VideoCapture object
         self.camera_info = {} # Dictionary mapping index to dict of {backend, camera_type}
         
-    def find_and_open_cameras(self, max_index=6, backend_name="MSMF", camera_type="USB Webcams", target_w=1280, target_h=720, target_fps=50):
+    def find_and_open_cameras(self, max_index=6, backend_name="MSMF", camera_type="USB Webcams", target_w=1280, target_h=720, target_fps=50, target_format="MJPG"):
         """Scans for available cameras and keeps them open to avoid Windows lockups."""
         self.close_all()
         print(f"Scanning for cameras using {backend_name} (Type: {camera_type})...")
@@ -45,8 +45,8 @@ class CameraManager:
                     cap.set(cv2.CAP_PROP_FPS, target_fps)
                     # We do NOT force MJPG for SDI, as it is uncompressed raw data
                 else:
-                    print(f"Setting USB Webcam format to MJPG {target_w}x{target_h} @ {target_fps}fps on index {i}")
-                    cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
+                    print(f"Setting USB Webcam format to {target_format} {target_w}x{target_h} @ {target_fps}fps on index {i}")
+                    cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*target_format))
                     cap.set(cv2.CAP_PROP_FRAME_WIDTH, target_w)
                     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, target_h)
                     cap.set(cv2.CAP_PROP_FPS, target_fps)
@@ -55,7 +55,7 @@ class CameraManager:
                 ret, _ = cap.read()
                 if ret:
                     self.cameras[i] = cap
-                    self.camera_info[i] = {"backend": backend, "camera_type": camera_type}
+                    self.camera_info[i] = {"backend": backend, "camera_type": camera_type, "format": target_format}
                     available_cams.append(i)
                 else:
                     cap.release()
@@ -76,7 +76,7 @@ class CameraManager:
         for index in list(self.cameras.keys()):
             self.close_camera(index)
             
-    def apply_settings(self, index, width=1280, height=800, fps=50, exposure_value=None, gain_value=None, wb_value=None):
+    def apply_settings(self, index, width=1280, height=800, fps=50, format_str="MJPG", exposure_value=None, gain_value=None, wb_value=None):
         """
         Applies settings to a specific camera.
         If resolution or FPS changes, the camera is fully reopened to ensure Windows drivers accept the change.
@@ -91,10 +91,14 @@ class CameraManager:
             current_fps = cap.get(cv2.CAP_PROP_FPS)
             
             # Allow some tolerance for fps comparison due to float imprecision
-            needs_reopen = (current_w != width or current_h != height or abs(current_fps - fps) > 1.0)
+            format_changed = False
+            if index in self.camera_info and self.camera_info[index].get("format") != format_str:
+                format_changed = True
+                
+            needs_reopen = (current_w != width or current_h != height or abs(current_fps - fps) > 1.0 or format_changed)
             
             if needs_reopen and index in self.camera_info:
-                print(f"Format change detected for Cam {index}. Reopening camera to apply resolution/FPS...")
+                print(f"Format change detected for Cam {index}. Reopening camera to apply resolution/FPS/Format...")
                 cap.release()
                 backend = self.camera_info[index]["backend"]
                 camera_type = self.camera_info[index]["camera_type"]
@@ -109,7 +113,7 @@ class CameraManager:
                     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
                     cap.set(cv2.CAP_PROP_FPS, fps)
                 else:
-                    cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
+                    cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*format_str))
                     cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
                     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
                     cap.set(cv2.CAP_PROP_FPS, fps)
@@ -117,6 +121,7 @@ class CameraManager:
                 # Grab a frame to flush initial state
                 cap.read()
                 self.cameras[index] = cap
+                self.camera_info[index]["format"] = format_str
             
             # Apply other settings (exposure, gain, wb) which CAN be applied on-the-fly
             # Disable auto settings
@@ -132,7 +137,7 @@ class CameraManager:
                 
             # Note: For non-reopen cases, we re-assert these just in case, but they usually fail on active streams
             if not needs_reopen:
-                cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
+                cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*format_str))
                 cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
                 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
                 cap.set(cv2.CAP_PROP_FPS, fps)
@@ -146,6 +151,7 @@ class CameraManager:
             actual_wb = cap.get(cv2.CAP_PROP_WB_TEMPERATURE)
             
             return {
+                "format": format_str,
                 "width": int(actual_w) if actual_w else None,
                 "height": int(actual_h) if actual_h else None,
                 "fps": actual_fps,
