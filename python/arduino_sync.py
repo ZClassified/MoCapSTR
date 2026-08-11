@@ -1,12 +1,21 @@
 import serial
 import serial.tools.list_ports
 import time
+import threading
 
 class ArduinoSync:
     def __init__(self):
         self.serial_conn = None
         self.is_connected = False
         self.is_running = False
+        
+        self.reader_thread = None
+        self.stop_reader = False
+        self.last_ping_response = 0
+        
+        # Callbacks for hardware buttons
+        self.on_toggle_trig_callback = None
+        self.on_toggle_rec_callback = None
         
     @staticmethod
     def get_available_ports():
@@ -18,22 +27,53 @@ class ArduinoSync:
             self.serial_conn = serial.Serial(port, baudrate, timeout=1)
             time.sleep(2)  # Wait for Arduino to reset after connection
             self.is_connected = True
+            self.last_ping_response = time.time()
+            self.stop_reader = False
             
-            # Read startup message if any
-            if self.serial_conn.in_waiting:
-                print(f"Arduino: {self.serial_conn.readline().decode('utf-8').strip()}")
-                
+            # Start background reader thread
+            self.reader_thread = threading.Thread(target=self._read_from_serial, daemon=True)
+            self.reader_thread.start()
+            
             return True
         except serial.SerialException as e:
             print(f"Error connecting to Arduino on {port}: {e}")
             self.is_connected = False
             return False
             
+    def _read_from_serial(self):
+        while not self.stop_reader and self.is_connected and self.serial_conn and self.serial_conn.is_open:
+            try:
+                if self.serial_conn.in_waiting:
+                    response = self.serial_conn.readline().decode('utf-8', errors='ignore').strip()
+                    if not response:
+                        continue
+                        
+                    if response == "PONG":
+                        self.last_ping_response = time.time()
+                    elif response == "<TOGGLE_TRIG>":
+                        if self.on_toggle_trig_callback:
+                            self.on_toggle_trig_callback()
+                    elif response == "<TOGGLE_REC>":
+                        if self.on_toggle_rec_callback:
+                            self.on_toggle_rec_callback()
+                    else:
+                        print(f"Arduino response: {response}")
+                else:
+                    time.sleep(0.01)
+            except Exception as e:
+                print(f"Serial read error: {e}")
+                self.is_connected = False
+                break
+                
     def disconnect(self):
+        self.stop_reader = True
         if self.serial_conn and self.serial_conn.is_open:
             self.stop_trigger()
+            time.sleep(0.1) # Give thread a moment to finish sending/reading
             self.serial_conn.close()
         self.is_connected = False
+        if self.reader_thread and self.reader_thread.is_alive():
+            self.reader_thread.join(timeout=1.0)
         
     def send_command(self, cmd):
         if not self.is_connected or not self.serial_conn.is_open:
@@ -42,12 +82,7 @@ class ArduinoSync:
             
         try:
             self.serial_conn.write(f"<{cmd}>\n".encode('utf-8'))
-            time.sleep(0.05)
-            # Read response
-            if self.serial_conn.in_waiting:
-                response = self.serial_conn.readline().decode('utf-8').strip()
-                print(f"Arduino response: {response}")
-                return True
+            return True
         except Exception as e:
             print(f"Error sending command to Arduino: {e}")
             self.is_connected = False
@@ -79,19 +114,18 @@ class ArduinoSync:
             
         try:
             self.serial_conn.write("<PING>\n".encode('utf-8'))
-            time.sleep(0.05)
-            if self.serial_conn.in_waiting:
-                response = self.serial_conn.readline().decode('utf-8').strip()
-                if response == "PONG":
-                    return True
-            # If no PONG response or not enough waiting
-            self.is_connected = False
-            return False
+            
+            # Check if we got a pong recently (within 5 seconds)
+            if time.time() - self.last_ping_response > 5.0:
+                print("Arduino ping timeout!")
+                self.is_connected = False
+                return False
+                
+            return True
         except Exception as e:
             print(f"Error pinging Arduino: {e}")
             self.is_connected = False
             return False
-
 
 if __name__ == "__main__":
     # Simple test

@@ -23,12 +23,15 @@ class MoCapSyncApp(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("MoCapSTR: Sync / Trigger / Record for FreeMoCap v1.0.8")
+        self.title("MoCapSTR: Sync / Trigger / Record for FreeMoCap v1.0.9")
         self.geometry("1100x800")
         
         # Managers
         self.cam_mgr = CameraManager()
         self.arduino = ArduinoSync()
+        self.arduino.on_toggle_trig_callback = self.handle_remote_toggle_trig
+        self.arduino.on_toggle_rec_callback = self.handle_remote_toggle_rec
+        
         self.proj_mgr = ProjectManager()
         self.recorder = MultiCamManager()
         self.preset_mgr = PresetManager()
@@ -44,6 +47,18 @@ class MoCapSyncApp(ctk.CTk):
         
         self.build_ui()
         self.after(50, self.update_preview) # Start preview loop
+        
+    def handle_remote_toggle_trig(self):
+        self.after(0, self._do_toggle_trig)
+        
+    def _do_toggle_trig(self):
+        if self.arduino.is_running:
+            self.setup_tab.stop_sync()
+        else:
+            self.setup_tab.start_sync()
+            
+    def handle_remote_toggle_rec(self):
+        self.after(0, self.toggle_record)
         
     def build_ui(self):
         self.tabview = ctk.CTkTabview(self)

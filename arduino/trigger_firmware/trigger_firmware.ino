@@ -1,4 +1,6 @@
 const int TRIGGER_PIN = 2; // Pin connected to FSIN of cameras
+const int BTN_TRIG_PIN = 3; // Push button to toggle trigger
+const int BTN_REC_PIN = 4;  // Push button to toggle record
 const int LED_PIN = 13;    // Onboard LED for visual feedback
 
 bool isRunning = false;
@@ -10,11 +12,21 @@ const unsigned long pulseWidthMicros = 1000; // 1ms pulse width
 String inputString = "";
 bool stringComplete = false;
 
+// Button state variables
+bool lastBtnTrigState = HIGH;
+bool lastBtnRecState = HIGH;
+unsigned long lastDebounceTimeTrig = 0;
+unsigned long lastDebounceTimeRec = 0;
+const unsigned long debounceDelay = 50; // 50ms debounce
+
 void setup() {
   pinMode(TRIGGER_PIN, OUTPUT);
   pinMode(LED_PIN, OUTPUT);
   digitalWrite(TRIGGER_PIN, LOW);
   digitalWrite(LED_PIN, LOW);
+  
+  pinMode(BTN_TRIG_PIN, INPUT_PULLUP);
+  pinMode(BTN_REC_PIN, INPUT_PULLUP);
   
   Serial.begin(115200);
   inputString.reserve(50);
@@ -23,6 +35,30 @@ void setup() {
 }
 
 void loop() {
+  // Handle Buttons
+  bool currentBtnTrig = digitalRead(BTN_TRIG_PIN);
+  bool currentBtnRec = digitalRead(BTN_REC_PIN);
+  
+  if (currentBtnTrig != lastBtnTrigState) {
+    if (millis() - lastDebounceTimeTrig > debounceDelay) {
+      lastDebounceTimeTrig = millis();
+      lastBtnTrigState = currentBtnTrig;
+      if (currentBtnTrig == LOW) { // Button pressed (pulled to GND)
+        Serial.println("<TOGGLE_TRIG>");
+      }
+    }
+  }
+
+  if (currentBtnRec != lastBtnRecState) {
+    if (millis() - lastDebounceTimeRec > debounceDelay) {
+      lastDebounceTimeRec = millis();
+      lastBtnRecState = currentBtnRec;
+      if (currentBtnRec == LOW) { // Button pressed (pulled to GND)
+        Serial.println("<TOGGLE_REC>");
+      }
+    }
+  }
+
   // Handle Serial Commands
   if (stringComplete) {
     inputString.trim();
