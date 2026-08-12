@@ -14,7 +14,7 @@ import time
 from tabs.setup_tab import SetupTab
 from tabs.preview_tab import PreviewTab
 from tabs.camera_test_tab import CameraTestTab
-from tabs.camera_test_tab import CameraTestTab
+from tabs.export_tab import ExportTab
 
 ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme("blue")
@@ -23,7 +23,7 @@ class MoCapSyncApp(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("MoCapSTR: Sync / Trigger / Record for FreeMoCap v1.1.0")
+        self.title("MoCapSTR: Sync / Trigger / Record for FreeMoCap v1.1.1")
         self.geometry("1100x800")
         
         # Managers
@@ -67,6 +67,7 @@ class MoCapSyncApp(ctk.CTk):
         self.tab_setup_frame = self.tabview.add("1. Project & Setup")
         self.tab_preview_frame = self.tabview.add("2. Live Preview")
         self.tab_test_frame = self.tabview.add("3. Camera Tester")
+        self.tab_export_frame = self.tabview.add("4. Export & Convert")
         
         self.setup_tab = SetupTab(self.tab_setup_frame, self)
         self.setup_tab.pack(fill="both", expand=True)
@@ -76,6 +77,9 @@ class MoCapSyncApp(ctk.CTk):
 
         self.test_tab = CameraTestTab(self.tab_test_frame, self)
         self.test_tab.pack(fill="both", expand=True)
+
+        self.export_tab = ExportTab(self.tab_export_frame, self)
+        self.export_tab.pack(fill="both", expand=True)
 
     def get_free_space(self):
         try:

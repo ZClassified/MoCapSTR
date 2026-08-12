@@ -1,7 +1,7 @@
 # Active Context
 
-**Current Status:** Implemented Arduino Hardware-Remote Buttons (Pin 3 & 4) via Async Serial Threading.
-**Last Modified:** 2026-08-11 19:17:00
+**Current Status:** Added 'Export & Convert' tab for batch processing Zero-Copy AVIs to MP4 H.264.
+**Last Modified:** 2026-08-12 13:49:00
 
 ---
 
@@ -33,3 +33,4 @@ This ensures that the next AI assistant immediately knows what was just done and
 - **2026-08-12 (v1.1.0):** Complete UI/UX Overhaul. Rewrote the setup process into a dynamic, top-to-bottom studio workflow. Removed `record_tab.py` entirely. Project setup is now step 1 in `setup_tab.py`. Introduced "Take Naming" directly in the `preview_tab.py` (e.g., automatically appending "_Take01_Laufen" to the output directory). SDI and USB workflows are now strictly separated in the UI (irrelevant elements like Arduino trigger are hidden when using SDI). Moved Charuco calibration settings into the `preview_tab.py` sidebar for easier live calibration.
 - **2026-08-12:** Added `arduino/test_hardware.py` standalone diagnostic script to verify hardware trigger wiring and serial communication independently of the main GUI.
 - **2026-08-12:** Added `HARDWARE_SETUP.md` documenting the professional XLR Splitter Box wiring guide for the hardware trigger.
+- **2026-08-12 (v1.1.1):** Added new "Export & Convert" tab. Implemented an offline batch conversion pipeline using PyAV to transcode raw "Zero-Copy" MJPEG `.avi` recordings into high-quality H.264 `.mp4` files, ensuring compatibility with FreeMoCap while preserving the CPU performance benefits of MJPEG during live recording sessions.
