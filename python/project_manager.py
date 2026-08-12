@@ -25,7 +25,7 @@ class ProjectManager:
         self.ensure_dir(proj_dir)
         return proj_dir
         
-    def get_recording_folder(self, is_calibration=False):
+    def get_recording_folder(self, is_calibration=False, take_name=""):
         """
         Creates and returns the exact folder structure for FreeMoCap.
         FreeMoCap expects data in a folder containing 'synchronized_videos/'
@@ -40,7 +40,8 @@ class ProjectManager:
         else:
             # Create a new take folder based on timestamp to avoid overwriting
             timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            target_dir = os.path.join(proj_dir, "takes", f"take_{timestamp}")
+            take_suffix = f"_{take_name}" if take_name else ""
+            target_dir = os.path.join(proj_dir, "takes", f"take{take_suffix}_{timestamp}")
             
         # FreeMoCap / SkellyCam standard subfolder
         sync_dir = os.path.join(target_dir, "synchronized_videos")
