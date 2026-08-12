@@ -23,7 +23,7 @@ class MoCapSyncApp(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("MoCapSTR: Sync / Trigger / Record for FreeMoCap v1.0.9")
+        self.title("MoCapSTR: Sync / Trigger / Record for FreeMoCap v1.1.0")
         self.geometry("1100x800")
         
         # Managers
