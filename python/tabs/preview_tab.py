@@ -42,9 +42,9 @@ class PreviewTab(ctk.CTkFrame):
         self.sidebar.pack(side="left", fill="y", padx=(0, 10))
         self.sidebar.pack_propagate(False) # Fixed width
         
-        ctk.CTkLabel(self.sidebar, text="Charuco Calibration", font=ctk.CTkFont(weight="bold")).pack(pady=10)
+        ctk.CTkLabel(self.sidebar, text="Calibration Mode", font=ctk.CTkFont(weight="bold")).pack(pady=10)
         
-        self.chk_charuco = ctk.CTkCheckBox(self.sidebar, text="Show Charuco Detection", command=self.on_charuco_toggled)
+        self.chk_charuco = ctk.CTkCheckBox(self.sidebar, text="Record Calibration (Auto-Detect)", command=self.on_charuco_toggled)
         self.chk_charuco.pack(pady=(0, 10))
         
         ctk.CTkLabel(self.sidebar, text="Dictionary:").pack(anchor="w", padx=10)
