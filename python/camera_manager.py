@@ -202,9 +202,9 @@ class CameraManager:
                 pass
         return None
 
-    def sync_hardware_exposure(self, exposure_val, gain_val):
+    def sync_hardware_exposure(self, exposure_val, gain_val, trigger_on=True):
         """
-        Temporarily closes PyAV streams, opens OpenCV CAP_DSHOW to set exposure/gain,
+        Temporarily closes PyAV streams, opens OpenCV CAP_DSHOW to set exposure/gain/trigger,
         and re-opens PyAV streams. Workaround for PyAV missing dshow control.
         """
         import cv2
@@ -218,7 +218,7 @@ class CameraManager:
             if info["camera_type"] == "Blackmagic SDI":
                 continue
                 
-            print(f"Syncing Exposure for Cam {idx} ({cam_name})...")
+            print(f"Syncing Exposure & Trigger for Cam {idx} ({cam_name})...")
             
             cv_index = -1
             if cam_name in self.device_names:
@@ -235,6 +235,13 @@ class CameraManager:
                         cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.25)
                         cap.set(cv2.CAP_PROP_EXPOSURE, exposure_val)
                         cap.set(cv2.CAP_PROP_GAIN, gain_val)
+                        
+                        # Set External Trigger via Focus
+                        # Usually autofocus must be off (0) and focus set to an absolute value (e.g. 1) to enable hardware trigger.
+                        cap.set(cv2.CAP_PROP_AUTOFOCUS, 0)
+                        focus_val = 1 if trigger_on else 0
+                        cap.set(cv2.CAP_PROP_FOCUS, focus_val)
+                        
                         cap.release()
                         results[idx] = "Success"
                     else:

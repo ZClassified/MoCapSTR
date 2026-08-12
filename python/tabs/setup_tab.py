@@ -83,7 +83,11 @@ class SetupTab(ctk.CTkFrame):
         self.gain_slider.set(0)
         self.gain_slider.pack(fill="x", padx=10, pady=5)
         
-        self.btn_sync_exposure = ctk.CTkButton(exp_frame, text="Sync Hardware Exposure", command=self.sync_exposure_cmd, fg_color="#d4a373", text_color="black", hover_color="#faedcd")
+        self.chk_uvc_trigger_var = ctk.BooleanVar(value=True)
+        self.chk_uvc_trigger = ctk.CTkCheckBox(exp_frame, text="Enable UVC Hardware Trigger", variable=self.chk_uvc_trigger_var)
+        self.chk_uvc_trigger.pack(anchor="w", padx=10, pady=5)
+        
+        self.btn_sync_exposure = ctk.CTkButton(exp_frame, text="Sync Hardware Exposure & Trigger", command=self.sync_exposure_cmd, fg_color="#d4a373", text_color="black", hover_color="#faedcd")
         self.btn_sync_exposure.pack(fill="x", padx=10, pady=10)
 
         # --- Column 2: Hardware Sync ---
@@ -193,6 +197,7 @@ class SetupTab(ctk.CTkFrame):
         
         self.exposure_slider.configure(state=state)
         self.gain_slider.configure(state=state)
+        self.chk_uvc_trigger.configure(state=state)
         self.btn_sync_exposure.configure(state=state)
         
         self.lbl_exposure.configure(text_color=text_color)
@@ -209,6 +214,7 @@ class SetupTab(ctk.CTkFrame):
             "resolution": self.res_combo.get(),
             "exposure": self.exposure_slider.get(),
             "gain": self.gain_slider.get(),
+            "uvc_trigger": self.chk_uvc_trigger_var.get(),
             "fps": self.fps_entry.get(),
             "charuco_dict": self.charuco_dict.get(),
             "charuco_x": self.charuco_x.get(),
@@ -245,6 +251,7 @@ class SetupTab(ctk.CTkFrame):
             self.update_exposure_label(data.get("exposure", -7))
             self.gain_slider.set(data.get("gain", 0))
             self.update_gain_label(data.get("gain", 0))
+            self.chk_uvc_trigger_var.set(data.get("uvc_trigger", True))
             
             self.fps_entry.delete(0, 'end')
             self.fps_entry.insert(0, data.get("fps", "50"))
@@ -373,18 +380,19 @@ class SetupTab(ctk.CTkFrame):
     def sync_exposure_cmd(self):
         exp = int(self.exposure_slider.get())
         gain = int(self.gain_slider.get())
+        trigger_on = self.chk_uvc_trigger_var.get()
         
         self.btn_sync_exposure.configure(state="disabled", text="Syncing...")
-        self.app.log("Syncing Hardware Exposure... (PyAV streams will momentarily restart)")
+        self.app.log("Syncing Hardware Exposure & Trigger... (PyAV streams will momentarily restart)")
         self.app.recorder.stop_workers()
         
         def do_sync():
-            results = self.app.cam_mgr.sync_hardware_exposure(exp, gain)
+            results = self.app.cam_mgr.sync_hardware_exposure(exp, gain, trigger_on)
             for idx, res in results.items():
                 if res == "Success":
-                    self.app.log(f"Cam {idx}: Hardware Exposure Sync OK", "success")
+                    self.app.log(f"Cam {idx}: Exposure & Trigger Sync OK", "success")
                 else:
-                    self.app.log(f"Cam {idx}: Exposure Sync failed - {res}", "error")
+                    self.app.log(f"Cam {idx}: Exposure & Trigger Sync failed - {res}", "error")
                     
             try:
                 fps = int(self.fps_entry.get())
