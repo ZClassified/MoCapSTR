@@ -12,8 +12,8 @@ from PIL import Image, ImageTk
 import time
 
 from tabs.setup_tab import SetupTab
-from tabs.record_tab import RecordTab
 from tabs.preview_tab import PreviewTab
+from tabs.camera_test_tab import CameraTestTab
 from tabs.camera_test_tab import CameraTestTab
 
 ctk.set_appearance_mode("Dark")
@@ -64,16 +64,12 @@ class MoCapSyncApp(ctk.CTk):
         self.tabview = ctk.CTkTabview(self)
         self.tabview.pack(fill="both", expand=True, padx=10, pady=10)
         
-        self.tab_setup_frame = self.tabview.add("1. Connection & Setup")
-        self.tab_record_frame = self.tabview.add("2. Project & Recording")
-        self.tab_preview_frame = self.tabview.add("3. Live Preview")
-        self.tab_test_frame = self.tabview.add("4. Camera Tester")
+        self.tab_setup_frame = self.tabview.add("1. Project & Setup")
+        self.tab_preview_frame = self.tabview.add("2. Live Preview")
+        self.tab_test_frame = self.tabview.add("3. Camera Tester")
         
         self.setup_tab = SetupTab(self.tab_setup_frame, self)
         self.setup_tab.pack(fill="both", expand=True)
-        
-        self.record_tab = RecordTab(self.tab_record_frame, self)
-        self.record_tab.pack(fill="both", expand=True)
         
         self.preview_tab = PreviewTab(self.tab_preview_frame, self)
         self.preview_tab.pack(fill="both", expand=True)
@@ -109,20 +105,21 @@ class MoCapSyncApp(ctk.CTk):
     def toggle_record(self):
         if not self.recorder.is_recording:
             # START
-            proj_name = self.record_tab.proj_name_entry.get()
+            proj_name = self.setup_tab.proj_name_entry.get()
             if not proj_name:
                 self.log("Error: Enter a project name.", level="error")
                 return
                 
             self.proj_mgr.set_project(proj_name)
-            is_calib = (self.record_tab.record_type.get() == "calibration")
-            save_dir = self.proj_mgr.get_recording_folder(is_calib)
+            is_calib = (self.preview_tab.chk_charuco.get() == 1)
+            take_name = self.preview_tab.take_name_entry.get()
+            save_dir = self.proj_mgr.get_recording_folder(is_calib, take_name)
             
             try:
                 fps = int(self.setup_tab.fps_entry.get())
             except ValueError:
                 fps = 50
-            codec = self.record_tab.codec_combo.get()
+            codec = self.setup_tab.codec_combo.get()
             
             enabled_cams = [idx for idx, var in self.camera_enable_vars.items() if var.get() == 1]
             if not enabled_cams:
@@ -137,11 +134,11 @@ class MoCapSyncApp(ctk.CTk):
                     "fps": fps,
                     "codec": codec,
                     "resolution": self.setup_tab.res_combo.get(),
-                    "charuco_dict": self.setup_tab.charuco_dict.get(),
-                    "charuco_x": int(self.setup_tab.charuco_x.get()),
-                    "charuco_y": int(self.setup_tab.charuco_y.get()),
-                    "charuco_sq_size": float(self.setup_tab.charuco_sq_size.get()),
-                    "charuco_marker_size": float(self.setup_tab.charuco_marker_size.get())
+                    "charuco_dict": self.preview_tab.charuco_dict.get(),
+                    "charuco_x": int(self.preview_tab.charuco_x.get()),
+                    "charuco_y": int(self.preview_tab.charuco_y.get()),
+                    "charuco_sq_size": float(self.preview_tab.charuco_sq_size.get()),
+                    "charuco_marker_size": float(self.preview_tab.charuco_marker_size.get())
                 }
                 info_path = os.path.join(os.path.dirname(save_dir), "session_info.json")
                 with open(info_path, 'w', encoding='utf-8') as f:
@@ -162,7 +159,6 @@ class MoCapSyncApp(ctk.CTk):
                 else:
                     self.log("Warning: Auto-Trigger enabled but Arduino not connected!", "error")
             
-            self.record_tab.btn_record.configure(text="⏹ STOP RECORDING", fg_color="red", hover_color="darkred")
             self.preview_tab.btn_record_live.configure(text="⏹ STOP RECORDING", fg_color="red", hover_color="darkred")
         else:
             # STOP
@@ -175,7 +171,6 @@ class MoCapSyncApp(ctk.CTk):
                 self.setup_tab.btn_start_sync.configure(state="normal")
                 self.log("Auto-Trigger Stopped")
                 
-            self.record_tab.btn_record.configure(text="⏺ START RECORDING", fg_color="darkred", hover_color="red")
             self.preview_tab.btn_record_live.configure(text="⏺ START RECORDING", fg_color="darkred", hover_color="red")
             self.preview_tab.lbl_live_warning.configure(text="")
             self.log("Recording stopped and saved.")
