@@ -7,6 +7,7 @@ class PreviewTab(ctk.CTkFrame):
     def __init__(self, parent, app):
         super().__init__(parent)
         self.app = app
+        self.pop_win = None
         self.build_ui()
         
     def build_ui(self):
@@ -25,6 +26,9 @@ class PreviewTab(ctk.CTkFrame):
         
         self.lbl_live_stats = ctk.CTkLabel(self.preview_top_bar, text="Ready | Space: -- GB", font=ctk.CTkFont(size=16, weight="bold"))
         self.lbl_live_stats.pack(side="left", padx=20)
+        
+        self.btn_pop_out = ctk.CTkButton(self.preview_top_bar, text="⧉ Pop-Out", width=80, command=self.toggle_popout)
+        self.btn_pop_out.pack(side="right", padx=10)
         
         self.lbl_live_warning = ctk.CTkLabel(self.preview_top_bar, text="", text_color="red", font=ctk.CTkFont(size=16, weight="bold"))
         self.lbl_live_warning.pack(side="right", padx=10)
@@ -86,6 +90,32 @@ class PreviewTab(ctk.CTkFrame):
         for j in range(3):
             self.preview_frame.grid_columnconfigure(j, weight=1)
             
+    def toggle_popout(self):
+        if not self.pop_win or not self.pop_win.winfo_exists():
+            # Create popout
+            self.pop_win = ctk.CTkToplevel(self)
+            self.pop_win.title("MoCapSTR - Live Preview")
+            self.pop_win.geometry("1280x720")
+            self.pop_win.protocol("WM_DELETE_WINDOW", self.on_popout_close)
+            self.btn_pop_out.configure(text="⧉ Dock")
+            
+            # Configure grid weights for pop_win
+            for i in range(2):
+                self.pop_win.grid_rowconfigure(i, weight=1)
+            for j in range(3):
+                self.pop_win.grid_columnconfigure(j, weight=1)
+                
+            self.setup_preview_grid()
+        else:
+            self.on_popout_close()
+
+    def on_popout_close(self):
+        if self.pop_win and self.pop_win.winfo_exists():
+            self.pop_win.destroy()
+            self.pop_win = None
+        self.btn_pop_out.configure(text="⧉ Pop-Out")
+        self.setup_preview_grid()
+            
     def on_charuco_toggled(self):
         show = (self.chk_charuco.get() == 1)
         dict_str = self.charuco_dict.get()
@@ -140,8 +170,16 @@ class PreviewTab(ctk.CTkFrame):
             self.app.log(f"Charuco preview failed: {e}", "error")
 
     def setup_preview_grid(self):
+        is_popped_out = self.pop_win and self.pop_win.winfo_exists()
+        target_container = self.pop_win if is_popped_out else self.preview_frame
+        
+        # Clear existing
         for widget in self.preview_frame.winfo_children():
             widget.destroy()
+        if is_popped_out:
+            for widget in self.pop_win.winfo_children():
+                widget.destroy()
+                
         self.app.preview_labels.clear()
         self.app.camera_enable_vars.clear()
         
@@ -150,7 +188,7 @@ class PreviewTab(ctk.CTkFrame):
             col = i % 3
             
             # Container for this camera
-            cam_frame = ctk.CTkFrame(self.preview_frame)
+            cam_frame = ctk.CTkFrame(target_container)
             cam_frame.grid(row=row, column=col, sticky="nsew", padx=2, pady=2)
             cam_frame.grid_rowconfigure(0, weight=1)
             cam_frame.grid_columnconfigure(0, weight=1)
