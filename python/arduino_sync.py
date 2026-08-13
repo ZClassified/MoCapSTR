@@ -14,13 +14,44 @@ class ArduinoSync:
         self.last_ping_response = 0
         
         # Callbacks for hardware buttons
-        self.on_toggle_trig_callback = None
         self.on_toggle_rec_callback = None
         
     @staticmethod
+    def auto_detect_port():
+        ports = serial.tools.list_ports.comports()
+        
+        # Common identifiers for Arduinos (Uno, Nano, clones)
+        arduino_keywords = ["arduino", "ch340", "cp210", "usb serial device"]
+        arduino_vids = [0x2341, 0x1A86, 0x0403, 0x10C4]
+        
+        best_match = None
+        for port in ports:
+            # Check by VID first
+            if port.vid in arduino_vids:
+                return port.device
+                
+            # Check by description/manufacturer
+            desc = (port.description or "").lower()
+            manuf = (port.manufacturer or "").lower()
+            
+            for keyword in arduino_keywords:
+                if keyword in desc or keyword in manuf:
+                    best_match = port.device
+                    
+        return best_match
+
+    @staticmethod
     def get_available_ports():
         ports = serial.tools.list_ports.comports()
-        return [port.device for port in ports]
+        port_list = [port.device for port in ports]
+        
+        # Move auto-detected port to the front of the list
+        detected = ArduinoSync.auto_detect_port()
+        if detected and detected in port_list:
+            port_list.remove(detected)
+            port_list.insert(0, detected)
+            
+        return port_list
         
     def connect(self, port, baudrate=115200):
         try:
@@ -50,9 +81,6 @@ class ArduinoSync:
                         
                     if response == "PONG":
                         self.last_ping_response = time.time()
-                    elif response == "<TOGGLE_TRIG>":
-                        if self.on_toggle_trig_callback:
-                            self.on_toggle_trig_callback()
                     elif response == "<TOGGLE_REC>":
                         if self.on_toggle_rec_callback:
                             self.on_toggle_rec_callback()

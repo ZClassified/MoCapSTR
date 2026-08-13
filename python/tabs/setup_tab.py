@@ -89,8 +89,8 @@ class SetupTab(ctk.CTkScrollableFrame):
         # Action Row (Open Cameras)
         action_f = ctk.CTkFrame(self.blk4, fg_color="transparent")
         action_f.pack(fill="x", padx=10, pady=(10, 5))
-        self.btn_scan = ctk.CTkButton(action_f, text="Open Cameras & Start Preview", command=self.scan_cameras, fg_color="#1f538d", hover_color="#14375e")
-        self.btn_scan.pack(fill="x", expand=True)
+        self.btn_init_system = ctk.CTkButton(action_f, text="Initialize System & Start Preview", command=self.initialize_system_cmd, fg_color="#1f538d", hover_color="#14375e", height=40, font=ctk.CTkFont(weight="bold", size=14))
+        self.btn_init_system.pack(fill="x", expand=True)
         
         # Hardware Tuning (Only for USB)
         self.tuning_frame = ctk.CTkFrame(self.blk4, fg_color="transparent")
@@ -112,7 +112,7 @@ class SetupTab(ctk.CTkScrollableFrame):
         self.chk_uvc_trigger = ctk.CTkCheckBox(self.tuning_frame, text="Enable UVC Hardware Trigger", variable=self.chk_uvc_trigger_var)
         self.chk_uvc_trigger.grid(row=2, column=0, columnspan=2, sticky="w", padx=5, pady=5)
         
-        self.btn_sync_exposure = ctk.CTkButton(self.tuning_frame, text="Apply Exposure & Trigger", command=self.sync_exposure_cmd, fg_color="#d4a373", text_color="black", hover_color="#faedcd")
+        self.btn_sync_exposure = ctk.CTkButton(self.tuning_frame, text="Update Settings Live", command=self.sync_exposure_cmd, fg_color="#d4a373", text_color="black", hover_color="#faedcd")
         self.btn_sync_exposure.grid(row=3, column=0, columnspan=2, sticky="ew", padx=5, pady=10)
         
         self.tuning_frame.columnconfigure(1, weight=1)
@@ -129,18 +129,11 @@ class SetupTab(ctk.CTkScrollableFrame):
         self.port_combo = ctk.CTkComboBox(ard_f, values=ports if ports else ["No Ports Found"], width=120)
         self.port_combo.pack(side="left", padx=5)
         ctk.CTkButton(ard_f, text="Refresh", width=80, command=self.refresh_ports).pack(side="left", padx=5)
-        self.btn_connect = ctk.CTkButton(ard_f, text="Connect", width=80, command=self.connect_arduino)
+        self.btn_connect = ctk.CTkButton(ard_f, text="Connect (Manual)", width=120, command=self.connect_arduino)
         self.btn_connect.pack(side="left", padx=5)
         
         self.chk_auto_trigger_var = ctk.BooleanVar(value=True)
         ctk.CTkCheckBox(ard_f, text="Auto-Trigger on Record", variable=self.chk_auto_trigger_var).pack(side="right", padx=10)
-        
-        trig_f = ctk.CTkFrame(self.blk5, fg_color="transparent")
-        trig_f.pack(fill="x", padx=10, pady=5)
-        self.btn_start_sync = ctk.CTkButton(trig_f, text="▶ START TRIGGER", fg_color="green", hover_color="darkgreen", command=self.start_sync, state="disabled")
-        self.btn_start_sync.pack(side="left", fill="x", expand=True, padx=5)
-        self.btn_stop_sync = ctk.CTkButton(trig_f, text="⏹ STOP TRIGGER", fg_color="red", hover_color="darkred", command=self.stop_sync, state="disabled")
-        self.btn_stop_sync.pack(side="left", fill="x", expand=True, padx=5)
         
         self.update_workflow_ui()
 
@@ -254,25 +247,39 @@ class SetupTab(ctk.CTkScrollableFrame):
             
             self.app.log(f"Preset '{name}' loaded.", "success")
 
-    def scan_cameras(self):
-        self.app.log("Scanning for cameras (this may take a few seconds)...")
-        self.btn_scan.configure(state="disabled")
-        self.app.recorder.stop_workers()
+    def initialize_system_cmd(self):
+        self.app.log("Initializing System...")
+        self.btn_init_system.configure(state="disabled", text="Initializing...")
         
-        def scan():
+        def init_task():
+            # 1. Cleanly stop everything existing
+            self.app.arduino.stop_trigger()
+            self.app.recorder.stop_workers()
+            
             cam_type = self.workflow_var.get()
-            res_str = self.res_combo.get().split(' ')[0]
-            target_w, target_h = map(int, res_str.split('x'))
+            trigger_on = self.chk_uvc_trigger_var.get()
+            
             try:
                 target_fps = int(self.fps_entry.get())
             except ValueError:
                 target_fps = 50
                 
-            # If UVC Trigger is enabled, we MUST open the USB stream at the maximum 
-            # possible framerate (120) so the USB controller polls fast enough to catch 
-            # the hardware trigger frames without dropping them!
-            cam_fps = 120 if self.chk_uvc_trigger_var.get() and cam_type == "USB Webcams" else target_fps
-                
+            # 2. Auto-connect Arduino if not connected and we are in USB mode
+            if cam_type == "USB Webcams" and not self.app.arduino.is_connected:
+                port = self.port_combo.get()
+                if port and port != "No Ports Found":
+                    self.app.log(f"Auto-connecting to Arduino on {port}...")
+                    if self.app.arduino.connect(port):
+                        self.app.log("Arduino connected!", level="success")
+                        self.btn_connect.configure(text="Connected", state="disabled")
+                    else:
+                        self.app.log(f"Failed to connect Arduino on {port}. Trigger will not work.", "error")
+            
+            # 3. Open Cameras
+            res_str = self.res_combo.get().split(' ')[0]
+            target_w, target_h = map(int, res_str.split('x'))
+            
+            cam_fps = 120 if trigger_on and cam_type == "USB Webcams" else target_fps
             fmt = "MJPG" 
                 
             self.app.camera_indices = self.app.cam_mgr.find_and_open_cameras(
@@ -284,14 +291,31 @@ class SetupTab(ctk.CTkScrollableFrame):
                 target_format=fmt
             )
             self.app.log(f"Cameras found: {len(self.app.camera_indices)} ({self.app.camera_indices})", "success")
-                
             self.app.preview_tab.setup_preview_grid()
-            self.btn_scan.configure(state="normal")
             
-            self.app.recorder.start_workers(self.app.cam_mgr.cameras, target_fps)
+            # 4. Hardware Sync (Exposure, Gain, Trigger Flag)
+            if cam_type == "USB Webcams":
+                exp = int(self.exposure_slider.get())
+                gain = int(self.gain_slider.get())
+                self.app.log("Syncing Hardware Exposure & Trigger flag...")
+                results = self.app.cam_mgr.sync_hardware_exposure(exp, gain, trigger_on)
+                for idx, res in results.items():
+                    if res != "Success":
+                        self.app.log(f"Cam {idx}: Exposure Sync failed - {res}", "error")
+            
+            # 5. Start PyAV Workers
+            self.app.recorder.start_workers(self.app.cam_mgr.cameras, target_fps=target_fps)
             self.app.log("Workers started. Go to Live Preview tab to see feeds.")
             
-        threading.Thread(target=scan).start()
+            # 6. Start Arduino Trigger
+            if cam_type == "USB Webcams" and self.app.arduino.is_connected and trigger_on:
+                self.app.arduino.set_fps(target_fps)
+                self.app.arduino.start_trigger()
+                self.app.log(f"Hardware Trigger STARTED at {target_fps} FPS!", level="success")
+                
+            self.btn_init_system.configure(state="normal", text="Initialize System & Start Preview")
+            
+        threading.Thread(target=init_task).start()
 
     def sync_exposure_cmd(self):
         exp = int(self.exposure_slider.get())
@@ -299,16 +323,16 @@ class SetupTab(ctk.CTkScrollableFrame):
         trigger_on = self.chk_uvc_trigger_var.get()
         
         self.btn_sync_exposure.configure(state="disabled", text="Syncing...")
-        self.app.log("Syncing Hardware Exposure & Trigger... (PyAV streams will momentarily restart)")
+        self.app.log("Syncing Hardware Exposure... (PyAV streams will momentarily restart)")
         self.app.recorder.stop_workers()
         
         def do_sync():
             results = self.app.cam_mgr.sync_hardware_exposure(exp, gain, trigger_on)
             for idx, res in results.items():
                 if res == "Success":
-                    self.app.log(f"Cam {idx}: Exposure & Trigger Sync OK", "success")
+                    self.app.log(f"Cam {idx}: Exposure Sync OK", "success")
                 else:
-                    self.app.log(f"Cam {idx}: Exposure & Trigger Sync failed - {res}", "error")
+                    self.app.log(f"Cam {idx}: Exposure Sync failed - {res}", "error")
                     
             try:
                 fps = int(self.fps_entry.get())
@@ -316,7 +340,7 @@ class SetupTab(ctk.CTkScrollableFrame):
                 fps = 50
             self.app.recorder.start_workers(self.app.cam_mgr.cameras, target_fps=fps)
             
-            self.btn_sync_exposure.configure(state="normal", text="Apply Exposure & Trigger")
+            self.btn_sync_exposure.configure(state="normal", text="Update Settings Live")
             self.app.log("Exposure Sync Complete.")
             
         threading.Thread(target=do_sync).start()
@@ -336,18 +360,3 @@ class SetupTab(ctk.CTkScrollableFrame):
         if self.app.arduino.connect(port):
             self.app.log("Arduino connected!", level="success")
             self.btn_connect.configure(text="Connected", state="disabled")
-            self.btn_start_sync.configure(state="normal")
-
-    def start_sync(self):
-        fps = int(self.fps_entry.get())
-        self.app.arduino.set_fps(fps)
-        self.app.arduino.start_trigger()
-        self.app.log("Hardware Trigger STARTED!", level="success")
-        self.btn_start_sync.configure(state="disabled")
-        self.btn_stop_sync.configure(state="normal")
-
-    def stop_sync(self):
-        self.app.arduino.stop_trigger()
-        self.app.log("Hardware Trigger STOPPED.")
-        self.btn_stop_sync.configure(state="disabled")
-        self.btn_start_sync.configure(state="normal")
