@@ -66,7 +66,7 @@ class CameraManager:
                             try:
                                 cap = cv2.VideoCapture(cv_index, cv2.CAP_DSHOW)
                                 if cap.isOpened():
-                                    cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, -1) # Disable auto
+                                    cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.25) # 0.25 is manual in DirectShow (0.75 is auto)
                                     cap.set(cv2.CAP_PROP_EXPOSURE, exposure_val)
                                     cap.set(cv2.CAP_PROP_GAIN, gain_val)
                                     cap.release()
