@@ -93,30 +93,34 @@ class SetupTab(ctk.CTkScrollableFrame):
         self.tuning_frame = ctk.CTkFrame(self.blk4, fg_color="transparent")
         self.tuning_frame.pack(fill="x", padx=10, pady=10)
 
-        self.lbl_exposure = ctk.CTkLabel(self.tuning_frame, text="Exposure (Shutter): 1/128s")
+        # Wir geben dem Label eine feste Breite, damit der Slider nicht wackelt/schrumpft!
+        self.lbl_exposure = ctk.CTkLabel(self.tuning_frame, text="Exposure: -9 (1/512s)", width=160, anchor="w")
         self.lbl_exposure.grid(row=0, column=0, sticky="w", padx=5)
 
-        # Slider range is updated dynamically based on FPS – see _clamp_exposure_to_fps()
-        # Default: from 1/2048s (val=-11) to 1/8s (val=-3); upper bound is tightened per FPS.
+        # Slider von -11 bis -3 (bleibt jetzt fest, keine automatische Beschneidung mehr)
         self.exposure_slider = ctk.CTkSlider(
             self.tuning_frame, from_=-11, to=-3,
             number_of_steps=8, command=self.update_exposure_label
         )
-        self.exposure_slider.set(-7)
+        self.exposure_slider.set(-9)
         self.exposure_slider.grid(row=0, column=1, sticky="ew", padx=10)
+        
+        # Warn-Label unter dem Slider (anfangs unsichtbar)
+        self.lbl_exposure_warn = ctk.CTkLabel(self.tuning_frame, text="", text_color="red", font=ctk.CTkFont(size=11))
+        self.lbl_exposure_warn.grid(row=1, column=1, sticky="w", padx=10)
 
-        self.lbl_gain = ctk.CTkLabel(self.tuning_frame, text="Gain: 0")
-        self.lbl_gain.grid(row=1, column=0, sticky="w", padx=5, pady=5)
+        self.lbl_gain = ctk.CTkLabel(self.tuning_frame, text="Gain: 0", width=160, anchor="w")
+        self.lbl_gain.grid(row=2, column=0, sticky="w", padx=5, pady=5)
         self.gain_slider = ctk.CTkSlider(self.tuning_frame, from_=0, to=255, command=self.update_gain_label)
         self.gain_slider.set(0)
-        self.gain_slider.grid(row=1, column=1, sticky="ew", padx=10, pady=5)
+        self.gain_slider.grid(row=2, column=1, sticky="ew", padx=10, pady=5)
 
         self.chk_uvc_trigger_var = ctk.BooleanVar(value=True)
         self.chk_uvc_trigger = ctk.CTkCheckBox(
             self.tuning_frame, text="Enable UVC Hardware Trigger",
             variable=self.chk_uvc_trigger_var
         )
-        self.chk_uvc_trigger.grid(row=2, column=0, columnspan=2, sticky="w", padx=5, pady=5)
+        self.chk_uvc_trigger.grid(row=3, column=0, columnspan=2, sticky="w", padx=5, pady=5)
 
         self.tuning_frame.columnconfigure(1, weight=1)
 
@@ -176,23 +180,16 @@ class SetupTab(ctk.CTkScrollableFrame):
     def update_exposure_label(self, value):
         val = int(round(float(value)))
         denominator = 2 ** abs(val)
-        self.lbl_exposure.configure(text=f"Exposure (Shutter): 1/{denominator}s")
+        self.lbl_exposure.configure(text=f"Exposure: {val} (1/{denominator}s)")
+        self._clamp_exposure_to_fps() # Check warning dynamically
 
     def update_gain_label(self, value):
         self.lbl_gain.configure(text=f"Gain: {int(value)}")
 
     def _clamp_exposure_to_fps(self):
-        """Restrict the exposure slider so you can never choose a shutter speed
-        that is longer than one frame period (1/FPS).
-
-        The UVC exposure control uses powers-of-two denominators: value -N means
-        1/(2^N) seconds.  We find the most-negative (fastest) exponent whose
-        corresponding shutter period still fits inside 1/FPS, then set that as
-        the slider's upper bound ('to' = least-negative = slowest allowed).
-
-        Example: FPS=80  → frame period = 12.5 ms
-            1/64  s ≈ 15.6 ms  → too slow  (val=-6)
-            1/128 s ≈  7.8 ms  → fits      (val=-7)  ← new upper bound
+        """
+        Calculates if the current exposure time exceeds the frame interval (1/FPS)
+        and displays a warning instead of rigidly clamping the slider.
         """
         try:
             fps = int(self.fps_entry.get())
@@ -202,36 +199,20 @@ class SetupTab(ctk.CTkScrollableFrame):
             return
 
         frame_period_s = 1.0 / fps
-
-        # Walk from slowest (-3 = 1/8s) toward fastest (-11 = 1/2048s)
-        # and find the slowest shutter that still fits within one frame.
-        # UVC values run from -3 (slow) to -11 (fast); the slider 'to' is the
-        # least-negative allowed value, i.e. the slowest allowed speed.
-        max_val = -11  # start pessimistically at fastest
-        for exp_val in range(-3, -12, -1):   # -3, -4, …, -11
-            shutter_s = 1.0 / (2 ** abs(exp_val))
-            if shutter_s < frame_period_s:
-                max_val = exp_val
-                break
-
-        # max_val is now the slowest (least-negative) exponent that is safe.
-        # The slider range is: from=-11 (fastest) … to=max_val (slowest allowed).
-        steps = abs(max_val - (-11))  # number of integer steps available
-        self.exposure_slider.configure(from_=-11, to=max_val, number_of_steps=max(1, steps))
-
-        # If the current value is slower than the new limit, clamp it.
-        current_val = self.exposure_slider.get()
-        if current_val > max_val:
-            self.exposure_slider.set(max_val)
-
-        self.update_exposure_label(self.exposure_slider.get())
-
-        # Show a small warning in the label when the range is tight
-        denom = 2 ** abs(max_val)
-        self.lbl_exposure.configure(
-            text=self.lbl_exposure.cget("text") +
-                 f"  (max 1/{denom}s @ {fps} FPS)"
-        )
+        current_val = int(round(self.exposure_slider.get()))
+        shutter_s = 1.0 / (2 ** abs(current_val))
+        
+        # Readout time for full 720p sensor in trigger mode is roughly 18ms.
+        total_cycle = shutter_s + 0.018
+        
+        if total_cycle > frame_period_s:
+            max_safe_exposure_s = frame_period_s - 0.018
+            if max_safe_exposure_s <= 0:
+                self.lbl_exposure_warn.configure(text=f"Warnung: {fps} FPS ist unmöglich (Sensor braucht 18ms).")
+            else:
+                self.lbl_exposure_warn.configure(text=f"Warnung: Zyklus zu lang! Framerate wird sich halbieren.")
+        else:
+            self.lbl_exposure_warn.configure(text="")
 
     def save_preset(self):
         name = self.preset_name_entry.get()
@@ -289,14 +270,11 @@ class SetupTab(ctk.CTkScrollableFrame):
             self.fps_entry.delete(0, 'end')
             self.fps_entry.insert(0, data.get("fps", "50"))
 
-            # Recalculate allowed exposure range BEFORE restoring the slider value
-            # so the saved value is only applied if it is still within the safe range.
             self._clamp_exposure_to_fps()
-            saved_exp = data.get("exposure", -7)
-            max_allowed = int(round(self.exposure_slider.cget("to")))
-            clamped_exp = min(saved_exp, max_allowed)  # clamp to safe range
-            self.exposure_slider.set(clamped_exp)
-            self.update_exposure_label(clamped_exp)
+            saved_exp = data.get("exposure", -9)
+            # Entferne den Zwang, wir setzen einfach den geladenen Wert.
+            self.exposure_slider.set(saved_exp)
+            self.update_exposure_label(saved_exp)
             
             arduino_port = data.get("arduino_port", "")
             if arduino_port and arduino_port in self.port_combo._values:
