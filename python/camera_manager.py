@@ -204,77 +204,51 @@ class CameraManager:
 
     def sync_hardware_exposure(self, exposure_val, gain_val, trigger_on=True):
         """
-        Temporarily closes PyAV streams, opens OpenCV CAP_DSHOW to set exposure/gain/trigger,
-        and re-opens PyAV streams. Workaround for PyAV missing dshow control.
+        Uses OpenCV with MSMF backend to set UVC properties (exposure/gain/trigger)
+        while the PyAV dshow stream is still running. This prevents PyAV from resetting
+        the camera's properties when re-opening it.
         """
         import cv2
         results = {}
         
         active_cams = list(self.cameras.keys())
         for idx in active_cams:
-            info = self.camera_info[idx].copy()
+            info = self.camera_info[idx]
             cam_name = info["name"]
             
             if info["camera_type"] == "Blackmagic SDI":
                 continue
                 
-            print(f"Syncing Exposure & Trigger for Cam {idx} ({cam_name})...")
+            print(f"Syncing Exposure & Trigger for Cam {idx} ({cam_name}) via MSMF...")
             
             cv_index = -1
             if cam_name in self.device_names:
                 cv_index = self.device_names.index(cam_name)
                 
-            # Close PyAV container (removes info)
-            self.close_camera(idx)
-            
             if cv_index >= 0:
                 try:
-                    cap = cv2.VideoCapture(cv_index, cv2.CAP_DSHOW)
+                    # Use MSMF so we can access the UVC controls concurrently while PyAV uses dshow
+                    cap = cv2.VideoCapture(cv_index, cv2.CAP_MSMF)
                     if cap.isOpened():
-                        # Set manual exposure mode (typically 0.25 or 0 in DSHOW)
+                        # Set manual exposure mode (typically 0.25 or 0)
                         cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.25)
                         cap.set(cv2.CAP_PROP_EXPOSURE, exposure_val)
                         cap.set(cv2.CAP_PROP_GAIN, gain_val)
                         
                         # Set External Trigger via Focus
-                        # Usually autofocus must be off (0) and focus set to an absolute value (e.g. 1) to enable hardware trigger.
-                        cap.set(cv2.CAP_PROP_AUTOFOCUS, 0)
-                        focus_val = 1 if trigger_on else 0
-                        cap.set(cv2.CAP_PROP_FOCUS, focus_val)
+                        # User testing confirmed that checking "Auto Focus" (1) enables the trigger
+                        autofocus_val = 1 if trigger_on else 0
+                        cap.set(cv2.CAP_PROP_AUTOFOCUS, autofocus_val)
+                        cap.set(cv2.CAP_PROP_FOCUS, 0)
                         
                         cap.release()
                         results[idx] = "Success"
                     else:
-                        results[idx] = "Failed to open OpenCV"
+                        results[idx] = "Failed to open OpenCV MSMF"
                 except Exception as e:
                     results[idx] = f"Error: {e}"
-                    
-            # Manually re-open PyAV
-            try:
-                vcodec = 'mjpeg' if info["format"] == "MJPG" else 'rawvideo'
-                options = {
-                    'video_size': f'{info["width"]}x{info["height"]}',
-                    'framerate': str(info["fps"]),
-                    'vcodec': vcodec,
-                    'rtbufsize': '256M'
-                }
-                container = av.open(f'video={cam_name}', format='dshow', options=options)
-                stream = container.streams.video[0]
-                
-                packet_found = False
-                for packet in container.demux(stream):
-                    if packet.size > 0:
-                        packet_found = True
-                        break
-                        
-                if packet_found:
-                    self.cameras[idx] = container
-                    info["stream"] = stream
-                    self.camera_info[idx] = info
-                else:
-                    container.close()
-            except Exception as e:
-                print(f"Failed to reopen Cam {idx} after exposure sync: {e}")
+            else:
+                results[idx] = "Camera not found in device list"
                 
         return results
 
