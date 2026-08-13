@@ -15,7 +15,7 @@ class CameraManager:
         except ImportError:
             return []
             
-    def find_and_open_cameras(self, max_index=6, backend_name="MSMF", camera_type="USB Webcams", target_w=1280, target_h=720, target_fps=50, target_format="MJPG"):
+    def find_and_open_cameras(self, max_index=6, backend_name="MSMF", camera_type="USB Webcams", target_w=1280, target_h=720, target_fps=50, target_format="MJPG", exposure_val=None, gain_val=None, trigger_on=None):
         """Scans for available cameras using PyAV (FFmpeg) and keeps them open."""
         self.close_all()
         print(f"Scanning for cameras using PyAV (Type: {camera_type})...")
@@ -50,6 +50,40 @@ class CameraManager:
                 else:
                     # PyAV DirectShow (dshow) format
                     print(f"Setting USB Webcam format to {target_format} {target_w}x{target_h} @ {target_fps}fps on index {i}")
+                    
+                    # --- HARDWARE SYNC ---
+                    # We MUST set properties BEFORE PyAV opens the stream!
+                    # Due to OpenCV backend bugs on Windows:
+                    # 1. DSHOW correctly sets Exposure, but fails to set AutoFocus.
+                    # 2. MSMF correctly sets AutoFocus, but fails to set Exposure.
+                    if exposure_val is not None and gain_val is not None and trigger_on is not None:
+                        cv_index = -1
+                        if cam_name in self.device_names:
+                            cv_index = self.device_names.index(cam_name)
+                        if cv_index >= 0:
+                            import cv2
+                            # 1. Set Exposure/Gain via DSHOW
+                            try:
+                                cap = cv2.VideoCapture(cv_index, cv2.CAP_DSHOW)
+                                if cap.isOpened():
+                                    cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, -1) # Disable auto
+                                    cap.set(cv2.CAP_PROP_EXPOSURE, exposure_val)
+                                    cap.set(cv2.CAP_PROP_GAIN, gain_val)
+                                    cap.release()
+                            except Exception as e:
+                                print(f"DSHOW hardware sync failed for {cam_name}: {e}")
+                                
+                            # 2. Set Trigger via MSMF
+                            try:
+                                cap = cv2.VideoCapture(cv_index, cv2.CAP_MSMF)
+                                if cap.isOpened():
+                                    cap.set(cv2.CAP_PROP_AUTOFOCUS, 1 if trigger_on else 0)
+                                    cap.set(cv2.CAP_PROP_FOCUS, 0)
+                                    cap.release()
+                            except Exception as e:
+                                print(f"MSMF hardware sync failed for {cam_name}: {e}")
+                    # ---------------------------
+
                     # Map MJPG/YUY2 to FFmpeg codecs
                     vcodec = 'mjpeg' if target_format == "MJPG" else 'rawvideo'
                     if target_format == "YUY2":
@@ -202,55 +236,7 @@ class CameraManager:
                 pass
         return None
 
-    def sync_hardware_exposure(self, exposure_val, gain_val, trigger_on=True):
-        """
-        Uses OpenCV with MSMF backend to set UVC properties (exposure/gain/trigger)
-        while the PyAV dshow stream is still running. This prevents PyAV from resetting
-        the camera's properties when re-opening it.
-        """
-        import cv2
-        results = {}
-        
-        active_cams = list(self.cameras.keys())
-        for idx in active_cams:
-            info = self.camera_info[idx]
-            cam_name = info["name"]
-            
-            if info["camera_type"] == "Blackmagic SDI":
-                continue
-                
-            print(f"Syncing Exposure & Trigger for Cam {idx} ({cam_name}) via MSMF...")
-            
-            cv_index = -1
-            if cam_name in self.device_names:
-                cv_index = self.device_names.index(cam_name)
-                
-            if cv_index >= 0:
-                try:
-                    # Use MSMF so we can access the UVC controls concurrently while PyAV uses dshow
-                    cap = cv2.VideoCapture(cv_index, cv2.CAP_MSMF)
-                    if cap.isOpened():
-                        # Set manual exposure mode (typically 0.25 or 0)
-                        cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.25)
-                        cap.set(cv2.CAP_PROP_EXPOSURE, exposure_val)
-                        cap.set(cv2.CAP_PROP_GAIN, gain_val)
-                        
-                        # Set External Trigger via Focus
-                        # User testing confirmed that checking "Auto Focus" (1) enables the trigger
-                        autofocus_val = 1 if trigger_on else 0
-                        cap.set(cv2.CAP_PROP_AUTOFOCUS, autofocus_val)
-                        cap.set(cv2.CAP_PROP_FOCUS, 0)
-                        
-                        cap.release()
-                        results[idx] = "Success"
-                    else:
-                        results[idx] = "Failed to open OpenCV MSMF"
-                except Exception as e:
-                    results[idx] = f"Error: {e}"
-            else:
-                results[idx] = "Camera not found in device list"
-                
-        return results
+
 
 if __name__ == "__main__":
     # Test script
