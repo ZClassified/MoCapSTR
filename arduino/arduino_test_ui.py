@@ -31,11 +31,11 @@ class ArduinoTestApp(ctk.CTk):
         self.port_combo = ctk.CTkComboBox(port_frame, values=self.arduino.get_available_ports() or ["No Ports"])
         self.port_combo.pack(side="left", padx=5)
         
-        self.btn_refresh = ctk.CTkButton(port_frame, text="🔄", width=30, command=self.refresh_ports)
+        self.btn_refresh = ctk.CTkButton(port_frame, text="Refresh", width=80, command=self.refresh_ports)
         self.btn_refresh.pack(side="left", padx=5)
         
-        self.btn_connect = ctk.CTkButton(port_frame, text="Connect", command=self.connect_arduino)
-        self.btn_connect.pack(side="left", padx=10)
+        self.btn_connect = ctk.CTkButton(port_frame, text="Connect", width=80, command=self.connect_arduino)
+        self.btn_connect.pack(side="left", padx=5)
         
         # FPS Selection
         fps_frame = ctk.CTkFrame(self, fg_color="transparent")
