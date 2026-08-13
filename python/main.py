@@ -42,6 +42,7 @@ class MoCapSyncApp(ctk.CTk):
         
         self.record_start_time = 0
         self.ui_tick = 0
+        self.trigger_started_by_rec = False
         self.last_free_space = 0
         self.txt_log = None # Injected by SetupTab
         
@@ -156,10 +157,15 @@ class MoCapSyncApp(ctk.CTk):
             # Auto-trigger Arduino if checked
             if hasattr(self.setup_tab, 'chk_auto_trigger_var') and self.setup_tab.chk_auto_trigger_var.get():
                 if self.arduino.is_connected:
-                    self.arduino.start_trigger()
-                    self.setup_tab.btn_start_sync.configure(state="disabled")
-                    self.setup_tab.btn_stop_sync.configure(state="normal")
-                    self.log("Auto-Trigger Started", "success")
+                    if not self.arduino.is_running:
+                        self.trigger_started_by_rec = True
+                        self.arduino.start_trigger()
+                        self.setup_tab.btn_start_sync.configure(state="disabled")
+                        self.setup_tab.btn_stop_sync.configure(state="normal")
+                        self.log("Auto-Trigger Started", "success")
+                    else:
+                        self.trigger_started_by_rec = False
+                        self.log("Auto-Trigger (Already running, continuing)")
                 else:
                     self.log("Warning: Auto-Trigger enabled but Arduino not connected!", "error")
             
@@ -170,10 +176,14 @@ class MoCapSyncApp(ctk.CTk):
             
             # Auto-stop Arduino if running
             if self.arduino.is_running and hasattr(self.setup_tab, 'chk_auto_trigger_var') and self.setup_tab.chk_auto_trigger_var.get():
-                self.arduino.stop_trigger()
-                self.setup_tab.btn_stop_sync.configure(state="disabled")
-                self.setup_tab.btn_start_sync.configure(state="normal")
-                self.log("Auto-Trigger Stopped")
+                if self.trigger_started_by_rec:
+                    self.arduino.stop_trigger()
+                    self.setup_tab.btn_stop_sync.configure(state="disabled")
+                    self.setup_tab.btn_start_sync.configure(state="normal")
+                    self.log("Auto-Trigger Stopped")
+                    self.trigger_started_by_rec = False
+                else:
+                    self.log("Auto-Trigger (Left running, was started manually)")
                 
             self.preview_tab.btn_record_live.configure(text="⏺ START RECORDING", fg_color="darkred", hover_color="red")
             self.preview_tab.lbl_live_warning.configure(text="")

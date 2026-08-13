@@ -1,7 +1,7 @@
 # Active Context
 
-**Current Status:** Added 'Export & Convert' tab for batch processing Zero-Copy AVIs to MP4 H.264.
-**Last Modified:** 2026-08-12 13:49:00
+**Current Status:** Improved Arduino Auto-Trigger logic and created standalone UI test tool for hardware validation.
+**Last Modified:** 2026-08-13 08:12:00
 
 ---
 
@@ -34,3 +34,4 @@ This ensures that the next AI assistant immediately knows what was just done and
 - **2026-08-12:** Added `arduino/test_hardware.py` standalone diagnostic script to verify hardware trigger wiring and serial communication independently of the main GUI.
 - **2026-08-12:** Added `HARDWARE_SETUP.md` documenting the professional XLR Splitter Box wiring guide for the hardware trigger.
 - **2026-08-12 (v1.1.1):** Added new "Export & Convert" tab. Implemented an offline batch conversion pipeline using PyAV to transcode raw "Zero-Copy" MJPEG `.avi` recordings into high-quality H.264 `.mp4` files, ensuring compatibility with FreeMoCap while preserving the CPU performance benefits of MJPEG during live recording sessions.
+- **2026-08-13 (v1.1.2):** Improved Arduino intelligent Auto-Trigger logic. The system now correctly handles cases where the trigger was manually started before recording; stopping the recording will no longer falsely stop a manually started trigger. Created `arduino/arduino_test_ui.py` standalone UI tool with dummy REC capability to isolate and test physical push button wiring and serial communications.
