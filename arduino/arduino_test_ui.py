@@ -45,11 +45,25 @@ class ArduinoTestApp(ctk.CTk):
         self.fps_entry = ctk.CTkEntry(fps_frame, width=80)
         self.fps_entry.insert(0, "60")
         self.fps_entry.pack(side="left", padx=5)
+
+        # Pulse Width
+        pulse_frame = ctk.CTkFrame(self, fg_color="transparent")
+        pulse_frame.pack(fill="x", padx=20, pady=5)
+        ctk.CTkLabel(pulse_frame, text="Pulse Width (µs):").pack(side="left", padx=5)
+        self.pulse_entry = ctk.CTkEntry(pulse_frame, width=80)
+        self.pulse_entry.insert(0, "1000")
+        self.pulse_entry.pack(side="left", padx=5)
+        self.btn_set_pulse = ctk.CTkButton(
+            pulse_frame, text="Set Pulse", width=90,
+            command=self.set_pulse, state="disabled"
+        )
+        self.btn_set_pulse.pack(side="left", padx=5)
+        ctk.CTkLabel(pulse_frame, text="← = Belichtungszeit!", text_color="gray").pack(side="left", padx=5)
         
         # Trigger Controls
         self.btn_start = ctk.CTkButton(self, text="▶ START TRIGGER", fg_color="green", hover_color="darkgreen", command=self.start_trigger, state="disabled")
         self.btn_start.pack(pady=10, fill="x", padx=40)
-        
+
         self.btn_stop = ctk.CTkButton(self, text="⏹ STOP TRIGGER", fg_color="red", hover_color="darkred", command=self.stop_trigger, state="disabled")
         self.btn_stop.pack(pady=10, fill="x", padx=40)
         
@@ -81,6 +95,7 @@ class ArduinoTestApp(ctk.CTk):
             self.status_label.configure(text=f"Status: Connected to {port}", text_color="green")
             self.btn_connect.configure(state="disabled", text="Connected")
             self.btn_start.configure(state="normal")
+            self.btn_set_pulse.configure(state="normal")
         else:
             self.status_label.configure(text="Status: Connection Failed", text_color="red")
             
@@ -91,11 +106,13 @@ class ArduinoTestApp(ctk.CTk):
             fps = 60
             self.fps_entry.delete(0, 'end')
             self.fps_entry.insert(0, "60")
-            
+
+        # Send pulse width first so it's set before the trigger starts
+        self.set_pulse(silent=True)
         self.arduino.set_fps(fps)
-        time.sleep(0.1) # Kurze Pause, damit der Befehl verarbeitet wird
+        time.sleep(0.1)
         self.arduino.start_trigger()
-        
+
         self.status_label.configure(text=f"Status: Trigger RUNNING at {fps} FPS", text_color="lightgreen")
         self.btn_start.configure(state="disabled")
         self.btn_stop.configure(state="normal")
@@ -105,6 +122,23 @@ class ArduinoTestApp(ctk.CTk):
         self.status_label.configure(text="Status: Trigger STOPPED", text_color="yellow")
         self.btn_stop.configure(state="disabled")
         self.btn_start.configure(state="normal")
+
+    def set_pulse(self, silent=False):
+        """Send PULSE:<n> command to change pulse width live without reflashing."""
+        try:
+            pulse = int(self.pulse_entry.get())
+            if pulse <= 0:
+                raise ValueError
+        except ValueError:
+            pulse = 1000
+            self.pulse_entry.delete(0, 'end')
+            self.pulse_entry.insert(0, "1000")
+        self.arduino.set_pulse_width(pulse)
+        if not silent:
+            self.status_label.configure(
+                text=f"Pulse width set to {pulse}µs  (= ~1/{round(1_000_000/pulse)}s Belichtung)",
+                text_color="cyan"
+            )
         
     def on_hw_toggle_trig(self):
         # We need to run this in the main thread since CustomTkinter UI updates must be on the main thread

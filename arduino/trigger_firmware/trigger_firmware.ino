@@ -6,7 +6,7 @@ bool isRunning = false;
 int currentFps = 60;
 unsigned long intervalMicros = 1000000 / currentFps;
 unsigned long previousMicros = 0;
-const unsigned long pulseWidthMicros = 1000; // 1ms pulse width
+unsigned long pulseWidthMicros = 1000; // 1ms Puls (= ~1/1000s Belichtung). Per <PULSE:N> Befehl live änderbar.
 
 String inputString = "";
 bool stringComplete = false;
@@ -55,11 +55,29 @@ void loop() {
         int newFps = fpsStr.toInt();
         if (newFps > 0 && newFps <= 240) {
           currentFps = newFps;
-          intervalMicros = 1000000 / currentFps;
+          intervalMicros = 1000000UL / currentFps;
           Serial.print("FPS set to: ");
           Serial.println(currentFps);
+          Serial.print("Interval (us): ");
+          Serial.println(intervalMicros);
+          Serial.print("Pulse width (us): ");
+          Serial.println(pulseWidthMicros);
         } else {
           Serial.println("Error: FPS out of range (1-240)");
+        }
+      }
+    } else if (inputString.startsWith("<PULSE:")) {
+      int pulseIndex = inputString.indexOf(":");
+      int endBracketIndex = inputString.indexOf(">");
+      if (pulseIndex != -1 && endBracketIndex != -1) {
+        String pulseStr = inputString.substring(pulseIndex + 1, endBracketIndex);
+        unsigned long newPulse = pulseStr.toInt();
+        if (newPulse > 0 && newPulse < intervalMicros / 2) {
+          pulseWidthMicros = newPulse;
+          Serial.print("Pulse width set to (us): ");
+          Serial.println(pulseWidthMicros);
+        } else {
+          Serial.println("Error: Pulse must be > 0 and < interval/2");
         }
       }
     } else if (inputString == "<START>") {
@@ -86,14 +104,17 @@ void loop() {
     unsigned long currentMicros = micros();
     
     if (currentMicros - previousMicros >= intervalMicros) {
-      previousMicros = currentMicros;
+      // WICHTIG: += statt = verhindert Timing-Drift.
+      // Mit = würde jeder Puls (pulseWidthMicros) zu einem kumulativen Fehler führen.
+      previousMicros += intervalMicros;
       
       // Start pulse
       digitalWrite(TRIGGER_PIN, HIGH);
       digitalWrite(LED_PIN, HIGH);
       
-      // Blocking wait for pulse width (1ms is very short, blocking is fine here)
-      // For extremely high FPS (e.g. >500), non-blocking would be better, but for Mocap 60-120fps it's perfect.
+      // Blocking wait for pulse width.
+      // pulseWidthMicros MUSS deutlich kleiner als intervalMicros sein!
+      // Bei 120 FPS: intervalMicros = 8333µs -> 500µs Puls ist sicher.
       delayMicroseconds(pulseWidthMicros);
       
       // End pulse
