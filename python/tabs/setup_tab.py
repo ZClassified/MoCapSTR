@@ -252,10 +252,6 @@ class SetupTab(ctk.CTkScrollableFrame):
         self.btn_init_system.configure(state="disabled", text="Initializing...")
         
         def init_task():
-            # 1. Cleanly stop everything existing
-            self.app.arduino.stop_trigger()
-            self.app.recorder.stop_workers()
-            
             cam_type = self.workflow_var.get()
             trigger_on = self.chk_uvc_trigger_var.get()
             
@@ -264,7 +260,7 @@ class SetupTab(ctk.CTkScrollableFrame):
             except ValueError:
                 target_fps = 50
                 
-            # 2. Auto-connect Arduino if not connected and we are in USB mode
+            # 1. Auto-connect Arduino if not connected
             if cam_type == "USB Webcams" and not self.app.arduino.is_connected:
                 port = self.port_combo.get()
                 if port and port != "No Ports Found":
@@ -275,33 +271,39 @@ class SetupTab(ctk.CTkScrollableFrame):
                     else:
                         self.app.log(f"Failed to connect Arduino on {port}. Trigger will not work.", "error")
             
-            # 3. Open Cameras
+            # 2. CRITICAL FIX: Start Arduino trigger BEFORE touching PyAV!
+            # If the camera is already in hardware trigger mode from a previous run,
+            # stopping PyAV or re-opening the camera will DEADLOCK if the Arduino is not sending pulses.
+            if cam_type == "USB Webcams" and self.app.arduino.is_connected:
+                self.app.arduino.set_fps(target_fps)
+                self.app.arduino.start_trigger()
+
+            # 3. Cleanly stop existing PyAV workers (they will now exit safely because trigger is pulsing)
+            self.app.recorder.stop_workers()
+            
+            # 4. Open Cameras
             res_str = self.res_combo.get().split(' ')[0]
             target_w, target_h = map(int, res_str.split('x'))
             
+            # Force USB bus to 120fps to allow high polling rate for hardware trigger
             cam_fps = 120 if trigger_on and cam_type == "USB Webcams" else target_fps
             fmt = "MJPG" 
                 
             self.app.camera_indices = self.app.cam_mgr.find_and_open_cameras(
-                6, 
+                max_index=6, 
                 camera_type=cam_type,
                 target_w=target_w,
                 target_h=target_h,
                 target_fps=cam_fps,
-                target_format=fmt
+                target_format=fmt,
+                exposure_val=int(self.exposure_slider.get()) if cam_type == "USB Webcams" else None,
+                gain_val=int(self.gain_slider.get()) if cam_type == "USB Webcams" else None,
+                trigger_on=trigger_on if cam_type == "USB Webcams" else None
             )
             self.app.log(f"Cameras found: {len(self.app.camera_indices)} ({self.app.camera_indices})", "success")
-            self.app.preview_tab.setup_preview_grid()
             
-            # 4. Hardware Sync (Exposure, Gain, Trigger Flag)
-            if cam_type == "USB Webcams":
-                exp = int(self.exposure_slider.get())
-                gain = int(self.gain_slider.get())
-                self.app.log("Syncing Hardware Exposure & Trigger flag...")
-                results = self.app.cam_mgr.sync_hardware_exposure(exp, gain, trigger_on)
-                for idx, res in results.items():
-                    if res != "Success":
-                        self.app.log(f"Cam {idx}: Exposure Sync failed - {res}", "error")
+            # Must run GUI updates in the main thread!
+            self.app.after(0, self.app.preview_tab.setup_preview_grid)
             
             # 5. Start PyAV Workers
             self.app.recorder.start_workers(self.app.cam_mgr.cameras, target_fps=target_fps)
@@ -309,41 +311,18 @@ class SetupTab(ctk.CTkScrollableFrame):
             
             # 6. Start Arduino Trigger
             if cam_type == "USB Webcams" and self.app.arduino.is_connected and trigger_on:
-                self.app.arduino.set_fps(target_fps)
-                self.app.arduino.start_trigger()
                 self.app.log(f"Hardware Trigger STARTED at {target_fps} FPS!", level="success")
+            elif self.app.arduino.is_connected:
+                self.app.arduino.stop_trigger() # Turn off if not needed
                 
-            self.btn_init_system.configure(state="normal", text="Initialize System & Start Preview")
+            self.app.after(0, lambda: self.btn_init_system.configure(state="normal", text="Initialize System & Start Preview"))
             
         threading.Thread(target=init_task).start()
 
     def sync_exposure_cmd(self):
-        exp = int(self.exposure_slider.get())
-        gain = int(self.gain_slider.get())
-        trigger_on = self.chk_uvc_trigger_var.get()
-        
-        self.btn_sync_exposure.configure(state="disabled", text="Syncing...")
-        self.app.log("Syncing Hardware Exposure... (PyAV streams will momentarily restart)")
-        self.app.recorder.stop_workers()
-        
-        def do_sync():
-            results = self.app.cam_mgr.sync_hardware_exposure(exp, gain, trigger_on)
-            for idx, res in results.items():
-                if res == "Success":
-                    self.app.log(f"Cam {idx}: Exposure Sync OK", "success")
-                else:
-                    self.app.log(f"Cam {idx}: Exposure Sync failed - {res}", "error")
-                    
-            try:
-                fps = int(self.fps_entry.get())
-            except:
-                fps = 50
-            self.app.recorder.start_workers(self.app.cam_mgr.cameras, target_fps=fps)
-            
-            self.btn_sync_exposure.configure(state="normal", text="Update Settings Live")
-            self.app.log("Exposure Sync Complete.")
-            
-        threading.Thread(target=do_sync).start()
+        # We must re-initialize to safely apply DSHOW properties without PyAV lock conflicts.
+        self.app.log("Applying Settings Live... Re-initializing system to release device locks.")
+        self.initialize_system_cmd()
 
     def refresh_ports(self):
         ports = self.app.arduino.get_available_ports()
