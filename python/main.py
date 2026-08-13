@@ -23,13 +23,12 @@ class MoCapSyncApp(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("MoCapSTR: Sync / Trigger / Record for FreeMoCap v1.1.2")
+        self.title("MoCapSTR: Sync / Trigger / Record for FreeMoCap v1.1.4")
         self.geometry("1100x800")
         
         # Managers
         self.cam_mgr = CameraManager()
         self.arduino = ArduinoSync()
-        self.arduino.on_toggle_trig_callback = self.handle_remote_toggle_trig
         self.arduino.on_toggle_rec_callback = self.handle_remote_toggle_rec
         
         self.proj_mgr = ProjectManager()
@@ -42,22 +41,13 @@ class MoCapSyncApp(ctk.CTk):
         
         self.record_start_time = 0
         self.ui_tick = 0
-        self.trigger_started_by_rec = False
         self.last_free_space = 0
         self.txt_log = None # Injected by SetupTab
         
         self.build_ui()
         self.after(50, self.update_preview) # Start preview loop
         
-    def handle_remote_toggle_trig(self):
-        self.after(0, self._do_toggle_trig)
-        
-    def _do_toggle_trig(self):
-        if self.arduino.is_running:
-            self.setup_tab.stop_sync()
-        else:
-            self.setup_tab.start_sync()
-            
+
     def handle_remote_toggle_rec(self):
         self.after(0, self.toggle_record)
         
@@ -154,37 +144,13 @@ class MoCapSyncApp(ctk.CTk):
             self.recorder.start_recording(save_dir, fps, codec, enabled_cams)
             self.record_start_time = time.time()
             
-            # Auto-trigger Arduino if checked
-            if hasattr(self.setup_tab, 'chk_auto_trigger_var') and self.setup_tab.chk_auto_trigger_var.get():
-                if self.arduino.is_connected:
-                    if not self.arduino.is_running:
-                        self.trigger_started_by_rec = True
-                        self.arduino.start_trigger()
-                        self.setup_tab.btn_start_sync.configure(state="disabled")
-                        self.setup_tab.btn_stop_sync.configure(state="normal")
-                        self.log("Auto-Trigger Started", "success")
-                    else:
-                        self.trigger_started_by_rec = False
-                        self.log("Auto-Trigger (Already running, continuing)")
-                else:
-                    self.log("Warning: Auto-Trigger enabled but Arduino not connected!", "error")
+
             
             self.preview_tab.btn_record_live.configure(text="⏹ STOP RECORDING", fg_color="red", hover_color="darkred")
         else:
             # STOP
             self.recorder.stop_recording()
             
-            # Auto-stop Arduino if running
-            if self.arduino.is_running and hasattr(self.setup_tab, 'chk_auto_trigger_var') and self.setup_tab.chk_auto_trigger_var.get():
-                if self.trigger_started_by_rec:
-                    self.arduino.stop_trigger()
-                    self.setup_tab.btn_stop_sync.configure(state="disabled")
-                    self.setup_tab.btn_start_sync.configure(state="normal")
-                    self.log("Auto-Trigger Stopped")
-                    self.trigger_started_by_rec = False
-                else:
-                    self.log("Auto-Trigger (Left running, was started manually)")
-                
             self.preview_tab.btn_record_live.configure(text="⏺ START RECORDING", fg_color="darkred", hover_color="red")
             self.preview_tab.lbl_live_warning.configure(text="")
             self.log("Recording stopped and saved.")
@@ -195,16 +161,12 @@ class MoCapSyncApp(ctk.CTk):
         # Check Arduino connection loss during trigger
         if self.arduino.is_running and not self.arduino.is_connected:
             self.preview_tab.lbl_live_warning.configure(text="⚠️ ARDUINO DISCONNECTED!")
-            self.setup_tab.btn_stop_sync.configure(state="disabled")
-            self.setup_tab.btn_start_sync.configure(state="normal")
             self.arduino.is_running = False
         
         if self.ui_tick % 40 == 0:
             if self.arduino.is_connected:
                 if not self.arduino.ping():
                     self.preview_tab.lbl_live_warning.configure(text="⚠️ ARDUINO DISCONNECTED!")
-                    self.setup_tab.btn_stop_sync.configure(state="disabled")
-                    self.setup_tab.btn_start_sync.configure(state="normal")
                     self.log("Arduino ping failed! Disconnected.", "error")
                     
         if self.ui_tick % 20 == 0 or self.ui_tick == 1:
