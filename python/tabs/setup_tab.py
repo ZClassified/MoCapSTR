@@ -85,37 +85,57 @@ class SetupTab(ctk.CTkScrollableFrame):
         self.fps_entry = ctk.CTkEntry(cam_f, width=60)
         self.fps_entry.insert(0, "50")
         self.fps_entry.pack(side="left")
-        
-        # Action Row (Open Cameras)
-        action_f = ctk.CTkFrame(self.blk4, fg_color="transparent")
-        action_f.pack(fill="x", padx=10, pady=(10, 5))
-        self.btn_init_system = ctk.CTkButton(action_f, text="Initialize System & Start Preview", command=self.initialize_system_cmd, fg_color="#1f538d", hover_color="#14375e", height=40, font=ctk.CTkFont(weight="bold", size=14))
-        self.btn_init_system.pack(fill="x", expand=True)
-        
+        # Recalculate exposure limits whenever the user changes FPS
+        self.fps_entry.bind("<FocusOut>", lambda e: self._clamp_exposure_to_fps())
+        self.fps_entry.bind("<Return>",   lambda e: self._clamp_exposure_to_fps())
+
         # Hardware Tuning (Only for USB)
         self.tuning_frame = ctk.CTkFrame(self.blk4, fg_color="transparent")
         self.tuning_frame.pack(fill="x", padx=10, pady=10)
-        
+
         self.lbl_exposure = ctk.CTkLabel(self.tuning_frame, text="Exposure (Shutter): 1/128s")
         self.lbl_exposure.grid(row=0, column=0, sticky="w", padx=5)
-        self.exposure_slider = ctk.CTkSlider(self.tuning_frame, from_=-11, to=-3, number_of_steps=8, command=self.update_exposure_label)
+
+        # Slider range is updated dynamically based on FPS – see _clamp_exposure_to_fps()
+        # Default: from 1/2048s (val=-11) to 1/8s (val=-3); upper bound is tightened per FPS.
+        self.exposure_slider = ctk.CTkSlider(
+            self.tuning_frame, from_=-11, to=-3,
+            number_of_steps=8, command=self.update_exposure_label
+        )
         self.exposure_slider.set(-7)
         self.exposure_slider.grid(row=0, column=1, sticky="ew", padx=10)
-        
+
         self.lbl_gain = ctk.CTkLabel(self.tuning_frame, text="Gain: 0")
         self.lbl_gain.grid(row=1, column=0, sticky="w", padx=5, pady=5)
         self.gain_slider = ctk.CTkSlider(self.tuning_frame, from_=0, to=255, command=self.update_gain_label)
         self.gain_slider.set(0)
         self.gain_slider.grid(row=1, column=1, sticky="ew", padx=10, pady=5)
-        
+
         self.chk_uvc_trigger_var = ctk.BooleanVar(value=True)
-        self.chk_uvc_trigger = ctk.CTkCheckBox(self.tuning_frame, text="Enable UVC Hardware Trigger", variable=self.chk_uvc_trigger_var)
+        self.chk_uvc_trigger = ctk.CTkCheckBox(
+            self.tuning_frame, text="Enable UVC Hardware Trigger",
+            variable=self.chk_uvc_trigger_var
+        )
         self.chk_uvc_trigger.grid(row=2, column=0, columnspan=2, sticky="w", padx=5, pady=5)
-        
-        self.btn_sync_exposure = ctk.CTkButton(self.tuning_frame, text="Update Settings Live", command=self.sync_exposure_cmd, fg_color="#d4a373", text_color="black", hover_color="#faedcd")
-        self.btn_sync_exposure.grid(row=3, column=0, columnspan=2, sticky="ew", padx=5, pady=10)
-        
+
         self.tuning_frame.columnconfigure(1, weight=1)
+
+        # Run once so the slider already reflects the default FPS=50
+        self._clamp_exposure_to_fps()
+
+        # Action Row — single button that initialises everything, placed last so
+        # the user naturally reads: Resolution → FPS → Exposure/Gain → Initialize.
+        action_f = ctk.CTkFrame(self.blk4, fg_color="transparent")
+        action_f.pack(fill="x", padx=10, pady=(5, 10))
+        self.btn_init_system = ctk.CTkButton(
+            action_f,
+            text="Initialize System & Start Preview",
+            command=self.initialize_system_cmd,
+            fg_color="#1f538d", hover_color="#14375e",
+            height=40, font=ctk.CTkFont(weight="bold", size=14)
+        )
+        self.btn_init_system.pack(fill="x", expand=True)
+
 
         # --- BLOCK 5: Arduino Trigger ---
         self.blk5 = ctk.CTkFrame(self)
@@ -154,12 +174,64 @@ class SetupTab(ctk.CTkScrollableFrame):
             self.app.log(f"Base save directory set to: {new_dir}")
 
     def update_exposure_label(self, value):
-        val = int(value)
+        val = int(round(float(value)))
         denominator = 2 ** abs(val)
         self.lbl_exposure.configure(text=f"Exposure (Shutter): 1/{denominator}s")
 
     def update_gain_label(self, value):
         self.lbl_gain.configure(text=f"Gain: {int(value)}")
+
+    def _clamp_exposure_to_fps(self):
+        """Restrict the exposure slider so you can never choose a shutter speed
+        that is longer than one frame period (1/FPS).
+
+        The UVC exposure control uses powers-of-two denominators: value -N means
+        1/(2^N) seconds.  We find the most-negative (fastest) exponent whose
+        corresponding shutter period still fits inside 1/FPS, then set that as
+        the slider's upper bound ('to' = least-negative = slowest allowed).
+
+        Example: FPS=80  → frame period = 12.5 ms
+            1/64  s ≈ 15.6 ms  → too slow  (val=-6)
+            1/128 s ≈  7.8 ms  → fits      (val=-7)  ← new upper bound
+        """
+        try:
+            fps = int(self.fps_entry.get())
+            if fps <= 0:
+                return
+        except ValueError:
+            return
+
+        frame_period_s = 1.0 / fps
+
+        # Walk from slowest (-3 = 1/8s) toward fastest (-11 = 1/2048s)
+        # and find the slowest shutter that still fits within one frame.
+        # UVC values run from -3 (slow) to -11 (fast); the slider 'to' is the
+        # least-negative allowed value, i.e. the slowest allowed speed.
+        max_val = -11  # start pessimistically at fastest
+        for exp_val in range(-3, -12, -1):   # -3, -4, …, -11
+            shutter_s = 1.0 / (2 ** abs(exp_val))
+            if shutter_s < frame_period_s:
+                max_val = exp_val
+                break
+
+        # max_val is now the slowest (least-negative) exponent that is safe.
+        # The slider range is: from=-11 (fastest) … to=max_val (slowest allowed).
+        steps = abs(max_val - (-11))  # number of integer steps available
+        self.exposure_slider.configure(from_=-11, to=max_val, number_of_steps=max(1, steps))
+
+        # If the current value is slower than the new limit, clamp it.
+        current_val = self.exposure_slider.get()
+        if current_val > max_val:
+            self.exposure_slider.set(max_val)
+
+        self.update_exposure_label(self.exposure_slider.get())
+
+        # Show a small warning in the label when the range is tight
+        denom = 2 ** abs(max_val)
+        self.lbl_exposure.configure(
+            text=self.lbl_exposure.cget("text") +
+                 f"  (max 1/{denom}s @ {fps} FPS)"
+        )
 
     def save_preset(self):
         name = self.preset_name_entry.get()
@@ -210,14 +282,21 @@ class SetupTab(ctk.CTkScrollableFrame):
             self.update_workflow_ui()
             
             self.res_combo.set(data.get("resolution", "1280x720 (720p)"))
-            self.exposure_slider.set(data.get("exposure", -7))
-            self.update_exposure_label(data.get("exposure", -7))
             self.gain_slider.set(data.get("gain", 0))
             self.update_gain_label(data.get("gain", 0))
             self.chk_uvc_trigger_var.set(data.get("uvc_trigger", True))
-            
+
             self.fps_entry.delete(0, 'end')
             self.fps_entry.insert(0, data.get("fps", "50"))
+
+            # Recalculate allowed exposure range BEFORE restoring the slider value
+            # so the saved value is only applied if it is still within the safe range.
+            self._clamp_exposure_to_fps()
+            saved_exp = data.get("exposure", -7)
+            max_allowed = int(round(self.exposure_slider.cget("to")))
+            clamped_exp = min(saved_exp, max_allowed)  # clamp to safe range
+            self.exposure_slider.set(clamped_exp)
+            self.update_exposure_label(clamped_exp)
             
             arduino_port = data.get("arduino_port", "")
             if arduino_port and arduino_port in self.port_combo._values:
@@ -319,10 +398,9 @@ class SetupTab(ctk.CTkScrollableFrame):
             
         threading.Thread(target=init_task).start()
 
-    def sync_exposure_cmd(self):
-        # We must re-initialize to safely apply DSHOW properties without PyAV lock conflicts.
-        self.app.log("Applying Settings Live... Re-initializing system to release device locks.")
-        self.initialize_system_cmd()
+    # sync_exposure_cmd() removed – 'Update Settings Live' was a duplicate of
+    # initialize_system_cmd(). A single 'Initialize System & Start Preview'
+    # button now handles both first-run init and live settings updates.
 
     def refresh_ports(self):
         ports = self.app.arduino.get_available_ports()

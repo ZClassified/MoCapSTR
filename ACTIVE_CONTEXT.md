@@ -1,7 +1,7 @@
 # Active Context
 
-**Current Status:** Resolved DSHOW/MSMF driver lock issues. Identified potential hardware limitation where exposure time is tied to external trigger pulse width.
-**Last Modified:** 2026-08-13 12:20:00
+**Current Status:** Investigating hardware trigger framerate halving (40/50 FPS at 100/120 FPS trigger). Fixed Arduino firmware timing drift. Reverted pulse width to 1000µs after 500µs caused framerate degradation. Added live PULSE command for runtime testing without reflashing.
+**Last Modified:** 2026-08-13 13:20:00
 
 ---
 
@@ -61,3 +61,5 @@ This ensures that the next AI assistant immediately knows what was just done and
 - **2026-08-13 (v1.1.3):** Fixed Innomaker UVC Hardware Trigger integration. Switched `sync_hardware_exposure` to use OpenCV's MSMF backend to apply UVC settings without closing the DirectShow PyAV stream (which was causing settings to reset). Discovered that ticking "Auto Focus" (not setting a Focus value) enables the hardware trigger on the Innomaker firmware. Modified `setup_tab.py` to automatically request 120 FPS from the USB bus when the hardware trigger is active, eliminating the USB readout bottleneck and preventing dropped frames at 25/50 Hz trigger rates.
 - **2026-08-13 (v1.1.4):** Implemented One-Click System Initialization. Added intelligent Arduino COM port auto-detection. Consolidated camera opening and hardware sync into a single robust button in the UI. Cleaned up obsolete manual trigger toggle logic from the Arduino firmware and Python codebase since the trigger now runs continuously during preview and recording.
 - **2026-08-13 (v1.1.5):** Resolved DSHOW/MSMF driver lock issues causing UVC settings to fail or flicker. Separated property application into two phases *before* PyAV connects: DSHOW successfully sets Exposure/Gain, and MSMF successfully activates the Trigger flag (AutoFocus). Concluded that dropped frames at >47 FPS are likely caused by a hardware feature where the Global Shutter exposure time is dictated by the external trigger pulse width (`pulseWidthMicros`), overriding UVC exposure. Future sessions should test dynamic pulse widths in the Arduino firmware.
+- **2026-08-13 (v1.1.6):** Arduino firmware timing fix: switched `previousMicros = currentMicros` to `previousMicros += intervalMicros` to eliminate cumulative timing drift caused by the blocking `delayMicroseconds()` call. Added new `<PULSE:N>` serial command to change pulse width live without reflashing. Default pulse width reverted to 1000µs (500µs caused framerate degradation — likely below OV9281 minimum exposure time). Added `set_pulse_width()` to `arduino_sync.py` and a live Pulse Width field to `arduino_test_ui.py` for systematic testing.
+- **2026-08-13:** Setup Tab UX improvements: removed duplicate 'Update Settings Live' button (was a wrapper around `initialize_system_cmd`). Added FPS-aware exposure clamping — the slider's upper bound is automatically restricted so users can never select a shutter speed longer than 1/FPS. Initialize button moved below all settings fields for a natural top-to-bottom workflow.

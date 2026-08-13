@@ -119,6 +119,13 @@ class ArduinoSync:
     def set_fps(self, fps):
         print(f"Setting Arduino trigger FPS to {fps}")
         return self.send_command(f"FPS:{int(fps)}")
+
+    def set_pulse_width(self, pulse_micros: int):
+        """Set the trigger pulse width in microseconds.
+        Must be well below the trigger interval (e.g. < interval/2).
+        Default: 500µs. Use shorter pulses at higher FPS."""
+        print(f"Setting Arduino pulse width to {pulse_micros}µs")
+        return self.send_command(f"PULSE:{int(pulse_micros)}")
         
     def start_trigger(self):
         if not self.is_running:
