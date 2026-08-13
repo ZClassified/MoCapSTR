@@ -268,6 +268,11 @@ class SetupTab(ctk.CTkScrollableFrame):
             except ValueError:
                 target_fps = 50
                 
+            # If UVC Trigger is enabled, we MUST open the USB stream at the maximum 
+            # possible framerate (120) so the USB controller polls fast enough to catch 
+            # the hardware trigger frames without dropping them!
+            cam_fps = 120 if self.chk_uvc_trigger_var.get() and cam_type == "USB Webcams" else target_fps
+                
             fmt = "MJPG" 
                 
             self.app.camera_indices = self.app.cam_mgr.find_and_open_cameras(
@@ -275,7 +280,7 @@ class SetupTab(ctk.CTkScrollableFrame):
                 camera_type=cam_type,
                 target_w=target_w,
                 target_h=target_h,
-                target_fps=target_fps,
+                target_fps=cam_fps,
                 target_format=fmt
             )
             self.app.log(f"Cameras found: {len(self.app.camera_indices)} ({self.app.camera_indices})", "success")
