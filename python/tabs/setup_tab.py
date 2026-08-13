@@ -86,8 +86,11 @@ class SetupTab(ctk.CTkScrollableFrame):
         self.fps_entry.insert(0, "50")
         self.fps_entry.pack(side="left")
         
-        self.btn_scan = ctk.CTkButton(cam_f, text="Open Cameras", command=self.scan_cameras)
-        self.btn_scan.pack(side="right", padx=10)
+        # Action Row (Open Cameras)
+        action_f = ctk.CTkFrame(self.blk4, fg_color="transparent")
+        action_f.pack(fill="x", padx=10, pady=(10, 5))
+        self.btn_scan = ctk.CTkButton(action_f, text="Open Cameras & Start Preview", command=self.scan_cameras, fg_color="#1f538d", hover_color="#14375e")
+        self.btn_scan.pack(fill="x", expand=True)
         
         # Hardware Tuning (Only for USB)
         self.tuning_frame = ctk.CTkFrame(self.blk4, fg_color="transparent")
@@ -125,9 +128,9 @@ class SetupTab(ctk.CTkScrollableFrame):
         ports = self.app.arduino.get_available_ports()
         self.port_combo = ctk.CTkComboBox(ard_f, values=ports if ports else ["No Ports Found"], width=120)
         self.port_combo.pack(side="left", padx=5)
-        ctk.CTkButton(ard_f, text="🔄", width=30, command=self.refresh_ports).pack(side="left")
+        ctk.CTkButton(ard_f, text="Refresh", width=80, command=self.refresh_ports).pack(side="left", padx=5)
         self.btn_connect = ctk.CTkButton(ard_f, text="Connect", width=80, command=self.connect_arduino)
-        self.btn_connect.pack(side="left", padx=10)
+        self.btn_connect.pack(side="left", padx=5)
         
         self.chk_auto_trigger_var = ctk.BooleanVar(value=True)
         ctk.CTkCheckBox(ard_f, text="Auto-Trigger on Record", variable=self.chk_auto_trigger_var).pack(side="right", padx=10)
