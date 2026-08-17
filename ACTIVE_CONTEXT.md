@@ -1,7 +1,7 @@
 # Active Context
 
-**Current Status:** Bug-fix session. Fixed critical crash in Export Tab (`current_project_dir()` method didn't exist, AVI scan was not recursive). Fixed `TypeError` in conversion progress update (`self.after()` with keyword args). Added cleanup of partially-written `.mp4` on conversion error. Fixed FPS fallback inconsistency (50→30). Added recording guard in Camera Test Tab. Fixed German UI string. Bumped version to 1.2.4.
-**Last Modified:** 2026-08-17 17:17:00
+**Current Status:** Built standalone all-in-one executable `MoCapSTR.exe` (v1.2.4) using PyInstaller with full multi-resolution Windows icon (`design/Icon.ico`), bundled CustomTkinter assets, PyAV/OpenCV dependencies, and tested startup.
+**Last Modified:** 2026-08-17 17:30:00
 
 ---
 
@@ -44,3 +44,4 @@ This ensures that the next AI assistant immediately knows what was just done and
 - **2026-08-17 (v1.2.2):** Redesigned the "Project & Setup" tab into a cleaner 2-card layout ("Project & Presets" and "Hardware Configuration") using Grid alignment. Removed the manual Gain slider to save space and simplify the interface, hardcoding hardware gain to 0 during initialization.
 - **2026-08-17 (v1.2.3):** Documentation overhaul (`README.md`). Fixed a quality degradation issue in `export_tab.py` by lowering the FFmpeg H.264 Constant Rate Factor (CRF) from 23 to 15, ensuring the resulting `.mp4` files are visually lossless compared to the raw MJPEG AVI recordings.
 - **2026-08-17 (v1.2.4):** Bug-fix session across multiple files. **`export_tab.py`**: Fixed `AttributeError` crash on "Scan" button — `ProjectManager` has no `current_project_dir()` method; replaced with correct `base_path + current_project` path construction. Fixed AVI scan using non-recursive `glob` that never found files nested inside `takes/take_XYZ/synchronized_videos/`; switched to `glob(..., recursive=True)`. Fixed `TypeError` crash during conversion progress update caused by passing keyword args to `self.after()` — replaced with lambda. Changed FPS fallback from 50 to 30 (consistent with UI default). Added cleanup of incomplete `.mp4` output file when conversion fails mid-stream. **`camera_test_tab.py`**: Added guard to prevent "Run Scan" from silently killing an active recording. **`main.py`**: Fixed FPS fallback 50→30. **`preview_tab.py`**: Fixed lone German UI string "Aufnahme aktiv" → "Enable Recording". **`README.md`**: Restructured as bilingual (English first, German second).
+- **2026-08-17 (v1.2.4 Build):** Built standalone onefile executable `MoCapSTR.exe` (and `MoCapSTR 1.2.4.exe`) in `dist/`. Enhanced `design/Icon.ico` with complete multi-resolution icon sizes (16x16 up to 256x256), configured `MoCapSTR.spec` with all CustomTkinter theme assets, PyAV, pygrabber, comtypes, screeninfo, opencv, and pillow dependencies. Verified startup.
