@@ -1,7 +1,7 @@
 # Active Context
 
-**Current Status:** Added custom program window icon support using `Icon.ico`. Configured `main.py` with PyInstaller compatibility (`sys._MEIPASS`) for bundling the icon into the final executable.
-**Last Modified:** 2026-08-17 08:58:00
+**Current Status:** Fixed a bug in `camera_manager.py` where exposure changes were not correctly applied to all identical cameras due to MSMF resetting DSHOW properties. Separated the hardware initialization into dedicated MSMF and DSHOW passes. Bumped version to 1.2.0.
+**Last Modified:** 2026-08-17 09:22:00
 
 ---
 
@@ -39,3 +39,4 @@ This ensures that the next AI assistant immediately knows what was just done and
 - **2026-08-13 (v1.1.7):** Resolved the Hardware Trigger Framerate drop mystery (Targeting 60 yielded 30). Proved via empirical sweeping that the Innomaker OV9281 firmware has a fixed ~18-20ms sensor readout time over USB 2.0 in trigger mode, regardless of requested resolution. This caps the physical hardware trigger limit to strictly 50 FPS. Any trigger faster than 50Hz (e.g. 60Hz) strikes the sensor during readout, corrupting the pipeline and halving the framerate. Fixed UI: removed hard exposure slider clamping in favor of a physics-aware warning label. Fixed Backend: changed `CAP_PROP_AUTO_EXPOSURE` flag to `0.25` to correctly disable Auto-Exposure under Windows DirectShow. Default exposure set to -9 (1/512s) to ensure 50 FPS works out-of-the-box.
 - **2026-08-17 (v1.1.8):** Fixed initialization hang on phantom COM ports by adding a `<PING>`/`<PONG>` handshake verification to `arduino_sync.py` during connection. Added graceful fallback to free-run mode if the hardware trigger is requested but no Arduino is verified. Fixed a bug in PyAV camera enumeration where multiple cameras with identical names (e.g. "USB Camera") would fail to open due to missing `video_device_number` parameter in FFmpeg dshow options. Fixed OpenCV hardware sync index logic so exposure/gain settings apply to all identical cameras instead of just the first one.
 - **2026-08-17 (v1.1.9):** Added custom program window icon support using `design/Icon.ico`. Configured `main.py` with `sys._MEIPASS` pathing to ensure the icon persists when bundled via PyInstaller.
+- **2026-08-17 (v1.2.0):** Fixed a bug in `camera_manager.py` where exposure changes only applied to a subset of identical cameras. MSMF hardware trigger initialization was accidentally resetting DSHOW exposure settings due to Windows enumeration differences. Fixed by separating the initialization into a dedicated MSMF pass for all cameras, followed by a DSHOW pass.
