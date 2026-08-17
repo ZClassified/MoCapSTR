@@ -328,6 +328,10 @@ class SetupTab(ctk.CTkScrollableFrame):
                     else:
                         self.app.log(f"Failed to connect Arduino on {port}. Trigger will not work.", "error")
             
+            if cam_type == "USB Webcams" and trigger_on and not self.app.arduino.is_connected:
+                self.app.log("⚠️ No Arduino connected! Falling back to free-run mode (trigger disabled).", "error")
+                trigger_on = False
+
             # 2. CRITICAL FIX: Start Arduino trigger BEFORE touching PyAV!
             # If the camera is already in hardware trigger mode from a previous run,
             # stopping PyAV or re-opening the camera will DEADLOCK if the Arduino is not sending pulses.

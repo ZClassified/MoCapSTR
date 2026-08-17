@@ -57,31 +57,29 @@ class CameraManager:
                     # 1. DSHOW correctly sets Exposure, but fails to set AutoFocus.
                     # 2. MSMF correctly sets AutoFocus, but fails to set Exposure.
                     if exposure_val is not None and gain_val is not None and trigger_on is not None:
-                        cv_index = -1
-                        if cam_name in self.device_names:
-                            cv_index = self.device_names.index(cam_name)
-                        if cv_index >= 0:
-                            import cv2
-                            # 1. Set Exposure/Gain via DSHOW
-                            try:
-                                cap = cv2.VideoCapture(cv_index, cv2.CAP_DSHOW)
-                                if cap.isOpened():
-                                    cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.25) # 0.25 is manual in DirectShow (0.75 is auto)
-                                    cap.set(cv2.CAP_PROP_EXPOSURE, exposure_val)
-                                    cap.set(cv2.CAP_PROP_GAIN, gain_val)
-                                    cap.release()
-                            except Exception as e:
-                                print(f"DSHOW hardware sync failed for {cam_name}: {e}")
-                                
-                            # 2. Set Trigger via MSMF
-                            try:
-                                cap = cv2.VideoCapture(cv_index, cv2.CAP_MSMF)
-                                if cap.isOpened():
-                                    cap.set(cv2.CAP_PROP_AUTOFOCUS, 1 if trigger_on else 0)
-                                    cap.set(cv2.CAP_PROP_FOCUS, 0)
-                                    cap.release()
-                            except Exception as e:
-                                print(f"MSMF hardware sync failed for {cam_name}: {e}")
+                        # OpenCV index maps directly to our enumerated DSHOW device list
+                        cv_index = i
+                        import cv2
+                        # 1. Set Exposure/Gain via DSHOW
+                        try:
+                            cap = cv2.VideoCapture(cv_index, cv2.CAP_DSHOW)
+                            if cap.isOpened():
+                                cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.25) # 0.25 is manual in DirectShow (0.75 is auto)
+                                cap.set(cv2.CAP_PROP_EXPOSURE, exposure_val)
+                                cap.set(cv2.CAP_PROP_GAIN, gain_val)
+                                cap.release()
+                        except Exception as e:
+                            print(f"DSHOW hardware sync failed for {cam_name}: {e}")
+                            
+                        # 2. Set Trigger via MSMF
+                        try:
+                            cap = cv2.VideoCapture(cv_index, cv2.CAP_MSMF)
+                            if cap.isOpened():
+                                cap.set(cv2.CAP_PROP_AUTOFOCUS, 1 if trigger_on else 0)
+                                cap.set(cv2.CAP_PROP_FOCUS, 0)
+                                cap.release()
+                        except Exception as e:
+                            print(f"MSMF hardware sync failed for {cam_name}: {e}")
                     # ---------------------------
 
                     # Map MJPG/YUY2 to FFmpeg codecs
@@ -91,11 +89,15 @@ class CameraManager:
                     else:
                         pixel_format = 'yuvj422p' # Common for MJPEG
                         
+                    # Calculate video_device_number for duplicate names (e.g. multiple "USB Camera"s)
+                    device_number = self.device_names[:i].count(cam_name)
+                    
                     options = {
                         'video_size': f'{target_w}x{target_h}',
                         'framerate': str(target_fps),
                         'vcodec': vcodec,
-                        'rtbufsize': '256M'
+                        'rtbufsize': '256M',
+                        'video_device_number': str(device_number)
                     }
                     if target_format == "YUY2":
                         options['pixel_format'] = pixel_format
@@ -119,7 +121,8 @@ class CameraManager:
                         "width": target_w,
                         "height": target_h,
                         "fps": target_fps,
-                        "stream": stream
+                        "stream": stream,
+                        "device_number": device_number
                     }
                     available_cams.append(i)
                 else:
@@ -171,11 +174,15 @@ class CameraManager:
                         container = av.open(cam_name, format='decklink', options=options)
                     else:
                         vcodec = 'mjpeg' if format_str == "MJPG" else 'rawvideo'
+                        
+                        device_number = info.get("device_number", 0)
+                        
                         options = {
                             'video_size': f'{width}x{height}',
                             'framerate': str(fps),
                             'vcodec': vcodec,
-                            'rtbufsize': '256M'
+                            'rtbufsize': '256M',
+                            'video_device_number': str(device_number)
                         }
                         if format_str == "YUY2":
                             options['pixel_format'] = 'yuyv422'
