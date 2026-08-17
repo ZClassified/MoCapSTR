@@ -68,8 +68,8 @@ class MoCapSyncApp(ctk.CTk):
         
         self.tab_setup_frame = self.tabview.add("1. Project & Setup")
         self.tab_preview_frame = self.tabview.add("2. Live Preview")
-        self.tab_test_frame = self.tabview.add("3. Camera Tester")
-        self.tab_export_frame = self.tabview.add("4. Export & Convert")
+        self.tab_export_frame = self.tabview.add("3. Export & Convert")
+        self.tab_test_frame = self.tabview.add("4. Camera Tester")
         
         self.setup_tab = SetupTab(self.tab_setup_frame, self)
         self.setup_tab.pack(fill="both", expand=True)
