@@ -2,6 +2,7 @@ import tkinter as tk
 import customtkinter as ctk
 import json
 import os
+import sys
 from camera_manager import CameraManager
 from arduino_sync import ArduinoSync
 from project_manager import ProjectManager
@@ -23,9 +24,19 @@ class MoCapSyncApp(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("MoCapSTR: Sync / Trigger / Record for FreeMoCap v1.1.8")
+        self.title("MoCapSTR: Sync / Trigger / Record for FreeMoCap v1.1.9")
         self.geometry("1100x800")
         
+        # Set Window Icon
+        try:
+            base_path = sys._MEIPASS
+        except Exception:
+            base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            
+        icon_path = os.path.join(base_path, "design", "Icon.ico")
+        if os.path.exists(icon_path):
+            self.iconbitmap(icon_path)
+            
         # Managers
         self.cam_mgr = CameraManager()
         self.arduino = ArduinoSync()
