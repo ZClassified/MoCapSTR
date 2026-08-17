@@ -58,14 +58,31 @@ class ArduinoSync:
             self.serial_conn = serial.Serial(port, baudrate, timeout=1)
             time.sleep(2)  # Wait for Arduino to reset after connection
             self.is_connected = True
-            self.last_ping_response = time.time()
+            self.last_ping_response = 0  # Reset to verify fresh PONG
             self.stop_reader = False
             
             # Start background reader thread
             self.reader_thread = threading.Thread(target=self._read_from_serial, daemon=True)
             self.reader_thread.start()
             
-            return True
+            # Verify device is our MoCap Arduino by pinging
+            try:
+                self.serial_conn.write(b"<PING>\n")
+            except Exception:
+                pass
+                
+            # Wait up to 2 seconds for a PONG response
+            start_wait = time.time()
+            while time.time() - start_wait < 2.0:
+                if self.last_ping_response > 0:
+                    self.last_ping_response = time.time() # Update to current time
+                    return True
+                time.sleep(0.1)
+                
+            print(f"Port {port} opened, but no PONG received. Not a valid MoCap Arduino.")
+            self.disconnect()
+            return False
+            
         except serial.SerialException as e:
             print(f"Error connecting to Arduino on {port}: {e}")
             self.is_connected = False

@@ -1,7 +1,7 @@
 # Active Context
 
-**Current Status:** Investigated Innomaker OV9281 hardware trigger limits. Discovered a hard 50 FPS physical limit due to a 20ms full-sensor USB readout bottleneck in the camera firmware. Fixed UI bugs in Setup Tab exposure slider and corrected OpenCV DirectShow Auto-Exposure flag.
-**Last Modified:** 2026-08-13 15:02:00
+**Current Status:** Fixed initialization hang on phantom COM ports by adding a ping/pong verification handshake. Added fallback to free-run mode if no Arduino is found. Fixed PyAV duplicate camera name bug (Errno 5) by adding `video_device_number` to FFmpeg options. Fixed OpenCV hardware sync index logic to apply settings to all identical cameras.
+**Last Modified:** 2026-08-17 07:58:00
 
 ---
 
@@ -37,3 +37,4 @@ This ensures that the next AI assistant immediately knows what was just done and
 - **2026-08-13 (v1.1.5):** Resolved DSHOW/MSMF driver lock issues causing UVC settings to fail or flicker. Separated property application into two phases.
 - **2026-08-13 (v1.1.6):** Arduino firmware timing fix to eliminate cumulative drift. Added new `<PULSE:N>` serial command. Setup Tab UX improvements.
 - **2026-08-13 (v1.1.7):** Resolved the Hardware Trigger Framerate drop mystery (Targeting 60 yielded 30). Proved via empirical sweeping that the Innomaker OV9281 firmware has a fixed ~18-20ms sensor readout time over USB 2.0 in trigger mode, regardless of requested resolution. This caps the physical hardware trigger limit to strictly 50 FPS. Any trigger faster than 50Hz (e.g. 60Hz) strikes the sensor during readout, corrupting the pipeline and halving the framerate. Fixed UI: removed hard exposure slider clamping in favor of a physics-aware warning label. Fixed Backend: changed `CAP_PROP_AUTO_EXPOSURE` flag to `0.25` to correctly disable Auto-Exposure under Windows DirectShow. Default exposure set to -9 (1/512s) to ensure 50 FPS works out-of-the-box.
+- **2026-08-17 (v1.1.8):** Fixed initialization hang on phantom COM ports by adding a `<PING>`/`<PONG>` handshake verification to `arduino_sync.py` during connection. Added graceful fallback to free-run mode if the hardware trigger is requested but no Arduino is verified. Fixed a bug in PyAV camera enumeration where multiple cameras with identical names (e.g. "USB Camera") would fail to open due to missing `video_device_number` parameter in FFmpeg dshow options. Fixed OpenCV hardware sync index logic so exposure/gain settings apply to all identical cameras instead of just the first one.
