@@ -14,160 +14,150 @@ class SetupTab(ctk.CTkScrollableFrame):
     def build_ui(self):
         self.grid_columnconfigure(0, weight=1)
         
-        # --- BLOCK 1: Project & Session ---
-        blk1 = ctk.CTkFrame(self)
-        blk1.pack(fill="x", padx=10, pady=5)
-        ctk.CTkLabel(blk1, text="1. Project & Session", font=ctk.CTkFont(weight="bold")).pack(anchor="w", padx=10, pady=5)
-        
-        # Base Dir
-        dir_f = ctk.CTkFrame(blk1, fg_color="transparent")
-        dir_f.pack(fill="x", padx=10, pady=2)
-        ctk.CTkLabel(dir_f, text="Save Directory:").pack(side="left")
-        self.lbl_save_dir = ctk.CTkLabel(dir_f, text=self.app.proj_mgr.base_path, text_color="gray")
-        self.lbl_save_dir.pack(side="left", fill="x", expand=True, padx=5)
-        ctk.CTkButton(dir_f, text="Browse...", width=80, command=self.browse_directory).pack(side="right")
-        
-        # Project Name & Codec
-        proj_f = ctk.CTkFrame(blk1, fg_color="transparent")
-        proj_f.pack(fill="x", padx=10, pady=(5, 10))
-        ctk.CTkLabel(proj_f, text="Project Name:").pack(side="left")
-        self.proj_name_entry = ctk.CTkEntry(proj_f, width=150)
-        self.proj_name_entry.insert(0, "My_MoCap_Project")
-        self.proj_name_entry.pack(side="left", padx=5)
-        
-        ctk.CTkLabel(proj_f, text="Codec:").pack(side="left", padx=(15, 5))
-        self.codec_combo = ctk.CTkComboBox(proj_f, values=list(self.app.recorder.get_supported_codecs().keys()), width=150)
-        self.codec_combo.pack(side="left")
-        
-        # --- BLOCK 2: Presets ---
-        blk2 = ctk.CTkFrame(self)
-        blk2.pack(fill="x", padx=10, pady=5)
-        ctk.CTkLabel(blk2, text="2. Presets", font=ctk.CTkFont(weight="bold")).pack(anchor="w", padx=10, pady=5)
-        
-        pre_f = ctk.CTkFrame(blk2, fg_color="transparent")
-        pre_f.pack(fill="x", padx=10, pady=(0, 10))
-        self.preset_combo = ctk.CTkComboBox(pre_f, values=["Default"] + self.app.preset_mgr.get_preset_names(), width=150)
-        self.preset_combo.pack(side="left", padx=5)
-        ctk.CTkButton(pre_f, text="Load", width=60, command=self.load_preset).pack(side="left", padx=5)
-        
-        self.preset_name_entry = ctk.CTkEntry(pre_f, placeholder_text="New Preset Name", width=150)
-        self.preset_name_entry.pack(side="left", padx=(20, 5))
-        ctk.CTkButton(pre_f, text="Save", width=60, command=self.save_preset).pack(side="left")
-        
-        # --- BLOCK 3: Workflow Selection ---
-        blk3 = ctk.CTkFrame(self)
-        blk3.pack(fill="x", padx=10, pady=5)
-        ctk.CTkLabel(blk3, text="3. Workflow Selection", font=ctk.CTkFont(weight="bold")).pack(anchor="w", padx=10, pady=5)
-        
-        wf_f = ctk.CTkFrame(blk3, fg_color="transparent")
-        wf_f.pack(fill="x", padx=10, pady=(0, 10))
-        self.workflow_var = ctk.StringVar(value="USB Webcams")
-        r1 = ctk.CTkRadioButton(wf_f, text="Option 1: Innomaker USB (+ Arduino Trigger)", variable=self.workflow_var, value="USB Webcams", command=self.update_workflow_ui)
-        r1.pack(side="left", padx=20)
-        r2 = ctk.CTkRadioButton(wf_f, text="Option 2: Blackmagic SDI (Genlock)", variable=self.workflow_var, value="Blackmagic SDI", command=self.update_workflow_ui)
-        r2.pack(side="left", padx=20)
+        # Helper for card frames
+        def create_card(parent, title):
+            card = ctk.CTkFrame(parent, corner_radius=10)
+            card.pack(fill="x", padx=15, pady=8)
+            ctk.CTkLabel(card, text=title, font=ctk.CTkFont(weight="bold", size=14)).pack(anchor="w", padx=15, pady=(10, 5))
+            inner_frame = ctk.CTkFrame(card, fg_color="transparent")
+            inner_frame.pack(fill="x", padx=15, pady=(0, 10))
+            return card, inner_frame
 
-        # --- BLOCK 4: Camera Configuration ---
-        self.blk4 = ctk.CTkFrame(self)
-        self.blk4.pack(fill="x", padx=10, pady=5)
-        ctk.CTkLabel(self.blk4, text="4. Camera Configuration", font=ctk.CTkFont(weight="bold")).pack(anchor="w", padx=10, pady=5)
+        # ==========================================
+        # CARD 1: Project & Presets
+        # ==========================================
+        self.card_project, proj_inner = create_card(self, "1. Project & Presets")
+        proj_inner.grid_columnconfigure(1, weight=1)
         
-        cam_f = ctk.CTkFrame(self.blk4, fg_color="transparent")
-        cam_f.pack(fill="x", padx=10, pady=2)
+        # --- Project Name & Save Dir ---
+        ctk.CTkLabel(proj_inner, text="Project Name:").grid(row=0, column=0, sticky="w", pady=5)
+        self.proj_name_entry = ctk.CTkEntry(proj_inner)
+        self.proj_name_entry.insert(0, "My_MoCap_Project")
+        self.proj_name_entry.grid(row=0, column=1, sticky="ew", padx=10, pady=5)
         
-        ctk.CTkLabel(cam_f, text="Resolution:").pack(side="left")
+        ctk.CTkLabel(proj_inner, text="Save Directory:").grid(row=1, column=0, sticky="w", pady=5)
+        dir_f = ctk.CTkFrame(proj_inner, fg_color="transparent")
+        dir_f.grid(row=1, column=1, sticky="ew", padx=10)
+        self.lbl_save_dir = ctk.CTkLabel(dir_f, text=self.app.proj_mgr.base_path, text_color="gray", anchor="w")
+        self.lbl_save_dir.pack(side="left", fill="x", expand=True)
+        ctk.CTkButton(dir_f, text="Browse...", width=80, command=self.browse_directory).pack(side="right", padx=(5,0))
+        
+        # --- Codec ---
+        ctk.CTkLabel(proj_inner, text="Codec:").grid(row=2, column=0, sticky="w", pady=5)
+        self.codec_combo = ctk.CTkComboBox(proj_inner, values=list(self.app.recorder.get_supported_codecs().keys()))
+        self.codec_combo.grid(row=2, column=1, sticky="ew", padx=10, pady=5)
+
+        # --- Divider ---
+        ctk.CTkFrame(proj_inner, height=2, fg_color=("gray70", "gray30")).grid(row=3, column=0, columnspan=2, sticky="ew", pady=10)
+
+        # --- Presets ---
+        ctk.CTkLabel(proj_inner, text="Preset:").grid(row=4, column=0, sticky="w", pady=5)
+        pre_f = ctk.CTkFrame(proj_inner, fg_color="transparent")
+        pre_f.grid(row=4, column=1, sticky="ew", padx=10, pady=5)
+        
+        self.preset_combo = ctk.CTkComboBox(pre_f, values=["Default"] + self.app.preset_mgr.get_preset_names(), width=140)
+        self.preset_combo.pack(side="left", padx=(0, 5))
+        ctk.CTkButton(pre_f, text="Load", width=60, command=self.load_preset).pack(side="left")
+        
+        self.preset_name_entry = ctk.CTkEntry(pre_f, placeholder_text="New Preset Name", width=140)
+        self.preset_name_entry.pack(side="left", padx=(15, 5))
+        ctk.CTkButton(pre_f, text="Save", width=60, command=self.save_preset).pack(side="left")
+
+        # --- Workflow Selection ---
+        ctk.CTkLabel(proj_inner, text="Workflow:").grid(row=5, column=0, sticky="w", pady=5)
+        wf_f = ctk.CTkFrame(proj_inner, fg_color="transparent")
+        wf_f.grid(row=5, column=1, sticky="ew", padx=10, pady=5)
+        self.workflow_var = ctk.StringVar(value="USB Webcams")
+        
+        r1 = ctk.CTkRadioButton(wf_f, text="Option 1: Innomaker USB (+ Arduino Trigger)", variable=self.workflow_var, value="USB Webcams", command=self.update_workflow_ui)
+        r1.pack(side="left", padx=(0, 20))
+        r2 = ctk.CTkRadioButton(wf_f, text="Option 2: Blackmagic SDI (Genlock)", variable=self.workflow_var, value="Blackmagic SDI", command=self.update_workflow_ui)
+        r2.pack(side="left")
+
+        # --- Divider Between Cards ---
+        ctk.CTkFrame(self, height=2, fg_color=("gray70", "gray30")).pack(fill="x", padx=15, pady=(5, 5))
+
+        # ==========================================
+        # CARD 2: Hardware Configuration
+        # ==========================================
+        self.card_hardware, hw_inner = create_card(self, "2. Hardware Configuration")
+        hw_inner.grid_columnconfigure(1, weight=1)
+        
+        # --- Camera Basic Settings ---
+        ctk.CTkLabel(hw_inner, text="Resolution:").grid(row=0, column=0, sticky="w", pady=5)
         res_options = ["3840x2160 (4K)", "2560x1440 (1440p)", "1920x1080 (1080p)", "1280x800", "1280x720 (720p)", "1024x768", "800x600", "640x480", "640x400", "320x240"]
-        self.res_combo = ctk.CTkComboBox(cam_f, values=res_options, width=150)
+        self.res_combo = ctk.CTkComboBox(hw_inner, values=res_options)
         self.res_combo.set("1280x720 (720p)")
-        self.res_combo.pack(side="left", padx=5)
+        self.res_combo.grid(row=0, column=1, sticky="ew", padx=10, pady=5)
         
-        ctk.CTkLabel(cam_f, text="Target FPS:").pack(side="left", padx=(15,5))
-        self.fps_entry = ctk.CTkEntry(cam_f, width=60)
+        ctk.CTkLabel(hw_inner, text="Target FPS:").grid(row=1, column=0, sticky="w", pady=5)
+        self.fps_entry = ctk.CTkEntry(hw_inner)
         self.fps_entry.insert(0, "30")
-        self.fps_entry.pack(side="left")
-        # Recalculate exposure limits whenever the user changes FPS
+        self.fps_entry.grid(row=1, column=1, sticky="ew", padx=10, pady=5)
         self.fps_entry.bind("<FocusOut>", lambda e: self._clamp_exposure_to_fps())
         self.fps_entry.bind("<Return>",   lambda e: self._clamp_exposure_to_fps())
 
-        # Hardware Tuning (Only for USB)
-        self.tuning_frame = ctk.CTkFrame(self.blk4, fg_color="transparent")
-        self.tuning_frame.pack(fill="x", padx=10, pady=10)
+        # --- Hardware Tuning (USB Only) ---
+        self.tuning_frame = ctk.CTkFrame(hw_inner, fg_color="transparent")
+        self.tuning_frame.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(5, 0))
+        self.tuning_frame.grid_columnconfigure(1, weight=1)
 
-        # Wir geben dem Label eine feste Breite, damit der Slider nicht wackelt/schrumpft!
-        self.lbl_exposure = ctk.CTkLabel(self.tuning_frame, text="Exposure: -8 (1/256s)", width=160, anchor="w")
-        self.lbl_exposure.grid(row=0, column=0, sticky="w", padx=5)
-
-        # Slider von -11 bis -3 (bleibt jetzt fest, keine automatische Beschneidung mehr)
-        self.exposure_slider = ctk.CTkSlider(
-            self.tuning_frame, from_=-11, to=-3,
-            number_of_steps=8, command=self.update_exposure_label
-        )
+        self.lbl_exposure = ctk.CTkLabel(self.tuning_frame, text="Exposure: -8 (1/256s)", width=140, anchor="w")
+        self.lbl_exposure.grid(row=0, column=0, sticky="w", pady=5)
+        self.exposure_slider = ctk.CTkSlider(self.tuning_frame, from_=-11, to=-3, number_of_steps=8, command=self.update_exposure_label)
         self.exposure_slider.set(-8)
-        self.exposure_slider.grid(row=0, column=1, sticky="ew", padx=10)
+        self.exposure_slider.grid(row=0, column=1, sticky="ew", padx=10, pady=5)
         
-        # Warn-Label unter dem Slider (anfangs unsichtbar)
         self.lbl_exposure_warn = ctk.CTkLabel(self.tuning_frame, text="", text_color="red", font=ctk.CTkFont(size=11))
         self.lbl_exposure_warn.grid(row=1, column=1, sticky="w", padx=10)
 
-        self.lbl_gain = ctk.CTkLabel(self.tuning_frame, text="Gain: 0", width=160, anchor="w")
-        self.lbl_gain.grid(row=2, column=0, sticky="w", padx=5, pady=5)
-        self.gain_slider = ctk.CTkSlider(self.tuning_frame, from_=0, to=255, command=self.update_gain_label)
-        self.gain_slider.set(0)
-        self.gain_slider.grid(row=2, column=1, sticky="ew", padx=10, pady=5)
-
-        self.chk_uvc_trigger_var = ctk.BooleanVar(value=True)
-        self.chk_uvc_trigger = ctk.CTkCheckBox(
-            self.tuning_frame, text="Enable UVC Hardware Trigger",
-            variable=self.chk_uvc_trigger_var
-        )
-        self.chk_uvc_trigger.grid(row=3, column=0, columnspan=2, sticky="w", padx=5, pady=5)
-
-        self.tuning_frame.columnconfigure(1, weight=1)
-
-        # Run once so the slider already reflects the default FPS=30
         self._clamp_exposure_to_fps()
 
-        # Action Row — single button that initialises everything, placed last so
-        # the user naturally reads: Resolution → FPS → Exposure/Gain → Initialize.
-        action_f = ctk.CTkFrame(self.blk4, fg_color="transparent")
-        action_f.pack(fill="x", padx=10, pady=(5, 10))
+        # --- Arduino Sync (USB Only) ---
+        self.arduino_frame = ctk.CTkFrame(hw_inner, fg_color="transparent")
+        self.arduino_frame.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(5, 0))
+        self.arduino_frame.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkFrame(self.arduino_frame, height=2, fg_color=("gray70", "gray30")).grid(row=0, column=0, columnspan=2, sticky="ew", pady=(5, 10))
+        
+        self.chk_uvc_trigger_var = ctk.BooleanVar(value=True)
+        self.chk_uvc_trigger = ctk.CTkCheckBox(self.arduino_frame, text="Enable UVC Hardware Trigger", variable=self.chk_uvc_trigger_var)
+        self.chk_uvc_trigger.grid(row=1, column=0, columnspan=2, sticky="w", pady=(0, 10))
+        
+        ctk.CTkLabel(self.arduino_frame, text="Arduino Port:").grid(row=2, column=0, sticky="w", pady=5)
+        
+        ard_f = ctk.CTkFrame(self.arduino_frame, fg_color="transparent")
+        ard_f.grid(row=2, column=1, sticky="ew", padx=10, pady=5)
+        
+        ports = self.app.arduino.get_available_ports()
+        self.port_combo = ctk.CTkComboBox(ard_f, values=ports if ports else ["No Ports Found"])
+        self.port_combo.pack(side="left", fill="x", expand=True)
+        ctk.CTkButton(ard_f, text="Refresh", width=80, command=self.refresh_ports).pack(side="left", padx=(10, 0))
+        self.btn_connect = ctk.CTkButton(ard_f, text="Connect", width=100, command=self.connect_arduino)
+        self.btn_connect.pack(side="left", padx=(10, 0))
+        
+        # ==========================================
+        # Primary Action Button
+        # ==========================================
         self.btn_init_system = ctk.CTkButton(
-            action_f,
+            self,
             text="Initialize System & Start Preview",
             command=self.initialize_system_cmd,
             fg_color="#1f538d", hover_color="#14375e",
-            height=40, font=ctk.CTkFont(weight="bold", size=14)
+            height=50, font=ctk.CTkFont(weight="bold", size=16)
         )
-        self.btn_init_system.pack(fill="x", expand=True)
+        self.btn_init_system.pack(fill="x", padx=15, pady=20)
 
-
-        # --- BLOCK 5: Arduino Trigger ---
-        self.blk5 = ctk.CTkFrame(self)
-        self.blk5.pack(fill="x", padx=10, pady=5)
-        ctk.CTkLabel(self.blk5, text="5. Arduino Trigger Sync", font=ctk.CTkFont(weight="bold")).pack(anchor="w", padx=10, pady=5)
-        
-        ard_f = ctk.CTkFrame(self.blk5, fg_color="transparent")
-        ard_f.pack(fill="x", padx=10, pady=5)
-        
-        ports = self.app.arduino.get_available_ports()
-        self.port_combo = ctk.CTkComboBox(ard_f, values=ports if ports else ["No Ports Found"], width=120)
-        self.port_combo.pack(side="left", padx=5)
-        ctk.CTkButton(ard_f, text="Refresh", width=80, command=self.refresh_ports).pack(side="left", padx=5)
-        self.btn_connect = ctk.CTkButton(ard_f, text="Connect (Manual)", width=120, command=self.connect_arduino)
-        self.btn_connect.pack(side="left", padx=5)
-        
-        # Auto-trigger checkbox removed (always on now)
-        
         self.update_workflow_ui()
 
     def update_workflow_ui(self):
         choice = self.workflow_var.get()
         if choice == "Blackmagic SDI":
-            self.tuning_frame.pack_forget()
-            self.blk5.pack_forget()
+            self.tuning_frame.grid_remove()
+            self.arduino_frame.grid_remove()
         else:
-            self.tuning_frame.pack(fill="x", padx=10, pady=10)
-            self.blk5.pack(fill="x", padx=10, pady=5)
+            self.tuning_frame.grid()
+            self.arduino_frame.grid()
 
     def browse_directory(self):
         new_dir = filedialog.askdirectory(title="Select MoCap Save Directory", initialdir=self.app.proj_mgr.base_path)
@@ -181,9 +171,6 @@ class SetupTab(ctk.CTkScrollableFrame):
         denominator = 2 ** abs(val)
         self.lbl_exposure.configure(text=f"Exposure: {val} (1/{denominator}s)")
         self._clamp_exposure_to_fps() # Check warning dynamically
-
-    def update_gain_label(self, value):
-        self.lbl_gain.configure(text=f"Gain: {int(value)}")
 
     def _clamp_exposure_to_fps(self):
         """
@@ -223,7 +210,6 @@ class SetupTab(ctk.CTkScrollableFrame):
             "camera_type": self.workflow_var.get(),
             "resolution": self.res_combo.get(),
             "exposure": self.exposure_slider.get(),
-            "gain": self.gain_slider.get(),
             "uvc_trigger": self.chk_uvc_trigger_var.get(),
             "fps": self.fps_entry.get(),
             "arduino_port": self.port_combo.get(),
@@ -262,8 +248,6 @@ class SetupTab(ctk.CTkScrollableFrame):
             self.update_workflow_ui()
             
             self.res_combo.set(data.get("resolution", "1280x720 (720p)"))
-            self.gain_slider.set(data.get("gain", 0))
-            self.update_gain_label(data.get("gain", 0))
             self.chk_uvc_trigger_var.set(data.get("uvc_trigger", True))
 
             self.fps_entry.delete(0, 'end')
@@ -357,7 +341,7 @@ class SetupTab(ctk.CTkScrollableFrame):
                 target_fps=cam_fps,
                 target_format=fmt,
                 exposure_val=int(self.exposure_slider.get()) if cam_type == "USB Webcams" else None,
-                gain_val=int(self.gain_slider.get()) if cam_type == "USB Webcams" else None,
+                gain_val=0 if cam_type == "USB Webcams" else None,
                 trigger_on=trigger_on if cam_type == "USB Webcams" else None
             )
             self.app.log(f"Cameras found: {len(self.app.camera_indices)} ({self.app.camera_indices})", "success")
