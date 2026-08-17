@@ -201,7 +201,7 @@ class PreviewTab(ctk.CTkFrame):
             # Checkbox for enable/disable
             enable_var = ctk.IntVar(value=1)
             self.app.camera_enable_vars[idx] = enable_var
-            chk = ctk.CTkCheckBox(cam_frame, text="Aufnahme aktiv", variable=enable_var)
+            chk = ctk.CTkCheckBox(cam_frame, text="Enable Recording", variable=enable_var)
             chk.grid(row=1, column=0, pady=(5,0))
             
             # Rotation Dropdown

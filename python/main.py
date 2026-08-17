@@ -24,7 +24,7 @@ class MoCapSyncApp(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("MoCapSTR: Sync / Trigger / Record for FreeMoCap v1.2.3")
+        self.title("MoCapSTR: Sync / Trigger / Record for FreeMoCap v1.2.4")
         self.geometry("1100x800")
         
         # Set Window Icon
@@ -124,7 +124,7 @@ class MoCapSyncApp(ctk.CTk):
             try:
                 fps = int(self.setup_tab.fps_entry.get())
             except ValueError:
-                fps = 50
+                fps = 30  # Match the default shown in the FPS entry field
             codec = self.setup_tab.codec_combo.get()
             
             enabled_cams = [idx for idx, var in self.camera_enable_vars.items() if var.get() == 1]

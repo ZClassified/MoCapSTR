@@ -53,13 +53,19 @@ class ExportTab(ctk.CTkFrame):
         self.progressbar.set(0.0)
         
     def scan_files(self):
-        project_dir = self.main_app.proj_mgr.current_project_dir()
-        if not project_dir or not os.path.exists(project_dir):
-            self.lbl_progress.configure(text="No active project selected.")
+        if not self.main_app.proj_mgr.current_project:
+            self.lbl_progress.configure(text="No active project selected. Please initialize the system first.")
             return
-            
-        search_pattern = os.path.join(project_dir, "*.avi")
-        self.avi_files = glob.glob(search_pattern)
+        project_dir = os.path.join(
+            self.main_app.proj_mgr.base_path,
+            self.main_app.proj_mgr.current_project
+        )
+        if not os.path.exists(project_dir):
+            self.lbl_progress.configure(text=f"Project folder not found: {project_dir}")
+            return
+
+        # Recursive search — files are nested in takes/take_XYZ/synchronized_videos/
+        self.avi_files = glob.glob(os.path.join(project_dir, "**", "*.avi"), recursive=True)
         
         self.txt_files.configure(state="normal")
         self.txt_files.delete("1.0", tk.END)
@@ -97,8 +103,9 @@ class ExportTab(ctk.CTkFrame):
             output_filename = filename.rsplit('.', 1)[0] + '.mp4'
             output_path = os.path.join(os.path.dirname(input_path), output_filename)
             
-            # Update UI
-            self.after(0, self.lbl_progress.configure, text=f"Converting ({idx+1}/{total_files}): {filename} -> {output_filename}")
+            # Update UI (must use lambda for keyword args with self.after)
+            msg = f"Converting ({idx+1}/{total_files}): {filename} -> {output_filename}"
+            self.after(0, lambda t=msg: self.lbl_progress.configure(text=t))
             self.after(0, self.progressbar.set, 0.0)
             
             success = self._convert_single_file(input_path, output_path)
@@ -121,10 +128,10 @@ class ExportTab(ctk.CTkFrame):
                 
             in_stream = input_container.streams.video[0]
             
-            # Use original framerate or fallback to 50
+            # Use original framerate or fallback to 30
             fps = in_stream.average_rate
             if not fps or fps == 0:
-                fps = 50
+                fps = 30
                 
             output_container = av.open(output_path, mode='w')
             out_stream = output_container.add_stream('libx264', rate=fps)
@@ -164,6 +171,17 @@ class ExportTab(ctk.CTkFrame):
             return True
             
         except Exception as e:
+            # Clean up output file if it was partially created
+            if 'output_container' in dir() and output_container:
+                try:
+                    output_container.close()
+                except Exception:
+                    pass
+            if os.path.exists(output_path):
+                try:
+                    os.remove(output_path)
+                except Exception:
+                    pass
             self.main_app.log(f"Error converting {os.path.basename(input_path)}: {e}", "error")
             return False
 

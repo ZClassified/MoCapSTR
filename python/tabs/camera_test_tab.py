@@ -63,6 +63,11 @@ class CameraTestTab(ctk.CTkFrame):
         if self.is_scanning:
             return
             
+        # Guard: don't interrupt an active recording
+        if self.app.recorder.is_recording:
+            self.status_lbl.configure(text="Stop recording first!", text_color="red")
+            return
+
         # Ensure no cameras are actively being used by the app
         self.app.recorder.stop_workers()
         self.app.cam_mgr.close_all()
