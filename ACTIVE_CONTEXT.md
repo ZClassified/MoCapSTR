@@ -1,7 +1,7 @@
 # Active Context
 
-**Current Status:** Redesigned Setup Tab UI into a 2-card layout. Removed obsolete Gain slider. Bumped version to 1.2.2.
-**Last Modified:** 2026-08-17 10:32:00
+**Current Status:** Rewrote README.md with detailed hardware and FreeMoCap conversion instructions. Increased PyAV H.264 export quality to visually lossless (CRF 15). Bumped version to 1.2.3.
+**Last Modified:** 2026-08-17 16:23:00
 
 ---
 
@@ -42,3 +42,4 @@ This ensures that the next AI assistant immediately knows what was just done and
 - **2026-08-17 (v1.2.0):** Fixed a bug in `camera_manager.py` where exposure changes only applied to a subset of identical cameras. MSMF hardware trigger initialization was accidentally resetting DSHOW exposure settings due to Windows enumeration differences. Fixed by separating the initialization into a dedicated MSMF pass for all cameras, followed by a DSHOW pass.
 - **2026-08-17 (v1.2.1):** Added filter to ignore virtual cameras (like OBS Virtual Camera) in hardware enumeration to prevent MSMF/DSHOW I/O errors. Removed obsolete 'Auto-Trigger on Record' checkbox from the Setup UI as the trigger now runs continuously for PyAV Live Preview. Changed default target FPS from 50 to 30, and default exposure from -9 (1/512s) to -8 (1/256s) for better out-of-the-box brightness.
 - **2026-08-17 (v1.2.2):** Redesigned the "Project & Setup" tab into a cleaner 2-card layout ("Project & Presets" and "Hardware Configuration") using Grid alignment. Removed the manual Gain slider to save space and simplify the interface, hardcoding hardware gain to 0 during initialization.
+- **2026-08-17 (v1.2.3):** Documentation overhaul (`README.md`). Fixed a quality degradation issue in `export_tab.py` by lowering the FFmpeg H.264 Constant Rate Factor (CRF) from 23 to 15, ensuring the resulting `.mp4` files are visually lossless compared to the raw MJPEG AVI recordings.
