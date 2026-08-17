@@ -38,6 +38,11 @@ class CameraManager:
             if camera_type == "Blackmagic SDI" and not is_blackmagic:
                 print(f"Skipping index {i} ({cam_name}) - Blackmagic SDI mode active.")
                 continue
+                
+            # Skip common virtual cameras that shouldn't receive hardware trigger/exposure commands
+            if "virtual" in cam_name_lower or "obs" in cam_name_lower:
+                print(f"Skipping virtual camera at index {i} ({cam_name})")
+                continue
             
             valid_indices.append((i, cam_name))
             
