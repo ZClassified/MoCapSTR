@@ -131,7 +131,7 @@ class ExportTab(ctk.CTkFrame):
             out_stream.width = in_stream.width
             out_stream.height = in_stream.height
             out_stream.pix_fmt = 'yuv420p'
-            out_stream.options = {'crf': '23', 'preset': 'fast'} # High quality H.264
+            out_stream.options = {'crf': '15', 'preset': 'fast'} # Visually lossless H.264
             
             total_frames = in_stream.frames
             if total_frames <= 0:
