@@ -180,7 +180,7 @@ class CameraWorker(threading.Thread):
                         else:
                             # Trancoding path - highly simplified, requires decoded frames
                             pass 
-                        self.frames_recorded += 1
+                        self.frames_recorded += 1  # Only count on success
                     except Exception as e:
                         print(f"[{self.cam_id}] Mux error: {e}")
             except queue.Empty:
