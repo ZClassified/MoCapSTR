@@ -83,7 +83,7 @@ class SetupTab(ctk.CTkScrollableFrame):
         
         ctk.CTkLabel(cam_f, text="Target FPS:").pack(side="left", padx=(15,5))
         self.fps_entry = ctk.CTkEntry(cam_f, width=60)
-        self.fps_entry.insert(0, "50")
+        self.fps_entry.insert(0, "30")
         self.fps_entry.pack(side="left")
         # Recalculate exposure limits whenever the user changes FPS
         self.fps_entry.bind("<FocusOut>", lambda e: self._clamp_exposure_to_fps())
@@ -94,7 +94,7 @@ class SetupTab(ctk.CTkScrollableFrame):
         self.tuning_frame.pack(fill="x", padx=10, pady=10)
 
         # Wir geben dem Label eine feste Breite, damit der Slider nicht wackelt/schrumpft!
-        self.lbl_exposure = ctk.CTkLabel(self.tuning_frame, text="Exposure: -9 (1/512s)", width=160, anchor="w")
+        self.lbl_exposure = ctk.CTkLabel(self.tuning_frame, text="Exposure: -8 (1/256s)", width=160, anchor="w")
         self.lbl_exposure.grid(row=0, column=0, sticky="w", padx=5)
 
         # Slider von -11 bis -3 (bleibt jetzt fest, keine automatische Beschneidung mehr)
@@ -102,7 +102,7 @@ class SetupTab(ctk.CTkScrollableFrame):
             self.tuning_frame, from_=-11, to=-3,
             number_of_steps=8, command=self.update_exposure_label
         )
-        self.exposure_slider.set(-9)
+        self.exposure_slider.set(-8)
         self.exposure_slider.grid(row=0, column=1, sticky="ew", padx=10)
         
         # Warn-Label unter dem Slider (anfangs unsichtbar)
@@ -124,7 +124,7 @@ class SetupTab(ctk.CTkScrollableFrame):
 
         self.tuning_frame.columnconfigure(1, weight=1)
 
-        # Run once so the slider already reflects the default FPS=50
+        # Run once so the slider already reflects the default FPS=30
         self._clamp_exposure_to_fps()
 
         # Action Row — single button that initialises everything, placed last so
@@ -156,8 +156,7 @@ class SetupTab(ctk.CTkScrollableFrame):
         self.btn_connect = ctk.CTkButton(ard_f, text="Connect (Manual)", width=120, command=self.connect_arduino)
         self.btn_connect.pack(side="left", padx=5)
         
-        self.chk_auto_trigger_var = ctk.BooleanVar(value=True)
-        ctk.CTkCheckBox(ard_f, text="Auto-Trigger on Record", variable=self.chk_auto_trigger_var).pack(side="right", padx=10)
+        # Auto-trigger checkbox removed (always on now)
         
         self.update_workflow_ui()
 
@@ -228,7 +227,7 @@ class SetupTab(ctk.CTkScrollableFrame):
             "uvc_trigger": self.chk_uvc_trigger_var.get(),
             "fps": self.fps_entry.get(),
             "arduino_port": self.port_combo.get(),
-            "arduino_auto_trigger": self.chk_auto_trigger_var.get()
+            # "arduino_auto_trigger" removed
         }
         
         # Charuco is moved to preview tab, we should still save it if possible, or let preview_tab handle its own preset. 
@@ -268,10 +267,10 @@ class SetupTab(ctk.CTkScrollableFrame):
             self.chk_uvc_trigger_var.set(data.get("uvc_trigger", True))
 
             self.fps_entry.delete(0, 'end')
-            self.fps_entry.insert(0, data.get("fps", "50"))
+            self.fps_entry.insert(0, data.get("fps", "30"))
 
             self._clamp_exposure_to_fps()
-            saved_exp = data.get("exposure", -9)
+            saved_exp = data.get("exposure", -8)
             # Entferne den Zwang, wir setzen einfach den geladenen Wert.
             self.exposure_slider.set(saved_exp)
             self.update_exposure_label(saved_exp)
@@ -279,7 +278,7 @@ class SetupTab(ctk.CTkScrollableFrame):
             arduino_port = data.get("arduino_port", "")
             if arduino_port and arduino_port in self.port_combo._values:
                 self.port_combo.set(arduino_port)
-            self.chk_auto_trigger_var.set(data.get("arduino_auto_trigger", True))
+            # arduino_auto_trigger load removed
             
             if hasattr(self.app, 'preview_tab'):
                 self.app.preview_tab.charuco_dict.set(data.get("charuco_dict", "DICT_4X4_50"))
@@ -315,7 +314,7 @@ class SetupTab(ctk.CTkScrollableFrame):
             try:
                 target_fps = int(self.fps_entry.get())
             except ValueError:
-                target_fps = 50
+                target_fps = 30
                 
             # 1. Auto-connect Arduino if not connected
             if cam_type == "USB Webcams" and not self.app.arduino.is_connected:

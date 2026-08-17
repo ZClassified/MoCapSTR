@@ -1,7 +1,7 @@
 # Active Context
 
-**Current Status:** Fixed a bug in `camera_manager.py` where exposure changes were not correctly applied to all identical cameras due to MSMF resetting DSHOW properties. Separated the hardware initialization into dedicated MSMF and DSHOW passes. Bumped version to 1.2.0.
-**Last Modified:** 2026-08-17 09:22:00
+**Current Status:** Removed obsolete 'Auto-Trigger on Record' checkbox from UI. Changed default framerate to 30fps and default exposure to -8. Ignored virtual cameras in device enumeration. Bumped version to 1.2.1.
+**Last Modified:** 2026-08-17 10:04:00
 
 ---
 
@@ -40,3 +40,4 @@ This ensures that the next AI assistant immediately knows what was just done and
 - **2026-08-17 (v1.1.8):** Fixed initialization hang on phantom COM ports by adding a `<PING>`/`<PONG>` handshake verification to `arduino_sync.py` during connection. Added graceful fallback to free-run mode if the hardware trigger is requested but no Arduino is verified. Fixed a bug in PyAV camera enumeration where multiple cameras with identical names (e.g. "USB Camera") would fail to open due to missing `video_device_number` parameter in FFmpeg dshow options. Fixed OpenCV hardware sync index logic so exposure/gain settings apply to all identical cameras instead of just the first one.
 - **2026-08-17 (v1.1.9):** Added custom program window icon support using `design/Icon.ico`. Configured `main.py` with `sys._MEIPASS` pathing to ensure the icon persists when bundled via PyInstaller.
 - **2026-08-17 (v1.2.0):** Fixed a bug in `camera_manager.py` where exposure changes only applied to a subset of identical cameras. MSMF hardware trigger initialization was accidentally resetting DSHOW exposure settings due to Windows enumeration differences. Fixed by separating the initialization into a dedicated MSMF pass for all cameras, followed by a DSHOW pass.
+- **2026-08-17 (v1.2.1):** Added filter to ignore virtual cameras (like OBS Virtual Camera) in hardware enumeration to prevent MSMF/DSHOW I/O errors. Removed obsolete 'Auto-Trigger on Record' checkbox from the Setup UI as the trigger now runs continuously for PyAV Live Preview. Changed default target FPS from 50 to 30, and default exposure from -9 (1/512s) to -8 (1/256s) for better out-of-the-box brightness.
