@@ -350,6 +350,12 @@ class SetupTab(ctk.CTkScrollableFrame):
             if cam_type == "USB Webcams" and self.app.arduino.is_connected:
                 self.app.arduino.set_fps(target_fps)
                 self.app.arduino.start_trigger()
+                # Fix 4: Allow the first trigger pulse to reach all cameras before
+                # PyAV opens and verifies the streams. Without this short pause a
+                # camera may not yet have received a pulse when the packet check runs.
+                import time as _time
+                self.app.log("Waiting for first trigger pulse to reach all cameras...")
+                _time.sleep(0.3)
 
             # 3. Cleanly stop existing PyAV workers (they will now exit safely because trigger is pulsing)
             self.app.recorder.stop_workers()

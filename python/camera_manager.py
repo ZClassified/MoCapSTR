@@ -68,7 +68,14 @@ class CameraManager:
                         cap.release()
                 except Exception as e:
                     print(f"MSMF hardware sync failed for {cam_name} (index {i}): {e}")
-                    
+
+            # Fix 2: Give cameras time to switch into external trigger mode before
+            # PyAV tries to open the streams. Without this pause the DSHOW pass
+            # or PyAV may catch a camera mid-transition and misread its state.
+            if trigger_on:
+                print("Waiting 500ms for cameras to enter trigger mode...")
+                time.sleep(0.5)
+
             # Pass 2: Set Exposure/Gain via DSHOW for all cameras
             for i, cam_name in valid_indices:
                 try:
@@ -118,14 +125,32 @@ class CameraManager:
                         
                     container = av.open(f'video={cam_name}', format='dshow', options=options)
                     
-                # Verify we can grab a frame/packet
+                # Verify the stream is accessible.
                 stream = container.streams.video[0]
                 packet_found = False
-                for packet in container.demux(stream):
-                    if packet.size > 0:
-                        packet_found = True
-                        break
-                        
+
+                if trigger_on:
+                    # Fix 1: In hardware-trigger mode a camera will NOT emit any
+                    # frames until it receives a trigger pulse. Waiting for a packet
+                    # here would block indefinitely and cause the camera to be
+                    # discarded even though it is healthy. If av.open() succeeded
+                    # and the video stream exists, the camera is present and open.
+                    packet_found = True
+                    print(f"Trigger mode: skipping packet verification for index {i} ({cam_name})")
+                else:
+                    # Fix 3: Limit probing to avoid hanging on a misbehaving
+                    # free-run camera. 50 empty packets is a reliable upper bound.
+                    max_probe_packets = 50
+                    probe_count = 0
+                    for packet in container.demux(stream):
+                        probe_count += 1
+                        if packet.size > 0:
+                            packet_found = True
+                            break
+                        if probe_count >= max_probe_packets:
+                            print(f"Free-run probe limit reached for index {i} ({cam_name}) — skipping.")
+                            break
+
                 if packet_found:
                     self.cameras[i] = container
                     self.camera_info[i] = {

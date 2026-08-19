@@ -25,7 +25,7 @@ class MoCapSyncApp(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("MoCapSTR: Sync / Trigger / Record for FreeMoCap v1.2.6")
+        self.title("MoCapSTR: Sync / Trigger / Record for FreeMoCap v1.2.7")
         self.geometry("1100x800")
         
         # Set Window Icon
