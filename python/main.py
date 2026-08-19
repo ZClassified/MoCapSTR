@@ -25,7 +25,7 @@ class MoCapSyncApp(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("MoCapSTR: Sync / Trigger / Record for FreeMoCap v1.2.7")
+        self.title("MoCapSTR: Sync / Trigger / Record for FreeMoCap v1.2.8")
         self.geometry("1100x800")
         
         # Set Window Icon
@@ -153,16 +153,42 @@ class MoCapSyncApp(ctk.CTk):
                 self.log("Generated session_info.json", "success")
             except Exception as e:
                 self.log(f"Failed to generate session_info.json: {e}", "error")
+                
+            # --- START SYNCHRONIZATION ---
+            # Stop the trigger briefly to flush lingering packets from PyAV demux
+            # so that all cameras start on the EXACT same new frame pulse.
+            trigger_was_running = self.arduino.is_running
+            if trigger_was_running:
+                self.log("Synchronizing start frame...")
+                self.arduino.stop_trigger()
+                time.sleep(0.15) # Wait for pyav buffers to drain
+                
             self.recorder.start_recording(save_dir, fps, codec, enabled_cams)
             self.record_start_time = time.time()
             
-
+            if trigger_was_running:
+                self.arduino.start_trigger()
+            # -----------------------------
             
             self.preview_tab.btn_record_live.configure(text="⏹ STOP RECORDING", fg_color="red", hover_color="darkred")
         else:
             # STOP
+            
+            # --- STOP SYNCHRONIZATION ---
+            # Stop the trigger first, wait for the last frames to process, 
+            # then close the recorder so all cameras have the exact same end frame.
+            trigger_was_running = self.arduino.is_running
+            if trigger_was_running:
+                self.log("Synchronizing end frame...")
+                self.arduino.stop_trigger()
+                time.sleep(0.2) # Allow PyAV to fetch the final frames
+                
             # stop_recording() now returns {cam_idx: (path, frames)} for post-trim
             results = self.recorder.stop_recording()
+            
+            if trigger_was_running:
+                self.arduino.start_trigger() # Resume preview
+            # ----------------------------
 
             self.preview_tab.btn_record_live.configure(text="⏺ START RECORDING", fg_color="darkred", hover_color="red")
             self.preview_tab.lbl_live_warning.configure(text="")
