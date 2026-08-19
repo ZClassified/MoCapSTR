@@ -91,11 +91,20 @@ class SetupTab(ctk.CTkScrollableFrame):
         self.res_combo.grid(row=0, column=1, sticky="ew", padx=10, pady=5)
         
         ctk.CTkLabel(hw_inner, text="Target FPS:").grid(row=1, column=0, sticky="w", pady=5)
-        self.fps_entry = ctk.CTkEntry(hw_inner)
+        
+        fps_frame = ctk.CTkFrame(hw_inner, fg_color="transparent")
+        fps_frame.grid(row=1, column=1, sticky="ew", padx=10, pady=5)
+        
+        self.fps_entry = ctk.CTkEntry(fps_frame, width=60)
         self.fps_entry.insert(0, "30")
-        self.fps_entry.grid(row=1, column=1, sticky="ew", padx=10, pady=5)
-        self.fps_entry.bind("<FocusOut>", lambda e: self._clamp_exposure_to_fps())
-        self.fps_entry.bind("<Return>",   lambda e: self._clamp_exposure_to_fps())
+        self.fps_entry.pack(side="left")
+        self.fps_entry.bind("<FocusOut>", lambda e: self.on_fps_changed())
+        self.fps_entry.bind("<Return>",   lambda e: self.on_fps_changed())
+        
+        ctk.CTkLabel(fps_frame, text="USB Polling:").pack(side="left", padx=(15, 5))
+        self.usb_fps_combo = ctk.CTkComboBox(fps_frame, values=["30", "60", "90", "120"], width=70)
+        self.usb_fps_combo.set("60")
+        self.usb_fps_combo.pack(side="left")
 
         # --- Hardware Tuning (USB Only) ---
         self.tuning_frame = ctk.CTkFrame(hw_inner, fg_color="transparent")
@@ -160,6 +169,7 @@ class SetupTab(ctk.CTkScrollableFrame):
         )
         self.btn_init_system.pack(fill="x", padx=15, pady=20)
 
+        self.on_fps_changed() # Initialize warnings and USB FPS default
         self.update_workflow_ui()
 
     def update_workflow_ui(self):
@@ -183,6 +193,21 @@ class SetupTab(ctk.CTkScrollableFrame):
         denominator = 2 ** abs(val)
         self.lbl_exposure.configure(text=f"Exposure: {val} (1/{denominator}s)")
         self._clamp_exposure_to_fps() # Check warning dynamically
+
+    def on_fps_changed(self):
+        self._clamp_exposure_to_fps()
+        try:
+            target = int(self.fps_entry.get())
+            if target <= 25:
+                self.usb_fps_combo.set("30")
+            elif target <= 50:
+                self.usb_fps_combo.set("60")
+            elif target <= 60:
+                self.usb_fps_combo.set("90")
+            else:
+                self.usb_fps_combo.set("120")
+        except ValueError:
+            pass
 
     def _clamp_exposure_to_fps(self):
         """
@@ -224,6 +249,7 @@ class SetupTab(ctk.CTkScrollableFrame):
             "exposure": self.exposure_slider.get(),
             "uvc_trigger": self.chk_uvc_trigger_var.get(),
             "fps": self.fps_entry.get(),
+            "usb_fps": self.usb_fps_combo.get(),
             "arduino_port": self.port_combo.get(),
             # "arduino_auto_trigger" removed
         }
@@ -264,6 +290,11 @@ class SetupTab(ctk.CTkScrollableFrame):
 
             self.fps_entry.delete(0, 'end')
             self.fps_entry.insert(0, data.get("fps", "30"))
+            
+            if "usb_fps" in data:
+                self.usb_fps_combo.set(data["usb_fps"])
+            else:
+                self.on_fps_changed() # Auto-calculate if old preset doesn't have it
 
             self._clamp_exposure_to_fps()
             saved_exp = data.get("exposure", -8)
@@ -365,8 +396,15 @@ class SetupTab(ctk.CTkScrollableFrame):
             res_str = self.res_combo.get().split(' ')[0]
             target_w, target_h = map(int, res_str.split('x'))
             
-            # Force USB bus to 120fps to allow high polling rate for hardware trigger
-            cam_fps = 120 if trigger_on and cam_type == "USB Webcams" else target_fps
+            try:
+                usb_fps = int(self.usb_fps_combo.get())
+            except ValueError:
+                usb_fps = target_fps
+            
+            # Use the user-selected USB Polling FPS for the hardware trigger.
+            # This must be at least one step higher than the target capture FPS
+            # to prevent frame drops due to DSHOW polling alignment.
+            cam_fps = usb_fps if trigger_on and cam_type == "USB Webcams" else target_fps
             fmt = "MJPG" 
                 
             self.app.camera_indices = self.app.cam_mgr.find_and_open_cameras(
