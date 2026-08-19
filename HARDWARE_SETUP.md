@@ -12,12 +12,12 @@ Da das Trigger-Signal asymmetrisch ("unbalanced") ist (bestehend aus Signal und 
 
 ## 1. Arduino Gehäuse (Sender)
 
-Am Gehäuse des Arduinos werden zwei Taster und eine XLR-Buchse (Männlich) verbaut.
+Am Gehäuse des Arduinos werden ein Taster und eine XLR-Buchse (Männlich) verbaut.
 
 ### Taster (Fernbedienung)
-Die Taster nutzen die interne `INPUT_PULLUP` Funktion des Arduinos.
-- **Button 1 (Trigger Toggle):** Verbindet Arduino **Pin 3** mit Arduino **GND**.
-- **Button 2 (Record Toggle):** Verbindet Arduino **Pin 4** mit Arduino **GND**.
+Der Taster nutzt die interne `INPUT_PULLUP` Funktion des Arduinos.
+- **Start/Stop Record Button:** Verbindet Arduino **Pin 4** mit Arduino **GND**.
+*(Dieser Taster sendet einen Befehl an die Software. Die Kameras erhalten dauerhaft das Trigger-Signal, wenn der Modus aktiv ist.)*
 
 ### XLR-Buchse (Ausgang zur Splitter-Box)
 - **XLR Pin 1 (Masse/Schirm):** Mit Arduino **GND** verbinden.
