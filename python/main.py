@@ -3,6 +3,7 @@ import customtkinter as ctk
 import json
 import os
 import sys
+import threading
 from camera_manager import CameraManager
 from arduino_sync import ArduinoSync
 from project_manager import ProjectManager
@@ -24,7 +25,7 @@ class MoCapSyncApp(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("MoCapSTR: Sync / Trigger / Record for FreeMoCap v1.2.5")
+        self.title("MoCapSTR: Sync / Trigger / Record for FreeMoCap v1.2.6")
         self.geometry("1100x800")
         
         # Set Window Icon
@@ -160,11 +161,25 @@ class MoCapSyncApp(ctk.CTk):
             self.preview_tab.btn_record_live.configure(text="⏹ STOP RECORDING", fg_color="red", hover_color="darkred")
         else:
             # STOP
-            self.recorder.stop_recording()
-            
+            # stop_recording() now returns {cam_idx: (path, frames)} for post-trim
+            results = self.recorder.stop_recording()
+
             self.preview_tab.btn_record_live.configure(text="⏺ START RECORDING", fg_color="darkred", hover_color="red")
             self.preview_tab.lbl_live_warning.configure(text="")
-            self.log("Recording stopped and saved.")
+            self.log("Recording stopped. Trimming clips to equal length...")
+
+            # Trim in a background thread so the UI stays responsive.
+            # The user can start the next take immediately; trim runs in parallel.
+            def _do_trim(trim_results):
+                final_counts = self.recorder.trim_clips_to_min_frames(trim_results)
+                if final_counts:
+                    counts_str = ", ".join(
+                        f"Cam {idx}: {n} frames"
+                        for idx, n in sorted(final_counts.items())
+                    )
+                    self.after(0, lambda: self.log(f"✅ Clips synchronized — {counts_str}", "success"))
+
+            threading.Thread(target=_do_trim, args=(results,), daemon=True).start()
 
     def update_preview(self):
         self.ui_tick += 1
