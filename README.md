@@ -1,6 +1,8 @@
 # MoCapSTR: Sync / Trigger / Record for FreeMoCap
 
-MoCapSTR is a specialized control and recording application for markerless motion capture (optimized for **FreeMoCap**). It enables synchronized multi-camera recording, with a focus on hardware-triggered cameras (e.g. OV9281) combined with an Arduino, or professional capture cards (e.g. Blackmagic Decklink 2 Duo SDI). Standard USB webcams (without a sync pin) can also be used as a fallback, but offer no significant advantage over recording directly in FreeMoCap.
+> **Disclaimer:** MoCapSTR is an **independent companion tool** and is not officially affiliated with the FreeMoCap project.
+
+MoCapSTR is a highly optimized, standalone multi-camera recording client built from the ground up to generate perfectly synchronized, frame-accurate datasets for [FreeMoCap](https://github.com/freemocap/freemocap). It solves the complex challenge of hardware-level camera synchronization on Windows, supporting hardware-triggered USB cameras (e.g., OV9281) via Arduino, as well as professional Blackmagic SDI capture cards. While standard USB webcams are supported as a fallback, this tool truly shines when used with hardware-sync capable devices.
 
 ## Features
 
@@ -113,11 +115,21 @@ When you open FreeMoCap:
 3. FreeMoCap will automatically detect the synchronized videos (including `session_info.json`) and can begin tracking.
 
 ---
+
+## License & Copyright
+
+Copyright (C) 2026 ZClassified
+
+This program is free software: you can redistribute it and/or modify it under the terms of the **GNU General Public License (GPL-3.0)** as published by the Free Software Foundation. See the `LICENSE` file for more details.
+
+---
 ---
 
 # Deutsche Version
 
-MoCapSTR ist eine spezialisierte Steuerungs- und Aufnahme-Software für markerloses Motion Capturing (spezifisch optimiert für **FreeMoCap**). Sie ermöglicht die synchrone Aufzeichnung von mehreren Kameras. Der Fokus liegt dabei auf Kameras mit Hardware-Trigger (z.B. OV9281) in Kombination mit einem Arduino, oder auf professionellen Capture Cards (z.B. Blackmagic Decklink 2 Duo SDI). Normale USB-Webcams (ohne Sync-Pin) können ebenfalls als Fallback genutzt werden, aber dann gibt es keinen signifikanten Vorteil gegenüber der direkten Aufnahme in FreeMoCap selber.
+> **Hinweis:** MoCapSTR ist ein **unabhängiges Companion-Tool** und steht nicht in offizieller Verbindung mit dem FreeMoCap Projekt.
+
+MoCapSTR ist eine hochgradig optimierte, eigenständige Multi-Kamera-Aufnahmesoftware, die von Grund auf dafür entwickelt wurde, perfekt synchronisierte und frame-genaue Datensätze für [FreeMoCap](https://github.com/freemocap/freemocap) zu generieren. Sie löst die komplexe Herausforderung der Hardware-Synchronisation unter Windows und unterstützt Hardware-Trigger-Kameras (z.B. OV9281) via Arduino sowie professionelle Blackmagic SDI Capture Cards. Normale USB-Webcams (ohne Sync-Pin) können ebenfalls als Fallback genutzt werden, jedoch entfaltet das Tool sein volles Potenzial erst in Kombination mit Hardware-Sync-fähigen Geräten.
 
 ## Features
 
@@ -228,3 +240,11 @@ Wenn du FreeMoCap öffnest:
 1. Wähle "Process Pre-recorded Data".
 2. Navigiere in deinen Projektordner und wähle entweder den Ordner `calibration` oder einen der Unterordner in `takes/` (z.B. `take_2026-08-10_10-45-00`).
 3. FreeMoCap erkennt die synchronisierten Videos (inkl. der `session_info.json`) automatisch und kann mit dem Tracking beginnen.
+
+---
+
+## Lizenz & Copyright
+
+Copyright (C) 2026 ZClassified
+
+Dieses Programm ist freie Software. Du kannst es unter den Bedingungen der **GNU General Public License (GPL-3.0)**, wie von der Free Software Foundation veröffentlicht, weitergeben und/oder modifizieren. Weitere Details findest du in der `LICENSE` Datei.
