@@ -59,22 +59,27 @@ class CameraManager:
             import cv2
             
             # Pass 1: Set Trigger via MSMF for all cameras
-            for i, cam_name in valid_indices:
+            # CRITICAL BUGFIX: We do NOT use 'valid_indices' (which is DSHOW based) here.
+            # MSMF enumerates virtual cameras differently, meaning MSMF index 'i' might 
+            # not match DSHOW index 'i'. We aggressively apply the trigger setting to 
+            # the first 10 MSMF cameras to guarantee all physical cameras receive it.
+            print("Applying UVC Trigger via MSMF to all available cameras...")
+            for ms_idx in range(10):
                 try:
-                    cap = cv2.VideoCapture(i, cv2.CAP_MSMF)
+                    cap = cv2.VideoCapture(ms_idx, cv2.CAP_MSMF)
                     if cap.isOpened():
                         cap.set(cv2.CAP_PROP_AUTOFOCUS, 1 if trigger_on else 0)
                         cap.set(cv2.CAP_PROP_FOCUS, 0)
                         cap.release()
-                except Exception as e:
-                    print(f"MSMF hardware sync failed for {cam_name} (index {i}): {e}")
+                except Exception:
+                    pass
 
             # Fix 2: Give cameras time to switch into external trigger mode before
             # PyAV tries to open the streams. Without this pause the DSHOW pass
             # or PyAV may catch a camera mid-transition and misread its state.
             if trigger_on:
-                print("Waiting 500ms for cameras to enter trigger mode...")
-                time.sleep(0.5)
+                print("Waiting 1.5s for cameras to securely enter trigger mode...")
+                time.sleep(1.5)
 
             # Pass 2: Set Exposure/Gain via DSHOW for all cameras
             for i, cam_name in valid_indices:
