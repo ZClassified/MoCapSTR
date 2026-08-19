@@ -1,7 +1,7 @@
 # Active Context
 
-**Current Status:** Implemented Live Rotation Preview and physical rotation during AVI to MP4 conversion in the Export Tab. System is stable at v1.3.1.
-**Last Modified:** 2026-08-19 17:50:00
+**Current Status:** Removed problematic UVC Reset UI button and associated backend logic. System is stable at v1.3.2.
+**Last Modified:** 2026-08-19 18:10:00
 
 ---
 
@@ -52,3 +52,4 @@ This ensures that the next AI assistant immediately knows what was just done and
 - **2026-08-19 (v1.2.9):** Fixed missing 4th camera issue in hardware-trigger mode. Resolved MSMF vs DSHOW index mismatch by aggressively broadcasting the `CAP_PROP_AUTOFOCUS` UVC command to all available MSMF endpoints (0-9) instead of relying on PyGrabber's DSHOW mapping. Increased camera mode-switch timeout from 500ms to 1.5s in `camera_manager.py`. Increased USB bus stabilization pause in `setup_tab.py` from 0.3s to 1.0s to prevent USB controller bandwidth/power spikes when massive frame bursts start.
 - **2026-08-19 (v1.3.0):** Fixed the root cause of the 4th camera failing in trigger mode and causing UVC driver hangs. Removed the `120fps` USB bandwidth hack in `setup_tab.py` which artificially reserved too much USB bandwidth during DSHOW initialization. This failed bandwidth allocation caused the 4th camera to enter a "zombie" state, breaking MSMF UVC resets and causing the reset button to hang. Cameras now correctly request their true `target_fps` during PyAV initialization.
 - **2026-08-19 (v1.3.1):** Added physical frame rotation and a live rotation preview thumbnail to `export_tab.py`. The exporter now physically rotates the raw MJPEG frames before H.264 encoding to guarantee perfect portrait output for FreeMoCap without relying on flaky MP4 metadata tags. Fixed a bug where `av.VideoFrame.from_ndarray` stripped original PTS timing during rotation, ensuring perfect frame timing.
+- **2026-08-19 (v1.3.2):** Removed the "Kameras Zurücksetzen (UVC Wakeup)" button from `setup_tab.py` and the `reset_uvc_drivers` function from `camera_manager.py`. The feature was causing severe application deadlocks via OpenCV `VideoCapture` when attempting to reset cameras that were already in a faulty hardware-trigger state. Standard initialization remains robust enough for normal use.

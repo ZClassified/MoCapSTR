@@ -191,31 +191,7 @@ class CameraManager:
         for index in list(self.cameras.keys()):
             self.close_camera(index)
             
-    def reset_uvc_drivers(self, max_index=10):
-        """
-        Simulates the behavior of OBS or other software that accesses the DirectShow 
-        and Media Foundation graphs. This forces the Windows UVC driver to renegotiate 
-        the endpoints and resets the internal state of the driver, potentially recovering 
-        cameras that have stopped responding or were lost due to bus issues.
-        """
-        import cv2
-        print("Resetting UVC drivers by cycling DSHOW and MSMF backends...")
-        for i in range(max_index):
-            try:
-                # Cycle DSHOW
-                cap_dshow = cv2.VideoCapture(i, cv2.CAP_DSHOW)
-                if cap_dshow.isOpened():
-                    cap_dshow.release()
-                
-                # Cycle MSMF
-                cap_msmf = cv2.VideoCapture(i, cv2.CAP_MSMF)
-                if cap_msmf.isOpened():
-                    cap_msmf.set(cv2.CAP_PROP_AUTOFOCUS, 0)  # Ensure it leaves trigger mode
-                    cap_msmf.release()
-            except Exception as e:
-                print(f"Error resetting UVC driver for index {i}: {e}")
-        print("UVC driver reset complete.")
-            
+
     def apply_settings(self, index, width=1280, height=800, fps=50, format_str="MJPG", exposure_value=None, gain_value=None, wb_value=None):
         """
         Applies settings by reopening the PyAV container with new options.

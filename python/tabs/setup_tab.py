@@ -120,17 +120,6 @@ class SetupTab(ctk.CTkScrollableFrame):
         self.lbl_exposure_warn = ctk.CTkLabel(self.tuning_frame, text="", text_color="red", font=ctk.CTkFont(size=11))
         self.lbl_exposure_warn.grid(row=1, column=1, sticky="w", padx=10)
 
-        # UVC Reset Button
-        self.btn_uvc_reset = ctk.CTkButton(
-            self.tuning_frame, 
-            text="Kameras Zurücksetzen (UVC Wakeup)", 
-            command=self.reset_uvc_cmd,
-            fg_color="#e6b800", 
-            hover_color="#cca300",
-            text_color="black",
-            height=30
-        )
-        self.btn_uvc_reset.grid(row=2, column=0, columnspan=2, sticky="ew", padx=10, pady=(10, 5))
 
         self._clamp_exposure_to_fps()
 
@@ -329,23 +318,6 @@ class SetupTab(ctk.CTkScrollableFrame):
                         self.app.recorder.set_camera_rotation(idx, deg)
             
             self.app.log(f"Preset '{name}' loaded.", "success")
-
-    def reset_uvc_cmd(self):
-        self.btn_uvc_reset.configure(state="disabled", text="Wird zurückgesetzt...")
-        self.app.log("Resetting UVC Drivers... Dies kann einige Sekunden dauern.", "warning")
-        
-        def reset_task():
-            # Stop any active streams
-            self.app.recorder.stop_workers()
-            self.app.cam_mgr.close_all()
-            
-            # Reset drivers
-            self.app.cam_mgr.reset_uvc_drivers(max_index=10)
-            
-            self.app.log("UVC Reset abgeschlossen. Bitte 'Initialize System' neu ausführen.", "success")
-            self.app.after(0, lambda: self.btn_uvc_reset.configure(state="normal", text="Kameras Zurücksetzen (UVC Wakeup)"))
-            
-        threading.Thread(target=reset_task).start()
 
     def initialize_system_cmd(self):
         self.app.log("Initializing System...")
