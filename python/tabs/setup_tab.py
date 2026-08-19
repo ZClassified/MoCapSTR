@@ -353,9 +353,10 @@ class SetupTab(ctk.CTkScrollableFrame):
                 # Fix 4: Allow the first trigger pulse to reach all cameras before
                 # PyAV opens and verifies the streams. Without this short pause a
                 # camera may not yet have received a pulse when the packet check runs.
+                # Increased to 1.0s to ensure USB bus stabilizes under pulse load.
                 import time as _time
-                self.app.log("Waiting for first trigger pulse to reach all cameras...")
-                _time.sleep(0.3)
+                self.app.log("Waiting 1.0s for first trigger pulses and USB bus to stabilize...")
+                _time.sleep(1.0)
 
             # 3. Cleanly stop existing PyAV workers (they will now exit safely because trigger is pulsing)
             self.app.recorder.stop_workers()
