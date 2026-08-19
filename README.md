@@ -28,6 +28,12 @@ MoCapSTR is a specialized control and recording application for markerless motio
 
 *(Further wiring details for an XLR splitter box are in `HARDWARE_SETUP.md`, detailed camera specs in `CAMERA_SPECS.md`. Ready-to-print 3D models for hardware enclosures are in the `3Dprint` folder.)*
 
+### Important Hardware Limitations (USB Bandwidth)
+When using the Arduino Hardware Trigger, all cameras send their frames at the exact same microsecond. This causes a massive bandwidth spike on the USB bus. 
+- **The Limit:** A single USB 2.0 controller (480 Mbps) **cannot** handle 4 cameras at 720p 30+ FPS simultaneously in hardware-trigger mode. It will result in dropped frames (e.g. recording at 15 or 12.5 FPS).
+- **The Solution:** You must split the 4 cameras across **multiple physical USB controllers** on your PC. Plugging 2 cameras into the front panel and 2 into the rear I/O (or using a dedicated PCIe USB expansion card with dedicated controllers per port) doubles the bandwidth and completely resolves the bottleneck.
+- **USB Polling FPS:** In the Setup Tab, the `USB Polling` dropdown must always be set to at least one step *higher* than your target recording FPS (e.g. Target 25 -> USB Polling 30. Target 30 -> USB Polling 60). This ensures the USB polling interval is fast enough to catch the hardware-triggered frames without drops.
+
 ---
 
 ## Installation
@@ -73,7 +79,7 @@ Configure all essential settings for your recording session:
    - **Option 2: Blackmagic SDI (Genlock)** – for professional SDI capture cards.
 
 3. **Hardware Configuration:**
-   - Select resolution and target FPS.
+   - Select resolution, target FPS, and **USB Polling** (USB Polling automatically adapts to be 1 step higher than target FPS).
    - *(USB only)* Set exposure via the slider (e.g. `-8` = 1/256s). A warning appears if the exposure time would exceed the frame cycle.
    - *(USB only)* Enable or disable the **UVC Hardware Trigger** via checkbox. The Arduino COM port is detected automatically but can be selected manually from the dropdown and refreshed with **Refresh**.
 
@@ -139,6 +145,12 @@ MoCapSTR ist eine spezialisierte Steuerungs- und Aufnahme-Software für markerlo
 
 *(Weitere Details zur Verkabelung einer XLR Splitter Box findest du in `HARDWARE_SETUP.md` und detaillierte Kameraspezifikationen in `CAMERA_SPECS.md`. Fertige 3D-Modelle für den Druck der Hardware-Boxen liegen im Ordner `3Dprint` bereit.)*
 
+### Wichtige Hardware-Limitierungen (USB-Bandbreite)
+Beim Einsatz des Arduino Hardware-Triggers senden alle Kameras ihre Bilder auf die exakt selbe Mikrosekunde. Das erzeugt einen massiven Bandbreiten-Stau (Spike) auf dem USB-Bus.
+- **Das Limit:** Ein einzelner USB 2.0 Controller (480 Mbps) **kann keine** 4 Kameras bei 720p und 30+ FPS gleichzeitig im Trigger-Modus bewältigen. Die Kameras verschlucken sich am Stau und die Framerate halbiert sich exakt (z.B. auf 15 oder 12,5 FPS).
+- **Die Lösung:** Die 4 Kameras müssen zwingend auf **mehrere physikalische USB-Controller** am PC aufgeteilt werden. Das Einstecken von 2 Kameras an der Frontblende und 2 Kameras hinten am Mainboard (oder die Nutzung einer PCIe USB-Erweiterungskarte mit eigenen Controllern pro Port) verdoppelt die Bandbreite und löst den Flaschenhals komplett.
+- **USB Polling FPS:** Im Setup-Tab muss das Dropdown `USB Polling` immer mindestens eine Stufe *höher* eingestellt sein als die gewünschte Ziel-FPS für die Aufnahme (z.B. Target 25 -> USB Polling 30; Target 30 -> USB Polling 60). Nur so ist das Abfrage-Intervall von Windows schnell genug, um die Hardware-getriggerten Bilder verlustfrei einzufangen.
+
 ---
 
 ## Installation
@@ -184,7 +196,7 @@ Hier nimmst du alle wesentlichen Einstellungen für deine Aufnahme-Session vor:
    - **Option 2: Blackmagic SDI (Genlock)** – für professionelle SDI Capture Cards.
 
 3. **Hardware Configuration:**
-   - Wähle Auflösung und Ziel-FPS.
+   - Wähle Auflösung, Ziel-FPS und **USB Polling** (USB Polling passt sich automatisch an, sodass es 1 Stufe über der Ziel-FPS liegt).
    - *(Nur USB)* Stelle die Belichtung über den Slider ein (z.B. `-8` = 1/256s). Ein Warnhinweis erscheint, falls die Belichtungszeit den Framezyklus überschreiten würde.
    - *(Nur USB)* Aktiviere oder deaktiviere den **UVC Hardware Trigger** per Checkbox. Der Arduino COM-Port wird automatisch erkannt, kann aber manuell aus der Dropdown-Liste gewählt und über **Refresh** aktualisiert werden.
 
