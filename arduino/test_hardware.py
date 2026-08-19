@@ -21,13 +21,9 @@ def read_from_port(ser):
                 line = ser.readline().decode('utf-8').strip()
                 if not line:
                     continue
-                if line == "<TOGGLE_TRIG>":
+                if line == "<TOGGLE_REC>":
                     print("\n=======================================================")
-                    print("🟢 ERFOLG: Button 1 (Pin 3) gedrückt! (Trigger Toggle)")
-                    print("=======================================================")
-                elif line == "<TOGGLE_REC>":
-                    print("\n=======================================================")
-                    print("🔴 ERFOLG: Button 2 (Pin 4) gedrückt! (Record Toggle)")
+                    print("🔴 ERFOLG: Record Start/Stop Button (Pin 4) gedrückt!")
                     print("=======================================================")
                 else:
                     print(f"[ARDUINO SAGT]: {line}")
