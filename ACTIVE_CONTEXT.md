@@ -1,7 +1,7 @@
 # Active Context
 
-**Current Status:** Fixed hardware trigger camera detection issues caused by MSMF/DSHOW index mismatch. Added robust MSMF UVC trigger application and increased driver stabilization pauses. System is stable at v1.2.9.
-**Last Modified:** 2026-08-19 15:23:00
+**Current Status:** Fixed a USB bandwidth reservation bug that caused the 4th camera to fail initialization in trigger mode and hang the UVC driver. System is stable at v1.3.0.
+**Last Modified:** 2026-08-19 15:50:00
 
 ---
 
@@ -50,3 +50,4 @@ This ensures that the next AI assistant immediately knows what was just done and
 - **2026-08-19 (v1.2.7):** Fixed camera detection in hardware-trigger mode. A camera in trigger mode emits no frames until it receives a pulse, causing the packet-verification loop in `find_and_open_cameras` to block indefinitely and discard the camera. Fix 1: packet verification is now skipped entirely in trigger mode — a successful `av.open()` with a valid video stream is sufficient proof the camera is present. Fix 2: added 500ms sleep after the MSMF trigger-activation pass so all cameras can settle into external-trigger mode before PyAV opens streams. Fix 3: free-run packet probing is capped at 50 packets to prevent hangs on misbehaving cameras. Fix 4: added 300ms pause in `setup_tab.py` after `arduino.start_trigger()` to ensure the first pulse reaches all cameras before stream verification.
 - **2026-08-19 (v1.2.8):** Perfect frame alignment for hardware-trigger mode. When recording starts/stops, the Arduino trigger is briefly paused to drain PyAV buffers. This guarantees that all cameras start and end on the exact same frame pulse, resolving FreeMoCap clip length rejection issues.
 - **2026-08-19 (v1.2.9):** Fixed missing 4th camera issue in hardware-trigger mode. Resolved MSMF vs DSHOW index mismatch by aggressively broadcasting the `CAP_PROP_AUTOFOCUS` UVC command to all available MSMF endpoints (0-9) instead of relying on PyGrabber's DSHOW mapping. Increased camera mode-switch timeout from 500ms to 1.5s in `camera_manager.py`. Increased USB bus stabilization pause in `setup_tab.py` from 0.3s to 1.0s to prevent USB controller bandwidth/power spikes when massive frame bursts start.
+- **2026-08-19 (v1.3.0):** Fixed the root cause of the 4th camera failing in trigger mode and causing UVC driver hangs. Removed the `120fps` USB bandwidth hack in `setup_tab.py` which artificially reserved too much USB bandwidth during DSHOW initialization. This failed bandwidth allocation caused the 4th camera to enter a "zombie" state, breaking MSMF UVC resets and causing the reset button to hang. Cameras now correctly request their true `target_fps` during PyAV initialization.
