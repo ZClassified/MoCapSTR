@@ -8,14 +8,24 @@ import cv2
 import json
 from PIL import Image
 
+try:
+    from freemocap_bridge import FreeMoCapBridge
+except ImportError:
+    try:
+        from python.freemocap_bridge import FreeMoCapBridge
+    except ImportError:
+        FreeMoCapBridge = None
+
 class ExportTab(ctk.CTkFrame):
     def __init__(self, master, main_app):
         super().__init__(master)
         self.main_app = main_app
         
         self.avi_files = []
+        self.mp4_files = []
         self.is_converting = False
         self.preview_frame_bgr = None
+        self.bridge = FreeMoCapBridge() if FreeMoCapBridge else None
         
         # Load saved settings
         self.settings_file = "export_settings.json"
@@ -31,22 +41,22 @@ class ExportTab(ctk.CTkFrame):
         
     def build_ui(self):
         # Header
-        self.lbl_header = ctk.CTkLabel(self, text="Post-Processing: Convert AVI to MP4", font=("Arial", 16, "bold"))
+        self.lbl_header = ctk.CTkLabel(self, text="Post-Processing & FreeMoCap Export", font=("Arial", 16, "bold"))
         self.lbl_header.pack(pady=(10, 5))
         
         # Info text
-        info_text = "Scan the current project for raw .avi files and convert them into high-quality H.264 .mp4 files suitable for FreeMoCap."
+        info_text = "Scan the current project for recordings. Convert raw .avi files to high-quality H.264 .mp4 or export directly to FreeMoCap with one click."
         self.lbl_info = ctk.CTkLabel(self, text=info_text, wraplength=600)
         self.lbl_info.pack(pady=5)
         
         # Scan Button
-        self.btn_scan = ctk.CTkButton(self, text="Scan Project for AVIs", command=self.scan_files)
+        self.btn_scan = ctk.CTkButton(self, text="Scan Project Files", command=self.scan_files)
         self.btn_scan.pack(pady=10)
         
         # File list display
         self.txt_files = ctk.CTkTextbox(self, height=150, width=600)
         self.txt_files.pack(pady=5)
-        self.txt_files.insert(tk.END, "Click 'Scan' to find .avi files in the current project...\n")
+        self.txt_files.insert(tk.END, "Click 'Scan' to find recording files in the current project...\n")
         self.txt_files.configure(state="disabled")
         
         # Options
@@ -69,9 +79,29 @@ class ExportTab(ctk.CTkFrame):
         self.lbl_preview = ctk.CTkLabel(self.preview_container, text="Scan to see preview", width=240, height=135, fg_color="gray20")
         self.lbl_preview.pack(side="right", padx=10, pady=5)
         
-        # Convert Button
-        self.btn_convert = ctk.CTkButton(self, text="Start Conversion", command=self.start_conversion, state="disabled", fg_color="green", hover_color="darkgreen")
-        self.btn_convert.pack(pady=10)
+        # Action Buttons Container
+        self.btn_container = ctk.CTkFrame(self, fg_color="transparent")
+        self.btn_container.pack(pady=10)
+        
+        self.btn_convert = ctk.CTkButton(
+            self.btn_container,
+            text="Start Conversion (.mp4)",
+            command=self.start_conversion,
+            state="disabled",
+            fg_color="#1f538d",
+            hover_color="#14375e"
+        )
+        self.btn_convert.pack(side="left", padx=8)
+        
+        self.btn_freemocap = ctk.CTkButton(
+            self.btn_container,
+            text="🚀 Convert & Send to FreeMoCap",
+            command=self.start_freemocap_workflow,
+            state="disabled",
+            fg_color="#2e7d32",
+            hover_color="#1b5e20"
+        )
+        self.btn_freemocap.pack(side="left", padx=8)
         
         # Progress
         self.lbl_progress = ctk.CTkLabel(self, text="Ready")
@@ -95,21 +125,38 @@ class ExportTab(ctk.CTkFrame):
 
         # Recursive search — files are nested in takes/take_XYZ/synchronized_videos/
         self.avi_files = glob.glob(os.path.join(project_dir, "**", "*.avi"), recursive=True)
+        self.mp4_files = glob.glob(os.path.join(project_dir, "**", "*.mp4"), recursive=True)
         
         self.txt_files.configure(state="normal")
         self.txt_files.delete("1.0", tk.END)
         
-        if not self.avi_files:
-            self.txt_files.insert(tk.END, f"No .avi files found in: {project_dir}\n")
+        if not self.avi_files and not self.mp4_files:
+            self.txt_files.insert(tk.END, f"No .avi or .mp4 files found in: {project_dir}\n")
             self.btn_convert.configure(state="disabled")
+            self.btn_freemocap.configure(state="disabled")
+            self.lbl_progress.configure(text="No video files found.")
         else:
-            self.txt_files.insert(tk.END, f"Found {len(self.avi_files)} .avi files in {project_dir}:\n\n")
-            for f in self.avi_files:
-                self.txt_files.insert(tk.END, f"- {os.path.basename(f)}\n")
-            self.btn_convert.configure(state="normal")
+            if self.avi_files:
+                self.txt_files.insert(tk.END, f"Found {len(self.avi_files)} .avi files (need conversion):\n")
+                for f in self.avi_files:
+                    self.txt_files.insert(tk.END, f"  • {os.path.basename(f)}\n")
+                self.btn_convert.configure(state="normal")
+            else:
+                self.btn_convert.configure(state="disabled")
+                
+            if self.mp4_files:
+                self.txt_files.insert(tk.END, f"\nFound {len(self.mp4_files)} .mp4 files (ready):\n")
+                for f in self.mp4_files:
+                    self.txt_files.insert(tk.END, f"  • {os.path.basename(f)}\n")
+                    
+            self.btn_freemocap.configure(state="normal")
             
+            if self.avi_files:
+                self.lbl_progress.configure(text=f"Found {len(self.avi_files)} raw AVIs ready for processing.")
+            else:
+                self.lbl_progress.configure(text=f"All files converted ({len(self.mp4_files)} MP4s ready).")
+                
         self.txt_files.configure(state="disabled")
-        self.lbl_progress.configure(text=f"Found {len(self.avi_files)} files ready for conversion.")
         self.progressbar.set(0.0)
         
         self.load_first_frame()
@@ -125,12 +172,18 @@ class ExportTab(ctk.CTkFrame):
         
     def load_first_frame(self):
         self.preview_frame_bgr = None
-        if not self.avi_files:
+        preview_source = None
+        if self.avi_files:
+            preview_source = self.avi_files[0]
+        elif self.mp4_files:
+            preview_source = self.mp4_files[0]
+            
+        if not preview_source:
             self.lbl_preview.configure(image=None, text="No videos found")
             return
             
         try:
-            container = av.open(self.avi_files[0])
+            container = av.open(preview_source)
             if not container.streams.video:
                 return
             for frame in container.decode(video=0):
@@ -171,19 +224,28 @@ class ExportTab(ctk.CTkFrame):
     def start_conversion(self):
         if not self.avi_files or self.is_converting:
             return
-            
+        self._start_workflow(send_to_freemocap=False)
+        
+    def start_freemocap_workflow(self):
+        if self.is_converting:
+            return
+        if not self.avi_files and not self.mp4_files:
+            return
+        self._start_workflow(send_to_freemocap=True)
+        
+    def _start_workflow(self, send_to_freemocap=False):
         self.is_converting = True
         self.btn_scan.configure(state="disabled")
         self.btn_convert.configure(state="disabled")
+        self.btn_freemocap.configure(state="disabled")
         self.chk_delete.configure(state="disabled")
         self.opt_rot.configure(state="disabled")
         
         rot_choice = self.rot_var.get()
+        threading.Thread(target=self._worker_thread, args=(rot_choice, send_to_freemocap), daemon=True).start()
         
-        # Run conversion in a background thread
-        threading.Thread(target=self._convert_thread, args=(rot_choice,), daemon=True).start()
-        
-    def _convert_thread(self, rot_choice):
+    def _worker_thread(self, rot_choice, send_to_freemocap=False):
+        # Step 1: Convert any unconverted AVIs
         total_files = len(self.avi_files)
         
         for idx, input_path in enumerate(self.avi_files):
@@ -191,7 +253,6 @@ class ExportTab(ctk.CTkFrame):
             output_filename = filename.rsplit('.', 1)[0] + '.mp4'
             output_path = os.path.join(os.path.dirname(input_path), output_filename)
             
-            # Update UI (must use lambda for keyword args with self.after)
             msg = f"Converting ({idx+1}/{total_files}): {filename} -> {output_filename}"
             self.after(0, lambda t=msg: self.lbl_progress.configure(text=t))
             self.after(0, self.progressbar.set, 0.0)
@@ -204,6 +265,39 @@ class ExportTab(ctk.CTkFrame):
                     self.main_app.log(f"Deleted original file: {filename}")
                 except Exception as e:
                     self.main_app.log(f"Could not delete original {filename}: {e}", "error")
+                    
+        # Step 2: If FreeMoCap workflow is requested, bridge to FreeMoCap
+        if send_to_freemocap and self.bridge:
+            self.after(0, lambda: self.lbl_progress.configure(text="Exporting session to FreeMoCap..."))
+            self.main_app.log("Exporting recordings to FreeMoCap data directory...")
+            
+            project_dir = os.path.join(
+                self.main_app.proj_mgr.base_path,
+                self.main_app.proj_mgr.current_project
+            )
+            
+            # Find all take / calibration directories containing MP4s
+            mp4_list = glob.glob(os.path.join(project_dir, "**", "*.mp4"), recursive=True)
+            sync_dirs = set(os.path.dirname(p) for p in mp4_list)
+            
+            last_session = None
+            for s_dir in sync_dirs:
+                take_folder = os.path.dirname(s_dir) if os.path.basename(s_dir) == "synchronized_videos" else s_dir
+                session_path = self.bridge.export_take_to_freemocap(take_folder)
+                if session_path:
+                    last_session = session_path
+                    self.main_app.log(f"Created FreeMoCap session: {os.path.basename(session_path)}", "success")
+                    
+            if last_session:
+                self.bridge.update_most_recent_recording(last_session)
+                self.main_app.log(f"Updated most_recent_recording.toml -> {os.path.basename(last_session)}", "success")
+                
+                # Check if FreeMoCap is installed and launch
+                if self.bridge.is_freemocap_installed():
+                    self.main_app.log("Launching FreeMoCap...")
+                    self.bridge.launch_freemocap(last_session)
+                else:
+                    self.main_app.log("FreeMoCap executable not found in PATH. Session is ready in ~/freemocap_data", "info")
                     
         self.after(0, self._conversion_finished)
         
@@ -296,7 +390,7 @@ class ExportTab(ctk.CTkFrame):
 
     def _conversion_finished(self):
         self.is_converting = False
-        self.lbl_progress.configure(text="Conversion finished!")
+        self.lbl_progress.configure(text="Process finished!")
         self.progressbar.set(1.0)
         self.btn_scan.configure(state="normal")
         self.chk_delete.configure(state="normal")

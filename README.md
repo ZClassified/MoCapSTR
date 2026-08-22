@@ -11,7 +11,7 @@ MoCapSTR is a highly optimized, standalone multi-camera recording client built f
 - **Arduino Hardware Triggering:** Uses an Arduino to trigger compatible cameras simultaneously via an FSIN signal. Includes automatic fallback to free-run mode if no Arduino is connected. Supports external hardware buttons for remote control.
 - **Live Preview with Charuco Detection:** Multi-camera view with per-camera rotation (0°, 90°, 180°, 270°) and a toggleable `cv2.aruco` overlay to verify calibration board detection. The top bar shows live dropped frames and warns when disk space is low.
 - **Preset Manager:** Automatically saves and loads all UI and hardware settings (resolution, FPS, exposure, camera rotations, Charuco parameters) to a `presets.json` file next to the executable.
-- **FreeMoCap Integration:** Saves recordings in the correct folder structure and automatically generates the metadata file (`session_info.json`) required by FreeMoCap.
+- **FreeMoCap Integration:** Saves recordings directly into FreeMoCap's expected folder structure (`synchronized_videos/`) with exact matching frame counts across all cameras for seamless processing.
 - **Built-in Converter:** Since FreeMoCap often cannot reliably process raw AVI files, a dedicated tab lets you convert your takes offline into highly compatible H.264 (`.mp4`) videos after the session. A separate Camera Test tab assists with hardware diagnostics.
 
 ---
@@ -112,7 +112,7 @@ Recordings are saved by default to `~/Videos/MoCap_Projects/[ProjectName]/`.
 When you open FreeMoCap:
 1. Select "Process Pre-recorded Data".
 2. Navigate to your project folder and select either the `calibration` folder or one of the subfolders in `takes/` (e.g. `take_2026-08-10_10-45-00`).
-3. FreeMoCap will automatically detect the synchronized videos (including `session_info.json`) and can begin tracking.
+3. FreeMoCap will automatically detect the synchronized videos in the folder and can begin tracking.
 
 ---
 
@@ -138,7 +138,7 @@ MoCapSTR ist eine hochgradig optimierte, eigenständige Multi-Kamera-Aufnahmesof
 - **Arduino Hardware Triggering:** Nutzt einen Arduino, um kompatible Kameras über ein Trigger-Signal (FSIN) absolut zeitgleich auszulösen. Beinhaltet einen automatischen Fallback auf den "Free-Run"-Modus, falls kein Arduino verbunden ist. Unterstützt externe Hardware-Buttons für die Fernsteuerung.
 - **Live Preview mit Charuco-Detection:** Multikamera-Ansicht mit individueller Rotation (0°, 90°, 180°, 270°) und zuschaltbarem `cv2.aruco` Overlay zur direkten Überprüfung des Kalibrierungs-Boards. Die Top-Bar zeigt live Dropped Frames und warnt bei wenig Speicherplatz.
 - **Preset Manager:** Speichert und lädt alle UI- und Hardware-Einstellungen (Auflösung, FPS, Belichtung, Kamera-Rotationen, Charuco-Parameter) automatisch in einer `presets.json` neben der ausführbaren Datei.
-- **FreeMoCap Integration:** Speichert Aufnahmen in der passenden Ordnerstruktur und generiert automatisch die für FreeMoCap benötigten Metadaten (`session_info.json`).
+- **FreeMoCap Integration:** Speichert Aufnahmen direkt in der von FreeMoCap erwarteten Ordnerstruktur (`synchronized_videos/`) mit exakt identischer Frame-Anzahl über alle Kameras hinweg für eine reibungslose Weiterverarbeitung.
 - **Integrierter Konverter:** Da FreeMoCap rohe AVI-Dateien häufig nicht fehlerfrei verarbeiten kann, bietet die Software einen integrierten Tab, um die Aufnahmen nach der Session bequem offline in hochkompatible H.264-Videos (`.mp4`) umzuwandeln. Ein dedizierter Hardware-Test-Tab hilft zusätzlich bei der Kamera-Diagnostik.
 
 ---
@@ -239,7 +239,7 @@ Die Aufnahmen werden standardmäßig im Ordner `~/Videos/MoCap_Projects/[Projekt
 Wenn du FreeMoCap öffnest:
 1. Wähle "Process Pre-recorded Data".
 2. Navigiere in deinen Projektordner und wähle entweder den Ordner `calibration` oder einen der Unterordner in `takes/` (z.B. `take_2026-08-10_10-45-00`).
-3. FreeMoCap erkennt die synchronisierten Videos (inkl. der `session_info.json`) automatisch und kann mit dem Tracking beginnen.
+3. FreeMoCap erkennt die synchronisierten Videos im Ordner automatisch und kann mit dem Tracking beginnen.
 
 ---
 
