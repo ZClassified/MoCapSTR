@@ -1,7 +1,7 @@
 # Active Context
 
-**Current Status:** Removed problematic UVC Reset UI button and associated backend logic. System is stable at v1.3.2.
-**Last Modified:** 2026-08-19 18:10:00
+**Current Status:** Implemented dedicated `freemocap_bridge.py` module and One-Click 'Convert & Send to FreeMoCap' workflow in `export_tab.py`. System is at v1.4.0.
+**Last Modified:** 2026-08-22 19:28:00
 
 ---
 
@@ -53,3 +53,4 @@ This ensures that the next AI assistant immediately knows what was just done and
 - **2026-08-19 (v1.3.0):** Fixed the root cause of the 4th camera failing in trigger mode and causing UVC driver hangs. Removed the `120fps` USB bandwidth hack in `setup_tab.py` which artificially reserved too much USB bandwidth during DSHOW initialization. This failed bandwidth allocation caused the 4th camera to enter a "zombie" state, breaking MSMF UVC resets and causing the reset button to hang. Cameras now correctly request their true `target_fps` during PyAV initialization.
 - **2026-08-19 (v1.3.1):** Added physical frame rotation and a live rotation preview thumbnail to `export_tab.py`. The exporter now physically rotates the raw MJPEG frames before H.264 encoding to guarantee perfect portrait output for FreeMoCap without relying on flaky MP4 metadata tags. Fixed a bug where `av.VideoFrame.from_ndarray` stripped original PTS timing during rotation, ensuring perfect frame timing.
 - **2026-08-19 (v1.3.2):** Removed the "Kameras Zurücksetzen (UVC Wakeup)" button from `setup_tab.py` and the `reset_uvc_drivers` function from `camera_manager.py`. The feature was causing severe application deadlocks via OpenCV `VideoCapture` when attempting to reset cameras that were already in a faulty hardware-trigger state. Standard initialization remains robust enough for normal use.
+- **2026-08-22 (v1.4.0):** Implemented dedicated `freemocap_bridge.py` standalone module and One-Click FreeMoCap integration. **`freemocap_bridge.py`**: Auto-detects `~/freemocap_data`, creates standard FreeMoCap session structures (`recording_sessions/session_.../synchronized_videos/`), transfers videos via instant NTFS zero-copy hardlinks (with fallback to copy), updates `most_recent_recording.toml`, and launches FreeMoCap in a detached process. Supports CLI usage (`--take`, `--launch`). **`export_tab.py`**: Added `[ 🚀 Convert & Send to FreeMoCap ]` one-click button alongside standard MP4 conversion, supporting both unconverted AVIs and pre-converted MP4s. Updated `README.md` to accurately document FreeMoCap folder structure requirements.
