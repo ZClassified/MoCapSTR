@@ -1,21 +1,10 @@
-# Active Context
+# Changelog
 
 **Current Status:** Implemented dedicated `freemocap_bridge.py` module and One-Click 'Convert & Send to FreeMoCap' workflow in `export_tab.py`. System is at v1.4.0.
 **Last Modified:** 2026-08-22 19:28:00
 
 ---
 
-## Instructions for LLM Assistants
-Welcome to the MoCapSTR project. This file (`ACTIVE_CONTEXT.md`) serves as the central memory for this repository. 
-
-**Whenever you make significant changes to this project, you MUST update this file:**
-1. Update the **Last Modified** timestamp to the current time.
-2. Update the **Current Status** with a brief summary of what you just completed.
-3. Append a short bullet point to the **Recent Changes** list below.
-
-This ensures that the next AI assistant immediately knows what was just done and where the project currently stands.
-
-## Recent Changes
 - **2026-08-10:** Added top control bar in Live Preview tab including Recording Timer, Frame Counter, Disk Space Warning, and live Dropped Frame detection.
 - **2026-08-10:** Implemented `PresetManager` to save/load all UI settings to `presets.json`. Overhauled the Setup Tab UI using `CTkFrame` cards for better grouping.
 - **2026-08-10:** Added FreeMoCap specific Charuco Board parameters (Dictionary, Grid, Sizes) and a live `cv2.aruco` detection overlay in the Live Preview tab.
