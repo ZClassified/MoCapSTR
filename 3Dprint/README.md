@@ -106,8 +106,8 @@ Gehäuse für den Arduino (z. B. Nano mit Terminal Block Shield), Neutrik XLR-D-
 
 | Bauteil / Datei | Vorschau | Beschreibung |
 | :--- | :---: | :--- |
-| **Gesamt-Baugruppe**<br>[`v1_prototype/Trigger_Case.FCStd`](v1_prototype/Trigger_Case.FCStd) | <img src="v1_prototype/Trigger_Case.png" width="240" alt="Trigger Case Gesamt" /> | Vollständiges CAD-Projekt in FreeCAD. Der Deckel mit der Tasteraufnahme ist hier gut zu erkennen. |
-| **Gehäuseunterteil**<br>[`v1_prototype/Trigger_Case-BASE.stl`](v1_prototype/Trigger_Case-BASE.stl) | <img src="v1_prototype/Trigger_Case-BASE.png" width="240" alt="Trigger Case Base" /> | Nimmt Arduino-Shield, XLR-Einbaubuchse und optionale DC-Hohlbuchse auf. |
+| **Gesamt-Baugruppe**<br>[`v1_prototype/Trigger_Case.FCStd`](v1_prototype/Trigger_Case.FCStd) | <img src="v1_prototype/Trigger_Case.png" width="240" alt="Trigger Case Gesamt" /> | Vollständiges CAD-Projekt in FreeCAD. Im Deckel ist ein Loch für den Trigger Taster. |
+| **Gehäuseunterteil**<br>[`v1_prototype/Trigger_Case-BASE.stl`](v1_prototype/Trigger_Case-BASE.stl) | <img src="v1_prototype/Trigger_Case-BASE.png" width="240" alt="Trigger Case Base" /> | Hier werden Arduino und XLR-Einbaubuchse montiert. |
 | **Deckel**<br>[`v1_prototype/Trigger_Case-LID.stl`](v1_prototype/Trigger_Case-LID.stl) | *(Siehe Gesamtansicht)* | Gehäusedeckel mit **12mm-Montageloch für den Start/Stop-Taster (Trigger-Button)**. |
 
 ---
