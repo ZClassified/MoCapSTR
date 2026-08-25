@@ -8,6 +8,12 @@ This document describes the wiring of the MoCapSTR hardware trigger via an XLR s
 
 Instead of running long wires directly from the Arduino to each individual camera, the 5V square wave trigger signal from the Arduino is sent through a single XLR microphone cable to a central splitter box on set. From this box, the final cables branch out to the 4 cameras.
 
+<p align="center">
+  <img src="3Dprint/v1_prototype/images_assembly/51_trigger_and_splitter_case_connected.jpg" width="480" alt="Connected Hardware Setup" />
+  <br>
+  <em>Arduino Trigger Box connected via standard XLR cable to the Splitter Box with 4 camera DC cable outputs.</em>
+</p>
+
 Since the trigger signal is unbalanced (consisting only of signal and ground), we adapt the 3-pin XLR pinout accordingly.
 
 ---
@@ -83,15 +89,15 @@ The splitter box features a female XLR input and distributes the signal to 4 cab
 ## 3. Connecting to the Cameras (Innomaker)
 
 <p align="center">
-  <img src="3Dprint/v1_prototype/images_assembly/40_cam_all_parts.jpg" width="420" alt="OV9281 Camera Parts" />
+  <img src="3Dprint/v1_prototype/images_assembly/50_cam_smalback_connected.jpg" width="360" alt="OV9281 Camera Open Back Connected" />
   &nbsp;&nbsp;&nbsp;&nbsp;
-  <img src="3Dprint/v1_prototype/images_assembly/47_cam_mount_bracket_final_essambly.jpg" width="360" alt="OV9281 Camera Assembled" />
+  <img src="3Dprint/v1_prototype/images_assembly/48_cam_mount_LONGBACK_assembled_back.jpg" width="360" alt="OV9281 Camera Long Back with Terminal" />
 </p>
 
 The four cables from the splitter box are connected to the cameras. We use single-ended shield grounding to avoid ground loops!
 
-- **Red Wire (Signal):** Connect to the **FSIN +** pin of the camera.
-- **White/Black Wire (Ground):** Connect to the **FSIN -** pin of the camera.
+- **Red Wire (Signal):** Connect to the **FSIN +** pin of the camera (or to the red spring terminal clip on `Cam-BACK-LONG`).
+- **White/Black Wire (Ground):** Connect to the **FSIN -** pin of the camera (or to the black spring terminal clip on `Cam-BACK-LONG`).
 - **Shielding (Braid):** Cut flush and insulate thoroughly! The shielding must **NOT** be connected to the camera or touch any metal parts on the camera side.
 
 *Reason:* The shielding acts as a Faraday cage, catching electromagnetic interference along the cable run and safely draining it via the splitter box and XLR cable into the Arduino's ground. If connected on both ends, stray currents could flow through the cable.
@@ -113,6 +119,12 @@ Dieses Dokument beschreibt die Verkabelung des MoCapSTR Hardware-Triggers über 
 ## Das Prinzip: XLR-Splitter
 
 Anstatt lange Kabel direkt vom Arduino zu jeder Kamera zu ziehen, wird das 5V-Rechtecksignal des Arduinos über ein XLR-Mikrofonkabel zu einer zentralen Splitter-Box am Set geführt. Von dieser Box gehen dann die Endkabel zu den 4 Kameras. 
+
+<p align="center">
+  <img src="3Dprint/v1_prototype/images_assembly/51_trigger_and_splitter_case_connected.jpg" width="480" alt="Gesamtaufbau Trigger und Splitter Box" />
+  <br>
+  <em>Arduino Trigger-Gehäuse über handelsübliches XLR-Kabel mit der Splitter-Box verbunden, von der 4 DC-Kabel zu den Kameras abzweigen.</em>
+</p>
 
 Da das Trigger-Signal asymmetrisch ("unbalanced") ist (bestehend aus Signal und Masse), passen wir die 3-polige XLR-Belegung entsprechend an.
 
@@ -189,15 +201,15 @@ Die Splitter-Box hat einen XLR-Eingang (Weiblich) und gibt das Signal über 4 DC
 ## 3. Anschluss an die Kameras (Innomaker)
 
 <p align="center">
-  <img src="3Dprint/v1_prototype/images_assembly/40_cam_all_parts.jpg" width="420" alt="Kamera Teileübersicht" />
+  <img src="3Dprint/v1_prototype/images_assembly/50_cam_smalback_connected.jpg" width="360" alt="OV9281 Kamera Rückseite Verkabelung (Open Back)" />
   &nbsp;&nbsp;&nbsp;&nbsp;
-  <img src="3Dprint/v1_prototype/images_assembly/47_cam_mount_bracket_final_essambly.jpg" width="360" alt="Kamera fertig montiert" />
+  <img src="3Dprint/v1_prototype/images_assembly/48_cam_mount_LONGBACK_assembled_back.jpg" width="360" alt="OV9281 Kamera Rückseite mit Klemmenterminal (Long Back)" />
 </p>
 
 Die vier Kabel kommen von der Splitter-Box an den Kameras an. Wir nutzen die einseitige Schirmerdung, um Brummschleifen (Ground Loops) zu vermeiden!
 
-- **Rote Ader (Signal):** Anschließen an den **FSIN +** Pin der Kamera.
-- **Weiße/Schwarze Ader (Masse):** Anschließen an den **FSIN -** Pin der Kamera.
+- **Rote Ader (Signal):** Anschließen an den **FSIN +** Pin der Kamera (bzw. an das rote Klemmterminal bei `Cam-BACK-LONG`).
+- **Weiße/Schwarze Ader (Masse):** Anschließen an den **FSIN -** Pin der Kamera (bzw. an das schwarze Klemmterminal bei `Cam-BACK-LONG`).
 - **Schirmung (Drahtgeflecht):** Bündig abschneiden und gut isolieren! Die Schirmung darf an der Kamera **NICHT** angeschlossen werden oder Metall berühren. 
 
 *Grund:* Die Schirmung fängt elektromagnetische Störungen auf der gesamten Strecke auf und leitet sie über die Splitter-Box und das XLR-Kabel sicher in den Ground des Arduinos ab (Faradayscher Käfig). Wäre sie auf beiden Seiten angeschlossen, könnten Störströme durch das Kabel fließen.

@@ -7,6 +7,7 @@ This directory contains CAD source files (FreeCAD `.FCStd`), 3D-printable STL fi
 ## Quick Navigation
 
 - [Hardware Bill of Materials (BOM)](#hardware-bill-of-materials-bom)
+- [Complete System Interconnect](#complete-system-interconnect)
 - [CAD & STL Components Overview](#cad--stl-components-overview)
 - [Step-by-Step Assembly Guide](#step-by-step-assembly-guide)
   - [1. Arduino Trigger Box](#1-arduino-trigger-box-assembly)
@@ -14,6 +15,16 @@ This directory contains CAD source files (FreeCAD `.FCStd`), 3D-printable STL fi
   - [3. Innomaker OV9281 Camera Enclosure](#3-innomaker-ov9281-camera-enclosure-assembly)
 - [Print Recommendations & Technical Notes](#print-recommendations--technical-notes)
 - [Deutsche Version (Hier klicken)](#deutsche-version)
+
+---
+
+## Complete System Interconnect
+
+<p align="center">
+  <img src="v1_prototype/images_assembly/51_trigger_and_splitter_case_connected.jpg" width="500" alt="Complete Trigger and Splitter System Connected" />
+  <br>
+  <em>Arduino Trigger Box (right, with blue USB cable to PC) connected via standard XLR cable to the Splitter Box (left, distributing to 4 camera DC cables).</em>
+</p>
 
 ---
 
@@ -147,14 +158,14 @@ This directory contains CAD source files (FreeCAD `.FCStd`), 3D-printable STL fi
 
 ---
 
-#### Step 4: Attach Back Cover
+#### Step 4: Attach Back Cover (Short Variant)
 <p align="center">
   <img src="v1_prototype/images_assembly/45_cam_mount_SMALBACK.jpg" width="360" alt="Positioning Back Cover" />
   &nbsp;&nbsp;&nbsp;&nbsp;
   <img src="v1_prototype/images_assembly/46_cam_mount_SMALBACK_essambly.jpg" width="360" alt="Back Cover Fastened" />
 </p>
 
-- Align `Cam-BACK-SHORT` (or `Cam-BACK-LONG`) with the middle frame.
+- Align `Cam-BACK-SHORT` with the middle frame.
 - Secure it with **4x M3 15mm screws** threading into the 4 brass inserts of `Cam-MID`.
 
 ---
@@ -166,6 +177,21 @@ This directory contains CAD source files (FreeCAD `.FCStd`), 3D-printable STL fi
 
 - Attach `Cam-BRACKET` over the sides of the camera enclosure.
 - Fasten using **2x M3 thumbscrews (10–25mm length)** into the side brass inserts.
+
+---
+
+#### Step 6: Camera Variants in Action
+
+<p align="center">
+  <img src="v1_prototype/images_assembly/50_cam_smalback_connected.jpg" width="360" alt="Open Back Camera Connected" />
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="v1_prototype/images_assembly/48_cam_mount_LONGBACK_assembled_back.jpg" width="360" alt="Long Back Camera Rear View" />
+</p>
+<p align="center">
+  <img src="v1_prototype/images_assembly/49_cam_mount_LONGBACK_assembled_front.jpg" width="400" alt="Long Back Camera Front Perspective" />
+  <br>
+  <em>Left: Open back variant with direct USB and trigger header connection. Right: Enclosed long back variant with rubber cable strain relief and speaker spring terminal clip.</em>
+</p>
 
 ---
 
@@ -197,12 +223,23 @@ Dieses Verzeichnis enthält die CAD-Konstruktionsdateien (FreeCAD `.FCStd`), 3D-
 ## Schnellnavigation
 
 - [Hardware-Stückliste (BOM)](#hardware-stückliste-bom)
+- [Gesamtsystem-Verbindung](#gesamtsystem-verbindung)
 - [CAD- & STL-Komponenten Übersicht](#cad--stl-komponenten-übersicht)
 - [Schritt-für-Schritt Montageanleitung](#schritt-für-schritt-montageanleitung)
   - [1. Arduino Trigger-Gehäuse](#1-montage-arduino-trigger-gehäuse)
   - [2. XLR Splitter-Box](#2-montage-xlr-splitter-box)
   - [3. Innomaker OV9281 Kamera-Gehäuse](#3-montage-innomaker-ov9281-kamera-gehäuse)
 - [Druckempfehlungen & Technische Hinweise](#druckempfehlungen--technische-hinweise)
+
+---
+
+## Gesamtsystem-Verbindung
+
+<p align="center">
+  <img src="v1_prototype/images_assembly/51_trigger_and_splitter_case_connected.jpg" width="500" alt="Gesamtaufbau Trigger und Splitter Box" />
+  <br>
+  <em>Arduino Trigger-Box (rechts, mit blauem USB-Kabel zum PC) über XLR-Mikrofonkabel mit der Splitter-Box (links) verbunden, von der 4 DC-Kabel zu den Kameras führen.</em>
+</p>
 
 ---
 
@@ -336,14 +373,14 @@ Dieses Verzeichnis enthält die CAD-Konstruktionsdateien (FreeCAD `.FCStd`), 3D-
 
 ---
 
-#### Schritt 4: Rückteil befestigen
+#### Schritt 4: Rückteil befestigen (Kurze Variante)
 <p align="center">
   <img src="v1_prototype/images_assembly/45_cam_mount_SMALBACK.jpg" width="360" alt="Rückteil ansetzen" />
   &nbsp;&nbsp;&nbsp;&nbsp;
   <img src="v1_prototype/images_assembly/46_cam_mount_SMALBACK_essambly.jpg" width="360" alt="Rückteil verschraubt" />
 </p>
 
-- `Cam-BACK-SHORT` (oder `Cam-BACK-LONG`) auf das Mittelteil aufsetzen.
+- `Cam-BACK-SHORT` auf das Mittelteil aufsetzen.
 - Mit **4x M3 15mm Schrauben** in die 4 Gewindeeinsätze des Mittelteils verschrauben.
 
 ---
@@ -355,6 +392,21 @@ Dieses Verzeichnis enthält die CAD-Konstruktionsdateien (FreeCAD `.FCStd`), 3D-
 
 - `Cam-BRACKET` über das Gehäuse schieben.
 - Mit **2x M3 Rändelschrauben (10–25mm Länge)** in den seitlichen Gewindeeinsätzen befestigen.
+
+---
+
+#### Schritt 6: Kamera-Varianten im Einsatz
+
+<p align="center">
+  <img src="v1_prototype/images_assembly/50_cam_smalback_connected.jpg" width="360" alt="Kamera Rückseite verkabelt (Open Back)" />
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="v1_prototype/images_assembly/48_cam_mount_LONGBACK_assembled_back.jpg" width="360" alt="Kamera Rückansicht mit Zugentlastung (Long Back)" />
+</p>
+<p align="center">
+  <img src="v1_prototype/images_assembly/49_cam_mount_LONGBACK_assembled_front.jpg" width="400" alt="Kamera Frontansicht geschlossen (Long Back)" />
+  <br>
+  <em>Links: Offenes Rückteil (Open Back) mit direktem Steckzugriff auf USB und Trigger-Header. Rechts: Voll geschlossenes langes Rückteil mit Gummi-Zugentlastung und Lautsprecher-Klemmenterminal.</em>
+</p>
 
 ---
 
