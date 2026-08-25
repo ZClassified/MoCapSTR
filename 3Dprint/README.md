@@ -22,8 +22,8 @@ Enclosure for the Arduino (e.g. Nano with Terminal Block Shield), male Neutrik X
 
 | Component / File | Preview | Description |
 | :--- | :---: | :--- |
-| **Complete Assembly**<br>[`v1_prototype/Trigger_Case.FCStd`](v1_prototype/Trigger_Case.FCStd) | <img src="v1_prototype/Trigger_Case.png" width="240" alt="Trigger Case Complete" /> | Full assembly CAD project. The top lid with the push-button mount is clearly visible. |
-| **Base Enclosure**<br>[`v1_prototype/Trigger_Case-BASE.stl`](v1_prototype/Trigger_Case-BASE.stl) | <img src="v1_prototype/Trigger_Case-BASE.png" width="240" alt="Trigger Case Base" /> | Houses the Arduino Nano with Terminal Block shield, male XLR chassis connector, and optional DC barrel jack. |
+| **Complete Assembly**<br>[`v1_prototype/Trigger_Case.FCStd`](v1_prototype/Trigger_Case.FCStd) | <img src="v1_prototype/Trigger_Case.png" width="240" alt="Trigger Case Complete" /> | Full assembly CAD project. The top lid with push-button mount. |
+| **Base Enclosure**<br>[`v1_prototype/Trigger_Case-BASE.stl`](v1_prototype/Trigger_Case-BASE.stl) | <img src="v1_prototype/Trigger_Case-BASE.png" width="240" alt="Trigger Case Base" /> | Houses the Arduino Nano with male XLR chassis connector |
 | **Top Lid**<br>[`v1_prototype/Trigger_Case-LID.stl`](v1_prototype/Trigger_Case-LID.stl) | *(See complete assembly)* | Top cover featuring the **12mm mounting hole for the Start/Stop trigger push-button**. |
 
 ---
