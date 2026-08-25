@@ -32,7 +32,7 @@ This directory contains CAD source files (FreeCAD `.FCStd`), 3D-printable STL fi
 
 | Subassembly | 3D Printed Parts | Electronics & Hardware | Fasteners & Inserts |
 | :--- | :--- | :--- | :--- |
-| **OV9281 Camera Enclosure**<br>*(per camera)* | - 1x `Cam-FRONT`<br>- 1x `Cam-MID`<br>- 1x `Cam-BACK-SHORT` *(or LONG)*<br>- 1x `Cam-BRACKET` | - 1x Innomaker OV9281 USB camera PCB + lens | - **9x** M3 brass heat-set inserts<br>- **7x** M3 15mm screws (3x Front/Mid, 4x Mid/Back)<br>- **2x** M3 thumbscrews (10–25mm) or standard M3 screws for bracket |
+| **OV9281 Camera Enclosure**<br>*(per camera)* | - 1x `Cam-FRONT`<br>- 1x `Cam-MID`<br>- 1x `Cam-BACK-SHORT` *(or LONG)*<br>- 1x `Cam-BRACKET` | - 1x Innomaker OV9281 USB camera PCB + lens<br>- 1x 2-Pin Micro Plug (e.g. JST 1.25mm 2-pin) for FSIN header | - **9x** M3 brass heat-set inserts<br>- **7x** M3 15mm screws (3x Front/Mid, 4x Mid/Back)<br>- **2x** M3 thumbscrews (10–25mm) or standard M3 screws for bracket |
 | **Arduino Trigger Box** | - 1x `Trigger_Case-BASE`<br>- 1x `Trigger_Case-LID` | - 1x Arduino Nano<br>- 1x Terminal Block Shield Adapter<br>- 1x Neutrik XLR Chassis (Male, D-Series)<br>- 1x 12mm Push-Button (NO)<br>- *(Optional)* 1x DC Barrel Jack (8mm) | - **8x** M3 brass heat-set inserts<br>- **8x** M3 10mm screws (4x Lid, 2x XLR, 2x Shield) |
 | **XLR Splitter Box** | - 1x `Splitter_Case-BASE`<br>- 1x `Splitter_Case-LID` | - 1x Neutrik XLR Chassis (Female, D-Series)<br>- 4x DC Barrel Jacks (8mm)<br>- 2x 5-pin Cage Clamp Terminals (WAGO) | - **6x** M3 brass heat-set inserts<br>- **6x** M3 10mm screws (4x Lid, 2x XLR) |
 
@@ -158,15 +158,16 @@ This directory contains CAD source files (FreeCAD `.FCStd`), 3D-printable STL fi
 
 ---
 
-#### Step 4: Attach Back Cover (Short Variant)
+#### Step 4: Attach Back Cover (Short Variant) & 90° Modular Orientation
 <p align="center">
   <img src="v1_prototype/images_assembly/45_cam_mount_SMALBACK.jpg" width="360" alt="Positioning Back Cover" />
   &nbsp;&nbsp;&nbsp;&nbsp;
   <img src="v1_prototype/images_assembly/46_cam_mount_SMALBACK_essambly.jpg" width="360" alt="Back Cover Fastened" />
 </p>
 
-- Align `Cam-BACK-SHORT` with the middle frame.
+- Align `Cam-BACK-SHORT` (or `Cam-BACK-LONG`) with the middle frame.
 - Secure it with **4x M3 15mm screws** threading into the 4 brass inserts of `Cam-MID`.
+- **Landscape vs. Portrait Orientation:** Due to the symmetrical 4-hole pattern, you can choose whether the camera is mounted horizontally or vertically (90° rotated) relative to the mounting bracket. Simply rotate the back cover 90° before fastening.
 
 ---
 
@@ -190,7 +191,7 @@ This directory contains CAD source files (FreeCAD `.FCStd`), 3D-printable STL fi
 <p align="center">
   <img src="v1_prototype/images_assembly/49_cam_mount_LONGBACK_assembled_front.jpg" width="400" alt="Long Back Camera Front Perspective" />
   <br>
-  <em>Left: Open back variant with direct USB and trigger header connection. Right: Enclosed long back variant with rubber cable strain relief and speaker spring terminal clip.</em>
+  <em>Left: Open back variant with direct USB and trigger connection via 2-pin micro connector (e.g. JST 1.25mm). Right: Enclosed long back variant with rubber cable strain relief and speaker spring terminal clip.</em>
 </p>
 
 ---
@@ -247,7 +248,7 @@ Dieses Verzeichnis enthält die CAD-Konstruktionsdateien (FreeCAD `.FCStd`), 3D-
 
 | Baugruppe | 3D-Druckteile | Elektronik & Komponenten | Schrauben & Inserts |
 | :--- | :--- | :--- | :--- |
-| **OV9281 Kamera-Gehäuse**<br>*(pro Kamera)* | - 1x `Cam-FRONT`<br>- 1x `Cam-MID`<br>- 1x `Cam-BACK-SHORT` *(oder LONG)*<br>- 1x `Cam-BRACKET` | - 1x Innomaker OV9281 USB-Kamera inkl. Objektiv | - **9x** M3 Einschmelzgewinde<br>- **7x** M3 15mm Schrauben (3x Front/Mid, 4x Mid/Back)<br>- **2x** M3 Rändelschrauben (10–25mm) oder M3 Schrauben für den Bügel |
+| **OV9281 Kamera-Gehäuse**<br>*(pro Kamera)* | - 1x `Cam-FRONT`<br>- 1x `Cam-MID`<br>- 1x `Cam-BACK-SHORT` *(oder LONG)*<br>- 1x `Cam-BRACKET` | - 1x Innomaker OV9281 USB-Kamera inkl. Objektiv<br>- 1x 2-Pin Mikro-Steckverbinder (z. B. JST 1.25mm 2-Pin) für FSIN-Pins | - **9x** M3 Einschmelzgewinde<br>- **7x** M3 15mm Schrauben (3x Front/Mid, 4x Mid/Back)<br>- **2x** M3 Rändelschrauben (10–25mm) oder M3 Schrauben für den Bügel |
 | **Arduino Trigger-Gehäuse** | - 1x `Trigger_Case-BASE`<br>- 1x `Trigger_Case-LID` | - 1x Arduino Nano<br>- 1x Terminal Block Shield Adapter<br>- 1x Neutrik XLR Einbaubuchse (Männlich, D-Serie)<br>- 1x 12mm Taster (Schließer)<br>- *(Optional)* 1x DC Hohlbuchse (8mm) | - **8x** M3 Einschmelzgewinde<br>- **8x** M3 10mm Schrauben (4x Deckel, 2x XLR, 2x Shield) |
 | **XLR Splitter-Box** | - 1x `Splitter_Case-BASE`<br>- 1x `Splitter_Case-LID` | - 1x Neutrik XLR Einbaubuchse (Weiblich, D-Serie)<br>- 4x DC Hohlbuchsen (8mm)<br>- 2x 5-polige Käfigzugklemmen (WAGO) | - **6x** M3 Einschmelzgewinde<br>- **6x** M3 10mm Schrauben (4x Deckel, 2x XLR) |
 
@@ -373,15 +374,16 @@ Dieses Verzeichnis enthält die CAD-Konstruktionsdateien (FreeCAD `.FCStd`), 3D-
 
 ---
 
-#### Schritt 4: Rückteil befestigen (Kurze Variante)
+#### Schritt 4: Rückteil befestigen & Modulare 90°-Drehung
 <p align="center">
   <img src="v1_prototype/images_assembly/45_cam_mount_SMALBACK.jpg" width="360" alt="Rückteil ansetzen" />
   &nbsp;&nbsp;&nbsp;&nbsp;
   <img src="v1_prototype/images_assembly/46_cam_mount_SMALBACK_essambly.jpg" width="360" alt="Rückteil verschraubt" />
 </p>
 
-- `Cam-BACK-SHORT` auf das Mittelteil aufsetzen.
+- `Cam-BACK-SHORT` (oder `Cam-BACK-LONG`) auf das Mittelteil aufsetzen.
 - Mit **4x M3 15mm Schrauben** in die 4 Gewindeeinsätze des Mittelteils verschrauben.
+- **Querformat vs. Hochkant:** Durch das quadratische 4-Schrauben-Muster kann das Rückteil bei Bedarf um 90° gedreht aufgeschraubt werden, um die Kamera hochkant am Stativbügel zu befestigen.
 
 ---
 
@@ -405,7 +407,7 @@ Dieses Verzeichnis enthält die CAD-Konstruktionsdateien (FreeCAD `.FCStd`), 3D-
 <p align="center">
   <img src="v1_prototype/images_assembly/49_cam_mount_LONGBACK_assembled_front.jpg" width="400" alt="Kamera Frontansicht geschlossen (Long Back)" />
   <br>
-  <em>Links: Offenes Rückteil (Open Back) mit direktem Steckzugriff auf USB und Trigger-Header. Rechts: Voll geschlossenes langes Rückteil mit Gummi-Zugentlastung und Lautsprecher-Klemmenterminal.</em>
+  <em>Links: Offenes Rückteil (Open Back) mit direktem Steckzugriff auf USB und Trigger-Header via 2-Pin-Mikrostecker (z. B. JST 1.25mm). Rechts: Voll geschlossenes langes Rückteil mit Gummi-Zugentlastung und Lautsprecher-Klemmenterminal.</em>
 </p>
 
 ---
