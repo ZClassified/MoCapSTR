@@ -22,19 +22,19 @@ Enclosure for the Arduino (e.g. Nano with Terminal Block Shield), male Neutrik X
 
 | Component / File | Preview | Description |
 | :--- | :---: | :--- |
-| **Complete Assembly**<br>[`v1_prototype/Trigger_Case.FCStd`](v1_prototype/Trigger_Case.FCStd) | <img src="v1_prototype/Trigger_Case.png" width="240" alt="Trigger Case Complete" /> | Full assembly CAD project. |
-| **Base Enclosure**<br>[`v1_prototype/Trigger_Case-BASE.stl`](v1_prototype/Trigger_Case-BASE.stl) | <img src="v1_prototype/Trigger_Case-BASE.png" width="240" alt="Trigger Case Base" /> | Holds the Arduino Nano shield, XLR jack, and push button. |
-| **Top Lid**<br>[`v1_prototype/Trigger_Case-LID.stl`](v1_prototype/Trigger_Case-LID.stl) | *(See complete assembly)* | Snap-on / screw-down top cover. |
+| **Complete Assembly**<br>[`v1_prototype/Trigger_Case.FCStd`](v1_prototype/Trigger_Case.FCStd) | <img src="v1_prototype/Trigger_Case.png" width="240" alt="Trigger Case Complete" /> | Full assembly CAD project. The top lid with the push-button mount is clearly visible. |
+| **Base Enclosure**<br>[`v1_prototype/Trigger_Case-BASE.stl`](v1_prototype/Trigger_Case-BASE.stl) | <img src="v1_prototype/Trigger_Case-BASE.png" width="240" alt="Trigger Case Base" /> | Houses the Arduino Nano with Terminal Block shield, male XLR chassis connector, and optional DC barrel jack. |
+| **Top Lid**<br>[`v1_prototype/Trigger_Case-LID.stl`](v1_prototype/Trigger_Case-LID.stl) | *(See complete assembly)* | Top cover featuring the **12mm mounting hole for the Start/Stop trigger push-button**. |
 
 ---
 
 ### 2. XLR Splitter Box (`Splitter_Case`)
 
-Central on-set distributor box. Houses the female Neutrik XLR D-series input and outputs four shielded cables to the cameras.
+Central on-set distributor box. Houses the female Neutrik XLR D-series input and 4x DC barrel jacks (8mm holes) to connect the camera cables.
 
 | Component / File | Preview 1 | Preview 2 | Description |
 | :--- | :---: | :---: | :--- |
-| **Complete Assembly**<br>[`v1_prototype/Splitter_Case.FCStd`](v1_prototype/Splitter_Case.FCStd)<br>[`v1_prototype/Splitter_Case-BASE.stl`](v1_prototype/Splitter_Case-BASE.stl)<br>[`v1_prototype/Splitter_Case-LID.stl`](v1_prototype/Splitter_Case-LID.stl) | <img src="v1_prototype/Splitter_Case01.png" width="240" alt="Splitter Case View 1" /> | <img src="v1_prototype/Splitter_Case02.png" width="240" alt="Splitter Case View 2" /> | Enclosure with strain-relief channels for four camera cables and mount for 1x XLR female D-size socket. |
+| **Complete Assembly**<br>[`v1_prototype/Splitter_Case.FCStd`](v1_prototype/Splitter_Case.FCStd)<br>[`v1_prototype/Splitter_Case-BASE.stl`](v1_prototype/Splitter_Case-BASE.stl)<br>[`v1_prototype/Splitter_Case-LID.stl`](v1_prototype/Splitter_Case-LID.stl) | <img src="v1_prototype/Splitter_Case01.png" width="240" alt="Splitter Case View 1" /> | <img src="v1_prototype/Splitter_Case02.png" width="240" alt="Splitter Case View 2" /> | Distributor box featuring 1x cutout for a female Neutrik XLR D-series socket and **4x mounting holes for DC barrel jacks** leading to the cameras. |
 
 ---
 
@@ -51,9 +51,9 @@ Modular multi-part case for the Innomaker OV9281 USB global-shutter camera board
 | Part | File | Preview | Description |
 | :--- | :--- | :---: | :--- |
 | **Front Bezel** | [`v1_prototype/OV9281_Case_Cam-FRONT.stl`](v1_prototype/OV9281_Case_Cam-FRONT.stl) | <img src="v1_prototype/OV9281_Case_Cam-FRONT.png" width="180" alt="Cam Front" /> | Front bezel surrounding the M12/CS lens mount. |
-| **Middle Frame** | [`v1_prototype/OV9281_Case_Cam-MID.stl`](v1_prototype/OV9281_Case_Cam-MID.stl) | <img src="v1_prototype/OV9281_Case_Cam-MID.png" width="180" alt="Cam Mid" /> | Secures the camera PCB and connects front to back. |
-| **Back Cover (Short)** | [`v1_prototype/OV9281_Case_Cam-BACK-SHORT.stl`](v1_prototype/OV9281_Case_Cam-BACK-SHORT.stl) | <img src="v1_prototype/OV9281_Case_Cam-BACK-SHORT.png" width="180" alt="Cam Back Short" /> | **Open back design:** Direct and easy access to plug cables straight onto the camera board pin headers. |
-| **Back Cover (Long)** | [`v1_prototype/OV9281_Case_Cam-BACK-LONG.stl`](v1_prototype/OV9281_Case_Cam-BACK-LONG.stl) | <img src="v1_prototype/OV9281_Case_Cam-BACK-LONG.png" width="180" alt="Cam Back Long" /> | **Fully enclosed design:** Extended enclosure protecting the internal wiring with rear exit cutouts. |
+| **Middle Frame** | [`v1_prototype/OV9281_Case_Cam-MID.stl`](v1_prototype/OV9281_Case_Cam-MID.stl) | <img src="v1_prototype/OV9281_Case_Cam-MID.png" width="180" alt="Cam Mid" /> | **PCB Backing Frame:** The camera PCB is sandwiched and screwed between the Front Bezel and this Middle Frame. The back cover (short or long) is then mounted onto the rear of this frame. |
+| **Back Cover (Short)** | [`v1_prototype/OV9281_Case_Cam-BACK-SHORT.stl`](v1_prototype/OV9281_Case_Cam-BACK-SHORT.stl) | <img src="v1_prototype/OV9281_Case_Cam-BACK-SHORT.png" width="180" alt="Cam Back Short" /> | **Open back design:** Compact cover leaving the rear open for direct, easy access to plug cables straight onto the camera board pin headers. |
+| **Back Cover (Long)** | [`v1_prototype/OV9281_Case_Cam-BACK-LONG.stl`](v1_prototype/OV9281_Case_Cam-BACK-LONG.stl) | <img src="v1_prototype/OV9281_Case_Cam-BACK-LONG.png" width="180" alt="Cam Back Long" /> | **Fully enclosed design:** Extended enclosure with a rear hole for a **cable strain relief** and a mounting cutout for a **speaker spring terminal clip** to easily clamp external trigger wires. |
 | **Mounting Bracket** | [`v1_prototype/OV9281_Case_Cam-BRACKET.stl`](v1_prototype/OV9281_Case_Cam-BRACKET.stl) | <img src="v1_prototype/OV9281_Case_Cam-BRACKET.png" width="180" alt="Cam Bracket" /> | Tripod / rig mounting bracket. Features a pilot hole for tapping a **1/4"-20 UNC standard tripod thread**. |
 | **CAD Source** | [`v1_prototype/OV9281_Case.FCStd`](v1_prototype/OV9281_Case.FCStd) | — | FreeCAD source model. |
 
@@ -106,19 +106,19 @@ Gehäuse für den Arduino (z. B. Nano mit Terminal Block Shield), Neutrik XLR-D-
 
 | Bauteil / Datei | Vorschau | Beschreibung |
 | :--- | :---: | :--- |
-| **Gesamt-Baugruppe**<br>[`v1_prototype/Trigger_Case.FCStd`](v1_prototype/Trigger_Case.FCStd) | <img src="v1_prototype/Trigger_Case.png" width="240" alt="Trigger Case Gesamt" /> | Vollständiges CAD-Projekt in FreeCAD. |
-| **Gehäuseunterteil**<br>[`v1_prototype/Trigger_Case-BASE.stl`](v1_prototype/Trigger_Case-BASE.stl) | <img src="v1_prototype/Trigger_Case-BASE.png" width="240" alt="Trigger Case Base" /> | Nimmt Arduino-Shield, XLR-Buchse und Taster auf. |
-| **Deckel**<br>[`v1_prototype/Trigger_Case-LID.stl`](v1_prototype/Trigger_Case-LID.stl) | *(Siehe Gesamtansicht)* | Gehäusedeckel zum Verschrauben / Aufsetzen. |
+| **Gesamt-Baugruppe**<br>[`v1_prototype/Trigger_Case.FCStd`](v1_prototype/Trigger_Case.FCStd) | <img src="v1_prototype/Trigger_Case.png" width="240" alt="Trigger Case Gesamt" /> | Vollständiges CAD-Projekt in FreeCAD. Der Deckel mit der Tasteraufnahme ist hier gut zu erkennen. |
+| **Gehäuseunterteil**<br>[`v1_prototype/Trigger_Case-BASE.stl`](v1_prototype/Trigger_Case-BASE.stl) | <img src="v1_prototype/Trigger_Case-BASE.png" width="240" alt="Trigger Case Base" /> | Nimmt Arduino-Shield, XLR-Einbaubuchse und optionale DC-Hohlbuchse auf. |
+| **Deckel**<br>[`v1_prototype/Trigger_Case-LID.stl`](v1_prototype/Trigger_Case-LID.stl) | *(Siehe Gesamtansicht)* | Gehäusedeckel mit **12mm-Montageloch für den Start/Stop-Taster (Trigger-Button)**. |
 
 ---
 
 ### 2. XLR Splitter-Box (`Splitter_Case`)
 
-Zentrale Verteilerbox am Set. Beherbergt die Neutrik XLR-D Einbaubuchse (Weiblich) als Eingang und führt vier geschirmte Kabel zu den Kameras ab.
+Zentrale Verteilerbox am Set. Beherbergt die Neutrik XLR-D Einbaubuchse (Weiblich) als Eingang und 4 DC-Hohlsteckerbuchsen als Ausgänge zu den Kameras.
 
 | Bauteil / Datei | Ansicht 1 | Ansicht 2 | Beschreibung |
 | :--- | :---: | :---: | :--- |
-| **Gesamt-Baugruppe**<br>[`v1_prototype/Splitter_Case.FCStd`](v1_prototype/Splitter_Case.FCStd)<br>[`v1_prototype/Splitter_Case-BASE.stl`](v1_prototype/Splitter_Case-BASE.stl)<br>[`v1_prototype/Splitter_Case-LID.stl`](v1_prototype/Splitter_Case-LID.stl) | <img src="v1_prototype/Splitter_Case01.png" width="240" alt="Splitter Case Ansicht 1" /> | <img src="v1_prototype/Splitter_Case02.png" width="240" alt="Splitter Case Ansicht 2" /> | Gehäuse mit integrierten Zugentlastungskanälen für 4 Kamerakabel und Aufnahme für die Neutrik XLR-D Buchse. |
+| **Gesamt-Baugruppe**<br>[`v1_prototype/Splitter_Case.FCStd`](v1_prototype/Splitter_Case.FCStd)<br>[`v1_prototype/Splitter_Case-BASE.stl`](v1_prototype/Splitter_Case-BASE.stl)<br>[`v1_prototype/Splitter_Case-LID.stl`](v1_prototype/Splitter_Case-LID.stl) | <img src="v1_prototype/Splitter_Case01.png" width="240" alt="Splitter Case Ansicht 1" /> | <img src="v1_prototype/Splitter_Case02.png" width="240" alt="Splitter Case Ansicht 2" /> | Verteilergehäuse mit Aufnahme für 1x Neutrik XLR-D Buchse (Weiblich) und **4 Bohrungen für DC-Hohlbuchsen** für die Zuleitungen zu den Kameras. |
 
 ---
 
@@ -135,9 +135,9 @@ Modulares Mehrkomponenten-Gehäuse für die Innomaker OV9281 USB Global-Shutter 
 | Teil | Datei | Vorschau | Beschreibung |
 | :--- | :--- | :---: | :--- |
 | **Frontblende** | [`v1_prototype/OV9281_Case_Cam-FRONT.stl`](v1_prototype/OV9281_Case_Cam-FRONT.stl) | <img src="v1_prototype/OV9281_Case_Cam-FRONT.png" width="180" alt="Cam Front" /> | Frontabdeckung rund um den M12/CS Objektivhalter. |
-| **Mittelteil** | [`v1_prototype/OV9281_Case_Cam-MID.stl`](v1_prototype/OV9281_Case_Cam-MID.stl) | <img src="v1_prototype/OV9281_Case_Cam-MID.png" width="180" alt="Cam Mid" /> | Hält die Kameraplatine und verbindet Front und Rückseite. |
-| **Rückteil (Kurz / Short)** | [`v1_prototype/OV9281_Case_Cam-BACK-SHORT.stl`](v1_prototype/OV9281_Case_Cam-BACK-SHORT.stl) | <img src="v1_prototype/OV9281_Case_Cam-BACK-SHORT.png" width="180" alt="Cam Back Short" /> | **Offene Variante:** Direkter Zugriff, um Kabel direkt auf die Steckleisten (Header) der Kameraplatine zu stecken. |
-| **Rückteil (Lang / Long)** | [`v1_prototype/OV9281_Case_Cam-BACK-LONG.stl`](v1_prototype/OV9281_Case_Cam-BACK-LONG.stl) | <img src="v1_prototype/OV9281_Case_Cam-BACK-LONG.png" width="180" alt="Cam Back Long" /> | **Geschlossene Variante:** Längeres, geschlossenes Gehäuse mit geschützter interner Kabelführung und rückseitigen Auslässen. |
+| **Mittelteil** | [`v1_prototype/OV9281_Case_Cam-MID.stl`](v1_prototype/OV9281_Case_Cam-MID.stl) | <img src="v1_prototype/OV9281_Case_Cam-MID.png" width="180" alt="Cam Mid" /> | **Platinen-Rückträger:** Die Kameraplatine wird zwischen Frontblende und Mittelteil verschraubt/eingeklemmt. An die Rückseite dieses Mittelteils wird anschließend das kurze oder lange Endstück montiert. |
+| **Rückteil (Kurz / Short)** | [`v1_prototype/OV9281_Case_Cam-BACK-SHORT.stl`](v1_prototype/OV9281_Case_Cam-BACK-SHORT.stl) | <img src="v1_prototype/OV9281_Case_Cam-BACK-SHORT.png" width="180" alt="Cam Back Short" /> | **Offene Variante:** Kurzes, nach hinten offenes Gehäuse für direkten und unkomplizierten Zugriff auf die Stiftleisten (Header) der Kameraplatine. |
+| **Rückteil (Lang / Long)** | [`v1_prototype/OV9281_Case_Cam-BACK-LONG.stl`](v1_prototype/OV9281_Case_Cam-BACK-LONG.stl) | <img src="v1_prototype/OV9281_Case_Cam-BACK-LONG.png" width="180" alt="Cam Back Long" /> | **Geschlossene Variante:** Längeres Gehäuse mit rückseitigem Loch für eine **Zugentlastung** sowie Aussparung für ein **Lautsprecher-Klemmenterminal (Speaker Spring Terminal)**, um Trigger-Kabel werkzeuglos einzuklemmen. |
 | **Halterung / Bracket** | [`v1_prototype/OV9281_Case_Cam-BRACKET.stl`](v1_prototype/OV9281_Case_Cam-BRACKET.stl) | <img src="v1_prototype/OV9281_Case_Cam-BRACKET.png" width="180" alt="Cam Bracket" /> | Stativ-/Rig-Halterung. Besitzt ein Vorbohrloch zum Nachschneiden eines **1/4"-20 UNC Standard-Kamerastativgewindes**. |
 | **CAD-Projekt** | [`v1_prototype/OV9281_Case.FCStd`](v1_prototype/OV9281_Case.FCStd) | — | FreeCAD Quelldatei. |
 
