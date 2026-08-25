@@ -2,6 +2,8 @@
 
 This document describes the wiring of the MoCapSTR hardware trigger via an XLR splitter box, based on the Arduino sync module and Innomaker OV9281 cameras.
 
+> **3D Printing Guide:** All 3D printable files (`.stl`), CAD sources (`.FCStd`), parts catalog, and print instructions are located in the [3Dprint Guide](3Dprint/README.md).
+
 ## The Concept: XLR Splitter
 
 Instead of running long wires directly from the Arduino to each individual camera, the 5V square wave trigger signal from the Arduino is sent through a single XLR microphone cable to a central splitter box on set. From this box, the final cables branch out to the 4 cameras.
@@ -12,22 +14,32 @@ Since the trigger signal is unbalanced (consisting only of signal and ground), w
 
 ## Hardware Bill of Materials (BOM) - V1 Prototype
 
-To build the Arduino trigger enclosure (V1), you will need the following standard components in addition to the 3D printed parts. Exact model names or manufacturers for screws and buttons are not strictly required as long as the dimensions fit.
+To build the complete hardware system (V1), you will need the following standard components in addition to the [3D printed parts](3Dprint/README.md). Exact model names or manufacturers for screws and buttons are not strictly required as long as the dimensions fit.
+
+**3D Printed Enclosures:**
+- **1x Arduino Trigger Case:** ([`Trigger_Case-BASE.stl`](3Dprint/v1_prototype/Trigger_Case-BASE.stl), [`Trigger_Case-LID.stl`](3Dprint/v1_prototype/Trigger_Case-LID.stl))
+- **1x XLR Splitter Box:** ([`Splitter_Case-BASE.stl`](3Dprint/v1_prototype/Splitter_Case-BASE.stl), [`Splitter_Case-LID.stl`](3Dprint/v1_prototype/Splitter_Case-LID.stl))
+- **4x Camera Enclosures:** ([Front](3Dprint/v1_prototype/OV9281_Case_Cam-FRONT.stl), [Mid](3Dprint/v1_prototype/OV9281_Case_Cam-MID.stl), [Back Short](3Dprint/v1_prototype/OV9281_Case_Cam-BACK-SHORT.stl) or [Back Long](3Dprint/v1_prototype/OV9281_Case_Cam-BACK-LONG.stl), and [Tripod Bracket](3Dprint/v1_prototype/OV9281_Case_Cam-BRACKET.stl))
 
 **Electronics:**
 - 1x Arduino (e.g., Nano) including a Terminal Block Shield for easy, solderless wiring inside the enclosure.
-- 1x Neutrik XLR Chassis Connector (Male, D-Series dimensions)
-- 1x Neutrik XLR Chassis Connector (Female, D-Series dimensions) for the splitter box
-- 1x Push-Button (Normally Open / NO) for the enclosure (12mm mounting hole)
-- 1x DC Barrel Jack for optional external power supply (8mm mounting hole, standard 5.5x2.1mm plug)
+- 1x Neutrik XLR Chassis Connector (Male, D-Series dimensions) for the Arduino box.
+- 1x Neutrik XLR Chassis Connector (Female, D-Series dimensions) for the splitter box.
+- 1x Push-Button (Normally Open / NO) for the enclosure (12mm mounting hole).
+- 1x DC Barrel Jack for optional external power supply (8mm mounting hole, standard 5.5x2.1mm plug).
 
 **Mechanics & Assembly:**
-- M3 Screws (10mm length)
-- M3 Threaded Inserts (to be melted into the 3D print using a soldering iron)
+- M3 Screws (10mm length).
+- M3 Threaded Inserts (brass heat-set inserts melted into the 3D print using a soldering iron, or use direct self-tapping screws).
+- 1/4"-20 UNC Hand Tap (to cut standard tripod threads into the camera brackets).
 
 ---
 
 ## 1. Arduino Enclosure (Transmitter)
+
+<p align="center">
+  <img src="3Dprint/v1_prototype/Trigger_Case.png" width="400" alt="Arduino Trigger Case" />
+</p>
 
 The Arduino enclosure houses a push-button and a male XLR connector.
 
@@ -45,6 +57,10 @@ The button utilizes the Arduino's internal `INPUT_PULLUP` function.
 
 ## 2. The Splitter Box (Distributor)
 
+<p align="center">
+  <img src="3Dprint/v1_prototype/Splitter_Case01.png" width="400" alt="XLR Splitter Box" />
+</p>
+
 The splitter box features a female XLR input and distributes the signal to 4 cable strands leading to the cameras.
 
 ### Internal Wiring (Inside the Box):
@@ -57,6 +73,10 @@ The splitter box features a female XLR input and distributes the signal to 4 cab
 ---
 
 ## 3. Connecting to the Cameras (Innomaker)
+
+<p align="center">
+  <img src="3Dprint/v1_prototype/OV9281_Case_Case.png" width="400" alt="OV9281 Camera Case Assembly" />
+</p>
 
 The four cables from the splitter box are now connected to the cameras. We use single-ended shield grounding to avoid ground loops!
 
@@ -78,6 +98,8 @@ A 2-core shielded audio cable (e.g., `2x 0.08 mm²` or DMX control cable) is ide
 
 Dieses Dokument beschreibt die Verkabelung des MoCapSTR Hardware-Triggers über eine XLR-Splitter-Box, basierend auf dem Arduino-Sync-Modul und Innomaker OV9281 Kameras.
 
+> **3D-Druck-Anleitung:** Alle 3D-Druckdateien (`.stl`), CAD-Projekte (`.FCStd`), der Teilekatalog sowie Druckhinweise befinden sich im [3D-Druck-Guide](3Dprint/README.md).
+
 ## Das Prinzip: XLR-Splitter
 
 Anstatt lange Kabel direkt vom Arduino zu jeder Kamera zu ziehen, wird das 5V-Rechtecksignal des Arduinos über ein XLR-Mikrofonkabel zu einer zentralen Splitter-Box am Set geführt. Von dieser Box gehen dann die Endkabel zu den 4 Kameras. 
@@ -88,22 +110,32 @@ Da das Trigger-Signal asymmetrisch ("unbalanced") ist (bestehend aus Signal und 
 
 ## Hardware Komponentenliste (BOM) - V1 Prototype
 
-Für den Nachbau des Arduino-Trigger-Gehäuses (V1) werden neben den 3D-Druckteilen folgende Standard-Bauteile benötigt. Genaue Modellbezeichnungen oder Hersteller sind bei Schrauben und Tastern nicht zwingend erforderlich, solange die Maße passen.
+Für den Nachbau des Gesamtsystems (V1) werden neben den [3D-Druckteilen](3Dprint/README.md) folgende Standard-Bauteile benötigt. Genaue Modellbezeichnungen oder Hersteller sind bei Schrauben und Tastern nicht zwingend erforderlich, solange die Maße passen.
+
+**3D-Druck-Gehäuse:**
+- **1x Arduino Trigger-Gehäuse:** ([`Trigger_Case-BASE.stl`](3Dprint/v1_prototype/Trigger_Case-BASE.stl), [`Trigger_Case-LID.stl`](3Dprint/v1_prototype/Trigger_Case-LID.stl))
+- **1x XLR Splitter-Box:** ([`Splitter_Case-BASE.stl`](3Dprint/v1_prototype/Splitter_Case-BASE.stl), [`Splitter_Case-LID.stl`](3Dprint/v1_prototype/Splitter_Case-LID.stl))
+- **4x Kamera-Gehäuse:** ([Front](3Dprint/v1_prototype/OV9281_Case_Cam-FRONT.stl), [Mittelteil](3Dprint/v1_prototype/OV9281_Case_Cam-MID.stl), [Rückteil Kurz](3Dprint/v1_prototype/OV9281_Case_Cam-BACK-SHORT.stl) oder [Rückteil Lang](3Dprint/v1_prototype/OV9281_Case_Cam-BACK-LONG.stl) sowie [Stativbügel](3Dprint/v1_prototype/OV9281_Case_Cam-BRACKET.stl))
 
 **Elektronik:**
 - 1x Arduino (z.B. Nano) inkl. einem Schraubklemmen-Erweiterungsboard (Terminal Block Shield) für einfache, lötfreie Verkabelung im Gehäuse.
-- 1x Neutrik XLR Einbaubuchse (Männlich, D-Serie Maß)
-- 1x Neutrik XLR Einbaubuchse (Weiblich, D-Serie Maß) für die Splitter-Box
-- 1x Push-Button (Drucktaster, Schließer) für das Gehäuse (12mm Einbaudurchmesser)
-- 1x Hohlstecker-Buchse (DC Barrel Jack) zur optionalen Stromversorgung (8mm Einbaudurchmesser, Standard 5.5x2.1mm)
+- 1x Neutrik XLR Einbaubuchse (Männlich, D-Serie Maß) für das Arduino-Gehäuse.
+- 1x Neutrik XLR Einbaubuchse (Weiblich, D-Serie Maß) für die Splitter-Box.
+- 1x Push-Button (Drucktaster, Schließer) für das Gehäuse (12mm Einbaudurchmesser).
+- 1x Hohlstecker-Buchse (DC Barrel Jack) zur optionalen Stromversorgung (8mm Einbaudurchmesser, Standard 5.5x2.1mm).
 
 **Mechanik & Montage:**
-- M3 Schrauben (10mm Länge)
-- M3 Gewindeeinsätze (Threaded Inserts), die mit dem Lötkolben in den 3D-Druck eingeschmolzen werden.
+- M3 Schrauben (10mm Länge).
+- M3 Gewindeeinsätze (Threaded Inserts / Einschmelzgewinde), die mit dem Lötkolben in den 3D-Druck eingeschmolzen werden (oder alternativ Direktverschraubung).
+- 1/4"-20 UNC Gewindeschneider (um Standard-Stativgewinde in die Kamerabügel zu schneiden).
 
 ---
 
 ## 1. Arduino Gehäuse (Sender)
+
+<p align="center">
+  <img src="3Dprint/v1_prototype/Trigger_Case.png" width="400" alt="Arduino Trigger Gehäuse" />
+</p>
 
 Am Gehäuse des Arduinos werden ein Taster und eine XLR-Buchse (Männlich) verbaut.
 
@@ -121,6 +153,10 @@ Der Taster nutzt die interne `INPUT_PULLUP` Funktion des Arduinos.
 
 ## 2. Die Splitter-Box (Verteiler)
 
+<p align="center">
+  <img src="3Dprint/v1_prototype/Splitter_Case01.png" width="400" alt="XLR Splitter-Box" />
+</p>
+
 Die Splitter-Box hat einen XLR-Eingang (Weiblich) und gibt das Signal an 4 Kabelstränge weiter, die zu den Kameras führen.
 
 ### Interne Verdrahtung in der Box:
@@ -134,12 +170,16 @@ Die Splitter-Box hat einen XLR-Eingang (Weiblich) und gibt das Signal an 4 Kabel
 
 ## 3. Anschluss an die Kameras (Innomaker)
 
+<p align="center">
+  <img src="3Dprint/v1_prototype/OV9281_Case_Case.png" width="400" alt="OV9281 Kamera-Gehäuse" />
+</p>
+
 Die vier Kabel kommen nun von der Splitter-Box an den Kameras an. Wir nutzen die einseitige Schirmerdung, um Brummschleifen (Ground Loops) zu vermeiden!
 
 - **Rote Ader (Signal):** Anschließen an den **FSIN +** Pin der Kamera.
 - **Weiße/Schwarze Ader (Masse):** Anschließen an den **FSIN -** Pin der Kamera.
 - **Schirmung (Drahtgeflecht):** Bündig abschneiden und gut isolieren! Die Schirmung darf an der Kamera **NICHT** angeschlossen werden oder Metall berühren. 
-- 
+
 *Grund:* Die Schirmung fängt elektromagnetische Störungen auf der gesamten Strecke auf und leitet sie über die Splitter-Box und das XLR-Kabel sicher in den Ground des Arduinos ab (Faradayscher Käfig). Wäre sie auf beiden Seiten angeschlossen, könnten Störströme durch das Kabel fließen.
 
 ---
