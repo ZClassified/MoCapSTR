@@ -1,250 +1,178 @@
 # MoCapSTR: Sync / Trigger / Record for FreeMoCap
 
-> **Disclaimer:** MoCapSTR is an **independent companion tool** and is not officially affiliated with the FreeMoCap project.
+> **Disclaimer:** MoCapSTR is an independent open-source companion tool and is not officially affiliated with the FreeMoCap project.
 
-MoCapSTR is a highly optimized, standalone multi-camera recording client built from the ground up to generate perfectly synchronized, frame-accurate datasets for [FreeMoCap](https://github.com/freemocap/freemocap). It solves the complex challenge of hardware-level camera synchronization on Windows, supporting hardware-triggered USB cameras (e.g., OV9281) via Arduino, as well as professional Blackmagic SDI capture cards. While standard USB webcams are supported as a fallback, this tool truly shines when used with hardware-sync capable devices.
+MoCapSTR is an open-source multi-camera recording tool designed to capture frame-accurate, hardware-synchronized video datasets for [FreeMoCap](https://github.com/freemocap/freemocap). It synchronizes global-shutter USB cameras (e.g. Innomaker OV9281) via an Arduino trigger signal, and also supports Blackmagic SDI capture cards.
 
-## Features
-
-- **High-Performance PyAV Backend:** Uses FFmpeg (PyAV) to write raw MJPEG streams directly to disk without CPU decoding ("zero-copy stream muxing"), minimizing frame drops even with many cameras.
-- **Broad Camera Support:** Supports USB cameras (DirectShow/MSMF) and **Blackmagic SDI** signals. Virtual cameras are automatically ignored.
-- **Arduino Hardware Triggering:** Uses an Arduino to trigger compatible cameras simultaneously via an FSIN signal. Includes automatic fallback to free-run mode if no Arduino is connected. Supports external hardware buttons for remote control.
-- **Live Preview with Charuco Detection:** Multi-camera view with per-camera rotation (0°, 90°, 180°, 270°) and a toggleable `cv2.aruco` overlay to verify calibration board detection. The top bar shows live dropped frames and warns when disk space is low.
-- **Preset Manager:** Automatically saves and loads all UI and hardware settings (resolution, FPS, exposure, camera rotations, Charuco parameters) to a `presets.json` file next to the executable.
-- **FreeMoCap Integration:** Saves recordings directly into FreeMoCap's expected folder structure (`synchronized_videos/`) with exact matching frame counts across all cameras for seamless processing.
-- **Built-in Converter:** Since FreeMoCap often cannot reliably process raw AVI files, a dedicated tab lets you convert your takes offline into highly compatible H.264 (`.mp4`) videos after the session. A separate Camera Test tab assists with hardware diagnostics.
+> [!WARNING]
+> **Project Status (Beta / Work in Progress):**
+> This software is an active open-source project and prototype. You may encounter bugs, hardware-specific quirks, or edge cases. Bug reports, feedback, and contributions are very welcome via [GitHub Issues](https://github.com/ZClassified/MoCapSTR/issues)!
 
 ---
 
-## Hardware Setup
+## The Hardware Sync Challenge (USB Bandwidth)
 
-### Required Hardware
-- Multiple USB global-shutter cameras (e.g. Innomaker / Arducam OV9281) with an **External Trigger (FSIN)** pin, *or* Blackmagic SDI capture devices.
-- An **Arduino** (e.g. Uno, Nano, Mega) for the hardware trigger.
-- For Blackmagic SDI: **Blackmagic Desktop Video** drivers must be installed ([Download](https://www.blackmagicdesign.com/support/)).
+Hardware-level synchronization has fundamentally different USB bandwidth requirements than standard webcam setups:
 
-### Wiring
-1. Connect the **GND** pin of the Arduino to the **GND** pin of *all* cameras.
-2. Connect digital **Pin 2** of the Arduino to the **FSIN (Frame Sync In)** pin of *all* cameras.
-3. *(Optional)* Connect an external physical **Start/Stop button** to **Pin 4** of the Arduino.
+- **Free-Running Cameras (Standard Webcams / Standard FreeMoCap):** Cameras run on independent internal clocks. Their frames arrive staggered across time, so the data stream is naturally distributed.
+- **Hardware-Triggered Mode (MoCapSTR):** An Arduino fires a 5V square-wave pulse to all cameras simultaneously. All connected cameras expose and push raw frame packets at the **exact same microsecond**.
 
-*(Further wiring details for an XLR splitter box are in [HARDWARE_SETUP.md](HARDWARE_SETUP.md), detailed camera specs in [CAMERA_SPECS.md](CAMERA_SPECS.md). Ready-to-print 3D models and print instructions are in the [3Dprint Guide](3Dprint/README.md).)*
+### The Motherboard Bottleneck & Recommended Setup
+Most standard PC motherboards share only 1 or 2 USB host controllers across all external USB ports:
+- **Motherboard Limits:** In our testing, standard onboard USB controllers reliably handle a **maximum of 3 cameras** in hardware-trigger mode before bandwidth saturation causes dropped frames.
+- **Recommended for 4+ Cameras:** We strongly recommend using a **PCIe USB expansion card with dedicated host controllers per port** (e.g. 4 separate USB controller chips on a single PCIe card) to ensure unconstrained bandwidth for all cameras.
+- **USB Polling Rate:** In the Setup tab, always set `USB Polling` at least 1 step higher than your target recording FPS (e.g. Target 30 FPS -> USB Polling 60 FPS) to ensure Windows polls the USB buffer fast enough.
 
-### Important Hardware Limitations (USB Bandwidth)
-When using the Arduino Hardware Trigger, all cameras send their frames at the exact same microsecond. This causes a massive bandwidth spike on the USB bus. 
-- **The Limit:** A single USB 2.0 controller (480 Mbps) **cannot** handle 4 cameras at 720p 30+ FPS simultaneously in hardware-trigger mode. It will result in dropped frames (e.g. recording at 15 or 12.5 FPS).
-- **The Solution:** You must split the 4 cameras across **multiple physical USB controllers** on your PC. Plugging 2 cameras into the front panel and 2 into the rear I/O (or using a dedicated PCIe USB expansion card with dedicated controllers per port) doubles the bandwidth and completely resolves the bottleneck.
-- **USB Polling FPS:** In the Setup Tab, the `USB Polling` dropdown must always be set to at least one step *higher* than your target recording FPS (e.g. Target 25 -> USB Polling 30. Target 30 -> USB Polling 60). This ensures the USB polling interval is fast enough to catch the hardware-triggered frames without drops.
+<p align="center">
+  <img src="3Dprint/v1_prototype/images_assembly/51_trigger_and_splitter_case_connected.jpg" width="480" alt="MoCapSTR Hardware Setup" />
+  <br>
+  <em>Arduino Trigger Box (with Start/Stop button) connected via XLR cable to the Splitter Box.</em>
+</p>
+
+---
+
+## Features
+
+- **Hardware Camera Synchronization:** Synchronous frame capture across all OV9281 cameras via Arduino FSIN pin (with auto-fallback to free-run mode if disconnected).
+- **Zero-Copy PyAV Backend:** Writes raw MJPEG streams directly to disk via FFmpeg/PyAV without CPU decoding, minimizing frame drops.
+- **Live Preview & Charuco Calibration:** Multi-camera live view with per-camera rotation (0°, 90°, 180°, 270°) and live `cv2.aruco` Charuco board detection overlay.
+- **FreeMoCap Folder Structure:** Direct export into FreeMoCap's expected `synchronized_videos/` structure with matching frame counts.
+- **Built-in Offline Converter:** Batch-converts raw `.avi` recordings into compatible H.264 (`.mp4`) videos for FreeMoCap import.
+- **Hardware Diagnostics:** Built-in Camera Test tab to scan connected cameras for supported resolutions, framerates, and pixel formats.
+
+---
+
+## Quick Hardware Overview
+
+1. **Wiring:**
+   - Connect Arduino **GND** -> **GND** of all cameras.
+   - Connect Arduino **Pin 2** -> **FSIN (Frame Sync In)** of all cameras.
+   - *(Optional)* Connect physical Start/Stop push-button between Arduino **Pin 4** and **GND**.
+2. **Guides & 3D Models:**
+   - 3D printable files, fastener BOM, and step-by-step photo guide: [3Dprint & Assembly Guide](3Dprint/README.md).
+   - Detailed wiring guide and splitter box schematic: [HARDWARE_SETUP.md](HARDWARE_SETUP.md).
+   - Camera sensor specifications: [CAMERA_SPECS.md](CAMERA_SPECS.md).
 
 ---
 
 ## Installation
 
-> **Note:** A pre-built `.exe` is available as a release download if you prefer not to install Python.
+> **Pre-built Executable:** A ready-to-run `.exe` is available under [Releases](https://github.com/ZClassified/MoCapSTR/releases).
 
-### Requirements
-- **Python 3.10 or newer**
-- For **Blackmagic SDI**: Install the [Blackmagic Desktop Video](https://www.blackmagicdesign.com/support/) drivers.
+### Running from Source
+- **Requirements:** Python 3.10+ (and [Blackmagic Desktop Video Drivers](https://www.blackmagicdesign.com/support/) if using SDI).
 
-### Steps
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/ZClassified/MoCapSTR.git
-   cd MoCapSTR
-   ```
-2. Install Python dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-3. Flash the Arduino sketch `arduino/trigger_firmware/trigger_firmware.ino` to your Arduino using the Arduino IDE.
-
----
-
-## Usage (Recording Workflow)
-
-Launch the GUI with:
 ```bash
+git clone https://github.com/ZClassified/MoCapSTR.git
+cd MoCapSTR
+pip install -r requirements.txt
 python python/main.py
 ```
-
-### Tab 1: Project & Setup
-Configure all essential settings for your recording session:
-
-1. **Project & Presets:**
-   - Enter a project name and choose a save directory via **Browse...** (default: `~/Videos/MoCap_Projects/`).
-   - Select the recording codec (MJPEG is recommended for maximum FreeMoCap compatibility).
-   - Load or save presets to reuse your configuration in future sessions.
-
-2. **Workflow Selection:**
-   - **Option 1: Innomaker USB (+ Arduino Trigger)** – for hardware-trigger cameras (OV9281 etc.).
-   - **Option 2: Blackmagic SDI (Genlock)** – for professional SDI capture cards.
-
-3. **Hardware Configuration:**
-   - Select resolution, target FPS, and **USB Polling** (USB Polling automatically adapts to be 1 step higher than target FPS).
-   - *(USB only)* Set exposure via the slider (e.g. `-8` = 1/256s). A warning appears if the exposure time would exceed the frame cycle.
-   - *(USB only)* Enable or disable the **UVC Hardware Trigger** via checkbox. The Arduino COM port is detected automatically but can be selected manually from the dropdown and refreshed with **Refresh**.
-
-4. **Initialize System & Start Preview:** Click this button to prepare the hardware. The app opens the cameras, connects to the Arduino if needed, and starts the trigger for the live preview.
-
-5. **Calibration vs. Motion Take:**
-   - Before recording a calibration, check **Show Calibration (Auto-Detect)** in the *Live Preview Tab*. The overlay lets you verify the Charuco board is detected. The recording is then automatically marked as a calibration.
-   - For normal motion takes, uncheck it — this saves performance and prevents the take from being incorrectly flagged as a calibration.
-
-### Tab 2: Live Preview
-- Shows the live feed of all initialized cameras.
-- **Top bar** with recording timer, frame counter, live FPS display, and low disk space warning.
-  - Use the FPS display to check whether the configured FPS matches the actual camera FPS. Many webcams natively support only 30 or 60 FPS (NTSC), not 25 or 50 (PAL). Hardware-triggered cameras bypass this by firing on Arduino command.
-- Charuco board parameters (dictionary, columns, rows, square size, marker size) and a checkbox for live detection overlay.
-- Per-camera rotation (0°, 90°, 180°, 270°) settable directly via dropdown.
-
-### Tab 3: Export & Convert
-- An essential step in the FreeMoCap workflow: since FreeMoCap cannot always reliably read raw MJPEG (`.avi`) files, use this tab to batch-convert your takes offline into space-efficient, highly compatible H.264 (`.mp4`) videos.
-
-### Tab 4: Camera Test
-- A diagnostic tool to brute-force scan connected cameras for all supported resolutions, framerates, and formats (MJPG / YUY2).
+*(Flash the Arduino sketch from `arduino/trigger_firmware/trigger_firmware.ino` using the Arduino IDE).*
 
 ---
 
-## Import into FreeMoCap
+## Recording Workflow
 
-Recordings are saved by default to `~/Videos/MoCap_Projects/[ProjectName]/`.
-When you open FreeMoCap:
-1. Select "Process Pre-recorded Data".
-2. Navigate to your project folder and select either the `calibration` folder or one of the subfolders in `takes/` (e.g. `take_2026-08-10_10-45-00`).
-3. FreeMoCap will automatically detect the synchronized videos in the folder and can begin tracking.
+1. **Setup Tab:** Choose project name and save folder (`~/Videos/MoCap_Projects/`). Select resolution, target FPS, and the Arduino COM port. Click **Initialize System & Start Preview**.
+2. **Live Preview Tab:** Verify all camera feeds and rotations. Enable **Show Calibration (Auto-Detect)** when recording a Charuco calibration take.
+3. **Record:** Start/Stop recording via the UI button or the physical button on the trigger box.
+4. **Export & Convert Tab:** Batch-convert raw takes into FreeMoCap-compatible H.264 (`.mp4`) files.
+5. **Import into FreeMoCap:** In FreeMoCap, select "Process Pre-recorded Data", navigate to your project folder (`calibration` or `takes/take_...`), and start tracking.
 
 ---
 
-## License & Copyright
+## License
 
-Copyright (C) 2026 ZClassified
-
-This program is free software: you can redistribute it and/or modify it under the terms of the **GNU General Public License (GPL-3.0)** as published by the Free Software Foundation. See the `LICENSE` file for more details.
+GPL-3.0 License. See [LICENSE](LICENSE) for details.
 
 ---
 ---
 
 # Deutsche Version
 
-> **Hinweis:** MoCapSTR ist ein **unabhängiges Companion-Tool** und steht nicht in offizieller Verbindung mit dem FreeMoCap Projekt.
+> **Hinweis:** MoCapSTR ist ein unabhängiges Open-Source Companion-Tool und steht nicht in offizieller Verbindung mit dem FreeMoCap-Projekt.
 
-MoCapSTR ist eine hochgradig optimierte, eigenständige Multi-Kamera-Aufnahmesoftware, die von Grund auf dafür entwickelt wurde, perfekt synchronisierte und frame-genaue Datensätze für [FreeMoCap](https://github.com/freemocap/freemocap) zu generieren. Sie löst die komplexe Herausforderung der Hardware-Synchronisation unter Windows und unterstützt Hardware-Trigger-Kameras (z.B. OV9281) via Arduino sowie professionelle Blackmagic SDI Capture Cards. Normale USB-Webcams (ohne Sync-Pin) können ebenfalls als Fallback genutzt werden, jedoch entfaltet das Tool sein volles Potenzial erst in Kombination mit Hardware-Sync-fähigen Geräten.
+MoCapSTR ist eine Multi-Kamera-Aufnahmesoftware zur Erstellung synchroner, frame-genauer Datensätze für [FreeMoCap](https://github.com/freemocap/freemocap). Sie synchronisiert Global-Shutter USB-Kameras (z. B. Innomaker OV9281) über ein Arduino-Triggersignal und unterstützt zusätzlich Blackmagic SDI Capture Cards.
 
-## Features
-
-- **Performantes PyAV Backend:** Nutzt FFmpeg (PyAV), um rohe MJPEG-Streams ohne zusätzliche CPU-Decodierung direkt auf die Festplatte zu schreiben ("Zero-Copy stream muxing"). Das hilft dabei, Frame-Drops auch bei Setups mit vielen Kameras zu minimieren.
-- **Breiter Kamera-Support:** Unterstützt USB-Kameras (DirectShow/MSMF) sowie **Blackmagic SDI** Signale. Virtuelle Kameras werden automatisch ignoriert.
-- **Arduino Hardware Triggering:** Nutzt einen Arduino, um kompatible Kameras über ein Trigger-Signal (FSIN) absolut zeitgleich auszulösen. Beinhaltet einen automatischen Fallback auf den "Free-Run"-Modus, falls kein Arduino verbunden ist. Unterstützt externe Hardware-Buttons für die Fernsteuerung.
-- **Live Preview mit Charuco-Detection:** Multikamera-Ansicht mit individueller Rotation (0°, 90°, 180°, 270°) und zuschaltbarem `cv2.aruco` Overlay zur direkten Überprüfung des Kalibrierungs-Boards. Die Top-Bar zeigt live Dropped Frames und warnt bei wenig Speicherplatz.
-- **Preset Manager:** Speichert und lädt alle UI- und Hardware-Einstellungen (Auflösung, FPS, Belichtung, Kamera-Rotationen, Charuco-Parameter) automatisch in einer `presets.json` neben der ausführbaren Datei.
-- **FreeMoCap Integration:** Speichert Aufnahmen direkt in der von FreeMoCap erwarteten Ordnerstruktur (`synchronized_videos/`) mit exakt identischer Frame-Anzahl über alle Kameras hinweg für eine reibungslose Weiterverarbeitung.
-- **Integrierter Konverter:** Da FreeMoCap rohe AVI-Dateien häufig nicht fehlerfrei verarbeiten kann, bietet die Software einen integrierten Tab, um die Aufnahmen nach der Session bequem offline in hochkompatible H.264-Videos (`.mp4`) umzuwandeln. Ein dedizierter Hardware-Test-Tab hilft zusätzlich bei der Kamera-Diagnostik.
+> [!WARNING]
+> **Projektstatus (Beta / Prototyp):**
+> Diese Software ist ein aktives Open-Source-Projekt im Prototypen-Stadium. Es können Fehler, Hardware-Inkompatibilitäten oder unerwartetes Verhalten auftreten. Feedback, Bug-Reports und Mithilfe sind über [GitHub Issues](https://github.com/ZClassified/MoCapSTR/issues) ausdrücklich willkommen!
 
 ---
 
-## Hardware Setup
+## Die Herausforderung bei Hardware-Sync (USB-Bandbreite)
 
-### Benötigte Hardware
-- Mehrere USB Global-Shutter Kameras (z.B. Innomaker / Arducam OV9281) mit einem **External Trigger (FSIN)** Pin, *oder* Blackmagic SDI Capture Devices.
-- Einen **Arduino** (z.B. Uno, Nano, Mega) für den Hardware-Trigger.
-- Für Blackmagic SDI: **Blackmagic Desktop Video** Treiber müssen installiert sein ([Download](https://www.blackmagicdesign.com/support/)).
+Hardware-Synchronisation stellt völlig andere Anforderungen an den USB-Bus als normale Webcams:
 
-### Verkabelung
-1. Verbinde den **GND**-Pin des Arduinos mit dem **GND**-Pin *aller* Kameras.
-2. Verbinde den digitalen **Pin 2** des Arduinos mit dem **FSIN (Frame Sync In)** Pin *aller* Kameras.
-3. *(Optional)* Verbinde einen externen physischen **Start/Stop-Button** mit **Pin 4** des Arduinos.
+- **Free-Run Modus (Normale Webcams / Standard FreeMoCap):** Jede Kamera läuft auf ihrem eigenen internen Takt. Die Bildübertragungen treffen zeitlich leicht versetzt ein, wodurch sich die USB-Bandbreite natürlich verteilt.
+- **Hardware-Trigger Modus (MoCapSTR):** Der Arduino sendet einen 5V-Rechteckimpuls zeitgleich an alle Kameras. Alle Kameras belichten und senden ihre JPEG-Datenpakete in der **exakt selben Mikrosekunde**.
 
-*(Weitere Details zur Verkabelung einer XLR Splitter Box findest du in [HARDWARE_SETUP.md](HARDWARE_SETUP.md) und detaillierte Kameraspezifikationen in [CAMERA_SPECS.md](CAMERA_SPECS.md). Fertige 3D-Modelle und Druckanleitungen liegen im [3D-Druck-Guide](3Dprint/README.md) bereit.)*
+### Der Mainboard-Flaschenhals & Hardware-Empfehlung
+Auf herkömmlichen PC-Mainboards teilen sich fast alle USB-Ports nur 1 bis 2 interne USB-Host-Controller:
+- **Mainboard-Limit:** In Praxistests schaffen normale Onboard-Controller im Hardware-Trigger-Modus **maximal 3 Kameras** zuverlässig. Bei 4 Kameras kommt es zu Bandbreiten-Staus und Frame-Drops.
+- **Empfehlung für 4+ Kameras:** Eine **PCIe-USB-Erweiterungskarte mit je einem dedizierten USB-Controller-Chip pro Port** (z. B. 4 getrennte Controller auf einer Karte) wird dringend empfohlen.
+- **USB-Polling-Rate:** Im Setup-Tab muss `USB Polling` immer mindestens 1 Stufe höher eingestellt sein als die Ziel-FPS (z. B. Ziel 30 FPS -> Polling 60 FPS), damit Windows die USB-Puffer schnell genug leert.
 
-### Wichtige Hardware-Limitierungen (USB-Bandbreite)
-Beim Einsatz des Arduino Hardware-Triggers senden alle Kameras ihre Bilder auf die exakt selbe Mikrosekunde. Das erzeugt einen massiven Bandbreiten-Stau (Spike) auf dem USB-Bus.
-- **Das Limit:** Ein einzelner USB 2.0 Controller (480 Mbps) **kann keine** 4 Kameras bei 720p und 30+ FPS gleichzeitig im Trigger-Modus bewältigen. Die Kameras verschlucken sich am Stau und die Framerate halbiert sich exakt (z.B. auf 15 oder 12,5 FPS).
-- **Die Lösung:** Die 4 Kameras müssen zwingend auf **mehrere physikalische USB-Controller** am PC aufgeteilt werden. Das Einstecken von 2 Kameras an der Frontblende und 2 Kameras hinten am Mainboard (oder die Nutzung einer PCIe USB-Erweiterungskarte mit eigenen Controllern pro Port) verdoppelt die Bandbreite und löst den Flaschenhals komplett.
-- **USB Polling FPS:** Im Setup-Tab muss das Dropdown `USB Polling` immer mindestens eine Stufe *höher* eingestellt sein als die gewünschte Ziel-FPS für die Aufnahme (z.B. Target 25 -> USB Polling 30; Target 30 -> USB Polling 60). Nur so ist das Abfrage-Intervall von Windows schnell genug, um die Hardware-getriggerten Bilder verlustfrei einzufangen.
+<p align="center">
+  <img src="3Dprint/v1_prototype/images_assembly/51_trigger_and_splitter_case_connected.jpg" width="480" alt="MoCapSTR Hardware Setup" />
+  <br>
+  <em>Arduino Trigger-Box (mit Start/Stop-Taster) über XLR-Kabel mit der Splitter-Box verbunden.</em>
+</p>
+
+---
+
+## Features
+
+- **Hardware-Kamera-Synchronisation:** Zeitgleiche Auslösung aller OV9281-Kameras über den Arduino FSIN-Pin (automatischer Fallback auf Free-Run bei getrenntem Arduino).
+- **Zero-Copy PyAV Backend:** Schreibt rohe MJPEG-Streams via FFmpeg/PyAV ohne CPU-Decodierung direkt auf die Festplatte, um Frame-Drops zu vermeiden.
+- **Live Preview mit Charuco-Erkennung:** Multi-Kamera-Vorschau mit individueller Bildrotation (0°, 90°, 180°, 270°) und zuschaltbarem `cv2.aruco` Charuco-Erkennungs-Overlay.
+- **FreeMoCap-Ordnerstruktur:** Speichert direkt in `synchronized_videos/` mit identischer Frame-Anzahl über alle Kameras.
+- **Integrierter Offline-Konverter:** Stapelverarbeitung zur Umwandlung von `.avi`-Aufnahmen in hochkompatible H.264-Videos (`.mp4`).
+- **Hardware-Diagnose:** Kamera-Test-Tab zum automatischen Prüfen aller unterstützten Auflösungen, Frameraten und Formate verbundener Kameras.
+
+---
+
+## Schnellanleitung Hardware
+
+1. **Verkabelung:**
+   - Arduino **GND** -> **GND** aller Kameras.
+   - Arduino **Pin 2** -> **FSIN** aller Kameras.
+   - *(Optional)* Physischer Start/Stop-Taster zwischen Arduino **Pin 4** und **GND**.
+2. **Anleitungen & 3D-Druck:**
+   - Druckdateien, Stückliste und Foto-Montageanleitung: [3D-Druck- & Montage-Guide](3Dprint/README.md).
+   - Detaillierte Verkabelung und Splitter-Box: [HARDWARE_SETUP.md](HARDWARE_SETUP.md).
+   - Kameraspezifikationen: [CAMERA_SPECS.md](CAMERA_SPECS.md).
 
 ---
 
 ## Installation
 
-> **Hinweis:** Es steht auch eine fertige `.exe` als Release zum Download bereit, falls du Python nicht installieren möchtest.
+> **Fertige EXE:** Eine ausführbare Windows-Datei (`.exe`) steht unter [Releases](https://github.com/ZClassified/MoCapSTR/releases) zum Download bereit.
 
-### Voraussetzungen
-- **Python 3.10 oder neuer**
-- Für **Blackmagic SDI**: [Blackmagic Desktop Video](https://www.blackmagicdesign.com/support/) Treiber installieren.
+### Start aus dem Quellcode
+- **Voraussetzungen:** Python 3.10+ (und [Blackmagic Desktop Video Treiber](https://www.blackmagicdesign.com/support/) für SDI).
 
-### Schritte
-
-1. Klonen des Repositories:
-   ```bash
-   git clone https://github.com/ZClassified/MoCapSTR.git
-   cd MoCapSTR
-   ```
-2. Python-Abhängigkeiten installieren:
-   ```bash
-   pip install -r requirements.txt
-   ```
-3. Flashe den Arduino-Sketch `arduino/trigger_firmware/trigger_firmware.ino` über die Arduino IDE auf deinen Arduino.
-
----
-
-## Benutzung (Recording Workflow)
-
-Starte die GUI mit:
 ```bash
+git clone https://github.com/ZClassified/MoCapSTR.git
+cd MoCapSTR
+pip install -r requirements.txt
 python python/main.py
 ```
-
-### Tab 1: Project & Setup
-Hier nimmst du alle wesentlichen Einstellungen für deine Aufnahme-Session vor:
-
-1. **Project & Presets:**
-   - Gib dem Projekt einen Namen und wähle den Speicherordner über **Browse...** (Standard: `~/Videos/MoCap_Projects/`).
-   - Wähle den Aufnahme-Codec (für maximale Kompatibilität mit FreeMoCap wird MJPEG empfohlen).
-   - Lade oder speichere Setup-Presets, um deine Konfiguration für spätere Sessions zu sichern.
-
-2. **Workflow-Auswahl:**
-   - **Option 1: Innomaker USB (+ Arduino Trigger)** – für Hardware-Trigger-Kameras (OV9281 o.ä.).
-   - **Option 2: Blackmagic SDI (Genlock)** – für professionelle SDI Capture Cards.
-
-3. **Hardware Configuration:**
-   - Wähle Auflösung, Ziel-FPS und **USB Polling** (USB Polling passt sich automatisch an, sodass es 1 Stufe über der Ziel-FPS liegt).
-   - *(Nur USB)* Stelle die Belichtung über den Slider ein (z.B. `-8` = 1/256s). Ein Warnhinweis erscheint, falls die Belichtungszeit den Framezyklus überschreiten würde.
-   - *(Nur USB)* Aktiviere oder deaktiviere den **UVC Hardware Trigger** per Checkbox. Der Arduino COM-Port wird automatisch erkannt, kann aber manuell aus der Dropdown-Liste gewählt und über **Refresh** aktualisiert werden.
-
-4. **Initialize System & Start Preview:** Klicke auf diesen Button, um die Hardware vorzubereiten. Die Software öffnet die Kameras, verbindet sich bei Bedarf mit dem Arduino und startet den Trigger für die Live-Vorschau.
-
-5. **Kalibrierung vs. Motion Take:**
-   - Bevor du deine Kalibrierung aufnimmst, setze den Haken bei **Show Calibration (Auto-Detect)** im *Live Preview Tab*. Das Overlay hilft dir zu prüfen, ob das Charuco-Board erkannt wird. Die Aufnahme wird dann automatisch als Kalibrierung vermerkt.
-   - Für normale Motion-Takes nimmst du den Haken wieder raus — das spart Performance und verhindert, dass der Take fälschlicherweise als Kalibrierung markiert wird.
-
-### Tab 2: Live Preview
-- Zeigt das Live-Bild aller initialisierten Kameras.
-- **Top-Bar** mit Aufnahme-Timer, Frame-Counter, Live-FPS-Anzeige und Speicherplatz-Warnung.
-  - Nutze die FPS-Anzeige, um zu prüfen, ob die eingestellte FPS mit der tatsächlichen FPS der Kameras übereinstimmt. Viele Webcams unterstützen nativ nur 30 oder 60 FPS (NTSC), nicht 25 oder 50 (PAL). Kameras mit Hardware-Trigger umgehen dieses Problem, da sie auf Zuruf des Arduinos aufnehmen.
-- Charuco-Board Parameter (Dictionary, Spalten, Reihen, Quadrat- und Marker-Größe) und Checkbox für die Live-Detection direkt im Bild.
-- Individuelle Rotation je Kamera (0°, 90°, 180°, 270°) direkt per Dropdown einstellbar.
-
-### Tab 3: Export & Convert
-- Ein unverzichtbarer Schritt für den FreeMoCap Workflow: Da FreeMoCap die hochperformanten raw MJPEG (`.avi`) Aufnahmen nicht immer problemlos einlesen kann, wandelst du hier deine Takes nach der Session gesammelt offline in platzsparende und hochkompatible H.264 (`.mp4`) Videos um.
-
-### Tab 4: Camera Test
-- Ein Diagnostik-Tool, mit dem du verbundene Kameras "brute-forcen" kannst, um alle unterstützten Auflösungen, Framerates und Formate (MJPG / YUY2) zu scannen und abzugleichen.
+*(Den Arduino-Sketch aus `arduino/trigger_firmware/trigger_firmware.ino` über die Arduino IDE flashen).*
 
 ---
 
-## Import in FreeMoCap
+## Aufnahme-Workflow
 
-Die Aufnahmen werden standardmäßig im Ordner `~/Videos/MoCap_Projects/[Projektname]/` gespeichert.
-Wenn du FreeMoCap öffnest:
-1. Wähle "Process Pre-recorded Data".
-2. Navigiere in deinen Projektordner und wähle entweder den Ordner `calibration` oder einen der Unterordner in `takes/` (z.B. `take_2026-08-10_10-45-00`).
-3. FreeMoCap erkennt die synchronisierten Videos im Ordner automatisch und kann mit dem Tracking beginnen.
+1. **Setup Tab:** Projektname und Speicherordner wählen. Auflösung, Ziel-FPS und Arduino COM-Port einstellen. Auf **Initialize System & Start Preview** klicken.
+2. **Live Preview Tab:** Kamera-Feeds und Rotation prüfen. Bei der Kalibrierungsaufnahme **Show Calibration (Auto-Detect)** aktivieren.
+3. **Aufnahme:** Aufnahme über den Software-Button oder den physischen Taster an der Trigger-Box starten/stoppen.
+4. **Export & Convert Tab:** Aufnahmen gesammelt in H.264 (`.mp4`) für FreeMoCap umwandeln.
+5. **Import in FreeMoCap:** In FreeMoCap "Process Pre-recorded Data" wählen, den Projektordner auswählen und das Tracking starten.
 
 ---
 
-## Lizenz & Copyright
+## Lizenz
 
-Copyright (C) 2026 ZClassified
-
-Dieses Programm ist freie Software. Du kannst es unter den Bedingungen der **GNU General Public License (GPL-3.0)**, wie von der Free Software Foundation veröffentlicht, weitergeben und/oder modifizieren. Weitere Details findest du in der `LICENSE` Datei.
+GPL-3.0 Lizenz. Siehe [LICENSE](LICENSE) für Details.
