@@ -11,7 +11,7 @@ Instead of running long wires directly from the Arduino to each individual camer
 <p align="center">
   <img src="3Dprint/v1_prototype/images_assembly/51_trigger_and_splitter_case_connected.jpg" width="480" alt="Connected Hardware Setup" />
   <br>
-  <em>Arduino Trigger Box connected via standard XLR cable to the Splitter Box with 4 camera DC cable outputs.</em>
+  <em>Arduino Trigger Box (right, with blue USB cable to PC) connected via standard XLR cable to the Splitter Box (left, distributing to 4 camera DC cables).</em>
 </p>
 
 Since the trigger signal is unbalanced (consisting only of signal and ground), we adapt the 3-pin XLR pinout accordingly.
@@ -27,7 +27,7 @@ To build the complete hardware system (V1), you will need the following standard
 - **1x XLR Splitter Box:** ([`Splitter_Case-BASE.stl`](3Dprint/v1_prototype/Splitter_Case-BASE.stl), [`Splitter_Case-LID.stl`](3Dprint/v1_prototype/Splitter_Case-LID.stl))
 - **4x Camera Enclosures:** ([Front](3Dprint/v1_prototype/OV9281_Case_Cam-FRONT.stl), [Mid](3Dprint/v1_prototype/OV9281_Case_Cam-MID.stl), [Back Short](3Dprint/v1_prototype/OV9281_Case_Cam-BACK-SHORT.stl) or [Back Long](3Dprint/v1_prototype/OV9281_Case_Cam-BACK-LONG.stl), and [Tripod Bracket](3Dprint/v1_prototype/OV9281_Case_Cam-BRACKET.stl))
 
-**Electronics:**
+**Electronics & Cables:**
 - 1x Arduino (e.g., Nano) with Terminal Block Shield adapter board for solderless wiring.
 - 1x Neutrik XLR Chassis Connector (Male, D-Series dimensions) for the Arduino box.
 - 1x Neutrik XLR Chassis Connector (Female, D-Series dimensions) for the splitter box.
@@ -36,6 +36,7 @@ To build the complete hardware system (V1), you will need the following standard
 - 4x DC Barrel Jacks for the splitter box outputs (8mm mounting holes).
 - 2x 5-pin Cage Clamp Terminals (WAGO 221 or similar) to bundle splitter box connections.
 - 4x Innomaker OV9281 USB global-shutter camera modules.
+- 4x 2-Pin Micro Plugs (e.g. JST 1.25mm 2-pin) to plug trigger lines cleanly onto the camera board's FSIN pins.
 
 **Mechanics & Fasteners:**
 - **Trigger Box:** 8x M3 10mm screws, 8x M3 brass heat-set inserts.
@@ -98,9 +99,14 @@ The four cables from the splitter box are connected to the cameras. We use singl
 
 - **Red Wire (Signal):** Connect to the **FSIN +** pin of the camera (or to the red spring terminal clip on `Cam-BACK-LONG`).
 - **White/Black Wire (Ground):** Connect to the **FSIN -** pin of the camera (or to the black spring terminal clip on `Cam-BACK-LONG`).
+- **Connector Tip:** Standard **2-pin micro connectors (e.g., JST 1.25mm 2-pin)** fit directly onto the camera PCB's FSIN pins for a secure, detachable connection.
 - **Shielding (Braid):** Cut flush and insulate thoroughly! The shielding must **NOT** be connected to the camera or touch any metal parts on the camera side.
 
 *Reason:* The shielding acts as a Faraday cage, catching electromagnetic interference along the cable run and safely draining it via the splitter box and XLR cable into the Arduino's ground. If connected on both ends, stray currents could flow through the cable.
+
+> [!TIP]
+> **Modular 90° Orientation (Portrait vs. Landscape):**
+> Thanks to the symmetrical square 4-screw layout between `Cam-MID` and the back cover, you can easily change the camera from Landscape (horizontal) to Portrait (vertical) orientation. Simply loosen the 4 corner screws on the back cover, rotate the back cover 90°, and screw it back down. This allows you to orient the cameras vertically to maximize vertical capture resolution for standing actors.
 
 ---
 
@@ -139,7 +145,7 @@ Für den Nachbau des Gesamtsystems (V1) werden neben den [3D-Druckteilen](3Dprin
 - **1x XLR Splitter-Box:** ([`Splitter_Case-BASE.stl`](3Dprint/v1_prototype/Splitter_Case-BASE.stl), [`Splitter_Case-LID.stl`](3Dprint/v1_prototype/Splitter_Case-LID.stl))
 - **4x Kamera-Gehäuse:** ([Front](3Dprint/v1_prototype/OV9281_Case_Cam-FRONT.stl), [Mittelteil](3Dprint/v1_prototype/OV9281_Case_Cam-MID.stl), [Rückteil Kurz](3Dprint/v1_prototype/OV9281_Case_Cam-BACK-SHORT.stl) oder [Rückteil Lang](3Dprint/v1_prototype/OV9281_Case_Cam-BACK-LONG.stl) sowie [Stativbügel](3Dprint/v1_prototype/OV9281_Case_Cam-BRACKET.stl))
 
-**Elektronik & Bauteile:**
+**Elektronik & Kabel:**
 - 1x Arduino (z.B. Nano) inkl. Schraubklemmen-Shield (Terminal Block Shield) für einfache, lötfreie Verkabelung.
 - 1x Neutrik XLR Einbaubuchse (Männlich, D-Serie Maß) für das Arduino-Gehäuse.
 - 1x Neutrik XLR Einbaubuchse (Weiblich, D-Serie Maß) für die Splitter-Box.
@@ -148,6 +154,7 @@ Für den Nachbau des Gesamtsystems (V1) werden neben den [3D-Druckteilen](3Dprin
 - 4x Hohlstecker-Buchsen für die Splitter-Box Ausgänge (8mm Einbaudurchmesser).
 - 2x 5-polige Käfigzugklemmen (z. B. WAGO 221) zum Zusammenführen der Signal- und Masseleitungen in der Splitter-Box.
 - 4x Innomaker OV9281 USB Global-Shutter Kameramodule.
+- 4x 2-Pin Mikro-Steckverbinder (z. B. JST 1.25mm 2-Pin), um die Triggerkabel direkt und steckbar auf die FSIN-Pins der Kameraplatinen zu stecken.
 
 **Mechanik & Schrauben:**
 - **Trigger-Box:** 8x M3 10mm Schrauben, 8x M3 Einschmelzgewinde.
@@ -210,9 +217,14 @@ Die vier Kabel kommen von der Splitter-Box an den Kameras an. Wir nutzen die ein
 
 - **Rote Ader (Signal):** Anschließen an den **FSIN +** Pin der Kamera (bzw. an das rote Klemmterminal bei `Cam-BACK-LONG`).
 - **Weiße/Schwarze Ader (Masse):** Anschließen an den **FSIN -** Pin der Kamera (bzw. an das schwarze Klemmterminal bei `Cam-BACK-LONG`).
+- **Stecker-Tipp:** Kleine **2-Pin-Steckverbinder (z. B. JST 1.25mm 2-Pin)** passen perfekt auf die beiden FSIN-Stifte der Platine für eine saubere, steckbare Verbindung.
 - **Schirmung (Drahtgeflecht):** Bündig abschneiden und gut isolieren! Die Schirmung darf an der Kamera **NICHT** angeschlossen werden oder Metall berühren. 
 
 *Grund:* Die Schirmung fängt elektromagnetische Störungen auf der gesamten Strecke auf und leitet sie über die Splitter-Box und das XLR-Kabel sicher in den Ground des Arduinos ab (Faradayscher Käfig). Wäre sie auf beiden Seiten angeschlossen, könnten Störströme durch das Kabel fließen.
+
+> [!TIP]
+> **Modulare 90°-Drehung (Hochkant vs. Querformat):**
+> Dank des quadratischen 4-Schrauben-Lochmusters zwischen `Cam-MID` und dem Rückteil kannst du entscheiden, ob die Kamera horizontal (Querformat) oder vertikal (Hochkant / 90° gedreht) am Stativbügel montiert sein soll. Einfach die 4 Schrauben des Rückteils lösen, das Rückteil um 90° drehen und wieder festschrauben. So lässt sich das Bild optimal an stehende Darsteller anpassen.
 
 ---
 
