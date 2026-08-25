@@ -28,7 +28,7 @@ MoCapSTR is a highly optimized, standalone multi-camera recording client built f
 2. Connect digital **Pin 2** of the Arduino to the **FSIN (Frame Sync In)** pin of *all* cameras.
 3. *(Optional)* Connect an external physical **Start/Stop button** to **Pin 4** of the Arduino.
 
-*(Further wiring details for an XLR splitter box are in `HARDWARE_SETUP.md`, detailed camera specs in `CAMERA_SPECS.md`. Ready-to-print 3D models for hardware enclosures are in the `3Dprint` folder.)*
+*(Further wiring details for an XLR splitter box are in [HARDWARE_SETUP.md](HARDWARE_SETUP.md), detailed camera specs in [CAMERA_SPECS.md](CAMERA_SPECS.md). Ready-to-print 3D models and print instructions are in the [3Dprint Guide](3Dprint/README.md).)*
 
 ### Important Hardware Limitations (USB Bandwidth)
 When using the Arduino Hardware Trigger, all cameras send their frames at the exact same microsecond. This causes a massive bandwidth spike on the USB bus. 
@@ -155,7 +155,7 @@ MoCapSTR ist eine hochgradig optimierte, eigenständige Multi-Kamera-Aufnahmesof
 2. Verbinde den digitalen **Pin 2** des Arduinos mit dem **FSIN (Frame Sync In)** Pin *aller* Kameras.
 3. *(Optional)* Verbinde einen externen physischen **Start/Stop-Button** mit **Pin 4** des Arduinos.
 
-*(Weitere Details zur Verkabelung einer XLR Splitter Box findest du in `HARDWARE_SETUP.md` und detaillierte Kameraspezifikationen in `CAMERA_SPECS.md`. Fertige 3D-Modelle für den Druck der Hardware-Boxen liegen im Ordner `3Dprint` bereit.)*
+*(Weitere Details zur Verkabelung einer XLR Splitter Box findest du in [HARDWARE_SETUP.md](HARDWARE_SETUP.md) und detaillierte Kameraspezifikationen in [CAMERA_SPECS.md](CAMERA_SPECS.md). Fertige 3D-Modelle und Druckanleitungen liegen im [3D-Druck-Guide](3Dprint/README.md) bereit.)*
 
 ### Wichtige Hardware-Limitierungen (USB-Bandbreite)
 Beim Einsatz des Arduino Hardware-Triggers senden alle Kameras ihre Bilder auf die exakt selbe Mikrosekunde. Das erzeugt einen massiven Bandbreiten-Stau (Spike) auf dem USB-Bus.
