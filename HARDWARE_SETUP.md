@@ -28,7 +28,7 @@ To build the complete hardware system (V1), you will need the following standard
 - 1x Push-Button (Normally Open / NO) for the Arduino box lid (12mm mounting hole).
 - 1x DC Barrel Jack for optional external power supply on the Arduino box (8mm mounting hole, standard 5.5x2.1mm plug).
 - 4x DC Barrel Jacks for the splitter box outputs (8mm mounting holes) or direct cable feed-through.
-- *(Optional for Back Long)* 4x Speaker Spring Terminals (2-pin push clips) for easy solderless cable clamping on the cameras.
+- *(Optional for Back Long)* 1x Speaker Terminals (2-pin push clips) for easy solderless cable clamping on the cameras.
 
 **Mechanics & Assembly:**
 - M3 Screws (10mm length).
@@ -126,7 +126,7 @@ Für den Nachbau des Gesamtsystems (V1) werden neben den [3D-Druckteilen](3Dprin
 - 1x Push-Button (Drucktaster, Schließer) für den Gehäusedeckel (12mm Einbaudurchmesser).
 - 1x Hohlstecker-Buchse (DC Barrel Jack) zur optionalen Stromversorgung am Arduino (8mm Einbaudurchmesser, Standard 5.5x2.1mm).
 - 4x Hohlstecker-Buchsen für die Splitter-Box Ausgänge (8mm Einbaudurchmesser) oder direkte Kabelauslässe.
-- *(Optional bei Rückteil Lang)* 4x Lautsprecher-Klemmenterminals (2-polige Federklemmen) zum werkzeuglosen Einklemmen der Trigger-Kabel am Kameragehäuse.
+- *(Optional bei Rückteil Lang)* 1x Lautsprecher-Klemmenterminals (2-polige Federklemmen) zum werkzeuglosen Einklemmen der Trigger-Kabel am Kameragehäuse.
 
 **Mechanik & Montage:**
 - M3 Schrauben (10mm Länge).
