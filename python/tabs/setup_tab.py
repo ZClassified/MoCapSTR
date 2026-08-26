@@ -324,90 +324,95 @@ class SetupTab(ctk.CTkScrollableFrame):
         self.btn_init_system.configure(state="disabled", text="Initializing...")
         
         def init_task():
-            cam_type = self.workflow_var.get()
-            trigger_on = self.chk_uvc_trigger_var.get()
-            
             try:
-                target_fps = int(self.fps_entry.get())
-            except ValueError:
-                target_fps = 30
+                cam_type = self.workflow_var.get()
+                trigger_on = self.chk_uvc_trigger_var.get()
                 
-            # 1. Auto-connect Arduino if not connected
-            if cam_type == "USB Webcams" and not self.app.arduino.is_connected:
-                port = self.port_combo.get()
-                if port and port != "No Ports Found":
-                    self.app.log(f"Auto-connecting to Arduino on {port}...")
-                    if self.app.arduino.connect(port):
-                        self.app.log("Arduino connected!", level="success")
-                        self.btn_connect.configure(text="Connected", state="disabled")
-                    else:
-                        self.app.log(f"Failed to connect Arduino on {port}. Trigger will not work.", "error")
-            
-            if cam_type == "USB Webcams" and trigger_on and not self.app.arduino.is_connected:
-                self.app.log("⚠️ No Arduino connected! Falling back to free-run mode (trigger disabled).", "error")
-                trigger_on = False
+                try:
+                    target_fps = int(self.fps_entry.get())
+                except ValueError:
+                    target_fps = 30
+                    
+                # 1. Auto-connect Arduino if not connected
+                if cam_type == "USB Webcams" and not self.app.arduino.is_connected:
+                    port = self.port_combo.get()
+                    if port and port != "No Ports Found":
+                        self.app.log(f"Auto-connecting to Arduino on {port}...")
+                        if self.app.arduino.connect(port):
+                            self.app.log("Arduino connected!", level="success")
+                            self.btn_connect.configure(text="Connected", state="disabled")
+                        else:
+                            self.app.log(f"Failed to connect Arduino on {port}. Trigger will not work.", "error")
+                
+                if cam_type == "USB Webcams" and trigger_on and not self.app.arduino.is_connected:
+                    self.app.log("⚠️ No Arduino connected! Falling back to free-run mode (trigger disabled).", "error")
+                    trigger_on = False
 
-            # 2. CRITICAL FIX: Start Arduino trigger BEFORE touching PyAV!
-            # If the camera is already in hardware trigger mode from a previous run,
-            # stopping PyAV or re-opening the camera will DEADLOCK if the Arduino is not sending pulses.
-            if cam_type == "USB Webcams" and self.app.arduino.is_connected:
-                self.app.arduino.set_fps(target_fps)
-                self.app.arduino.start_trigger()
-                # Fix 4: Allow the first trigger pulse to reach all cameras before
-                # PyAV opens and verifies the streams. Without this short pause a
-                # camera may not yet have received a pulse when the packet check runs.
-                # Increased to 1.0s to ensure USB bus stabilizes under pulse load.
-                import time as _time
-                self.app.log("Waiting 1.0s for first trigger pulses and USB bus to stabilize...")
-                _time.sleep(1.0)
+                # 2. CRITICAL FIX: Start Arduino trigger BEFORE touching PyAV!
+                # If the camera is already in hardware trigger mode from a previous run,
+                # stopping PyAV or re-opening the camera will DEADLOCK if the Arduino is not sending pulses.
+                if cam_type == "USB Webcams" and self.app.arduino.is_connected:
+                    self.app.arduino.set_fps(target_fps)
+                    self.app.arduino.start_trigger()
+                    # Fix 4: Allow the first trigger pulse to reach all cameras before
+                    # PyAV opens and verifies the streams. Without this short pause a
+                    # camera may not yet have received a pulse when the packet check runs.
+                    # Increased to 1.0s to ensure USB bus stabilizes under pulse load.
+                    import time as _time
+                    self.app.log("Waiting 1.0s for first trigger pulses and USB bus to stabilize...")
+                    _time.sleep(1.0)
 
-            # 3. Cleanly stop existing PyAV workers (they will now exit safely because trigger is pulsing)
-            self.app.recorder.stop_workers()
-            
-            # 4. Open Cameras
-            res_str = self.res_combo.get().split(' ')[0]
-            target_w, target_h = map(int, res_str.split('x'))
-            
-            try:
-                usb_fps = int(self.usb_fps_combo.get())
-            except ValueError:
-                usb_fps = target_fps
-            
-            # Use the user-selected USB Polling FPS for the hardware trigger.
-            # This must be at least one step higher than the target capture FPS
-            # to prevent frame drops due to DSHOW polling alignment.
-            cam_fps = usb_fps if trigger_on and cam_type == "USB Webcams" else target_fps
-            fmt = "MJPG" 
+                # 3. Cleanly stop existing PyAV workers (they will now exit safely because trigger is pulsing)
+                self.app.recorder.stop_workers()
                 
-            self.app.camera_indices = self.app.cam_mgr.find_and_open_cameras(
-                max_index=6, 
-                camera_type=cam_type,
-                target_w=target_w,
-                target_h=target_h,
-                target_fps=cam_fps,
-                target_format=fmt,
-                exposure_val=int(self.exposure_slider.get()) if cam_type == "USB Webcams" else None,
-                gain_val=0 if cam_type == "USB Webcams" else None,
-                trigger_on=trigger_on if cam_type == "USB Webcams" else None
-            )
-            self.app.log(f"Cameras found: {len(self.app.camera_indices)} ({self.app.camera_indices})", "success")
-            
-            # Must run GUI updates in the main thread!
-            self.app.after(0, self.app.preview_tab.setup_preview_grid)
-            
-            # 5. Start PyAV Workers
-            self.app.recorder.start_workers(self.app.cam_mgr.cameras, target_fps=target_fps)
-            self.app.log("Workers started. Go to Live Preview tab to see feeds.")
-            
-            # 6. Start Arduino Trigger
-            if cam_type == "USB Webcams" and self.app.arduino.is_connected and trigger_on:
-                self.app.log(f"Hardware Trigger STARTED at {target_fps} FPS!", level="success")
-            elif self.app.arduino.is_connected:
-                self.app.arduino.stop_trigger() # Turn off if not needed
+                # 4. Open Cameras
+                res_str = self.res_combo.get().split(' ')[0]
+                target_w, target_h = map(int, res_str.split('x'))
                 
-            self.app.after(0, lambda: self.btn_init_system.configure(state="normal", text="Initialize System & Start Preview"))
+                try:
+                    usb_fps = int(self.usb_fps_combo.get())
+                except ValueError:
+                    usb_fps = target_fps
+                
+                # Use the user-selected USB Polling FPS for the hardware trigger.
+                # This must be at least one step higher than the target capture FPS
+                # to prevent frame drops due to DSHOW polling alignment.
+                cam_fps = usb_fps if trigger_on and cam_type == "USB Webcams" else target_fps
+                fmt = "MJPG" 
+                    
+                self.app.camera_indices = self.app.cam_mgr.find_and_open_cameras(
+                    max_index=6, 
+                    camera_type=cam_type,
+                    target_w=target_w,
+                    target_h=target_h,
+                    target_fps=cam_fps,
+                    target_format=fmt,
+                    exposure_val=int(self.exposure_slider.get()) if cam_type == "USB Webcams" else None,
+                    gain_val=0 if cam_type == "USB Webcams" else None,
+                    trigger_on=trigger_on if cam_type == "USB Webcams" else None
+                )
+                self.app.log(f"Cameras found: {len(self.app.camera_indices)} ({self.app.camera_indices})", "success")
+                
+                # Must run GUI updates in the main thread!
+                self.app.after(0, self.app.preview_tab.setup_preview_grid)
+                
+                # 5. Start PyAV Workers
+                self.app.recorder.start_workers(self.app.cam_mgr.cameras, target_fps=target_fps)
+                self.app.log("Workers started. Go to Live Preview tab to see feeds.")
+                
+                # 6. Start Arduino Trigger
+                if cam_type == "USB Webcams" and self.app.arduino.is_connected and trigger_on:
+                    self.app.log(f"Hardware Trigger STARTED at {target_fps} FPS!", level="success")
+                elif self.app.arduino.is_connected:
+                    self.app.arduino.stop_trigger() # Turn off if not needed
+            except Exception as e:
+                self.app.log(f"Initialization error: {e}", "error")
+                import traceback
+                traceback.print_exc()
+            finally:
+                self.app.after(0, lambda: self.btn_init_system.configure(state="normal", text="Initialize System & Start Preview"))
             
-        threading.Thread(target=init_task).start()
+        threading.Thread(target=init_task, daemon=True).start()
 
     # sync_exposure_cmd() removed – 'Update Settings Live' was a duplicate of
     # initialize_system_cmd(). A single 'Initialize System & Start Preview'
