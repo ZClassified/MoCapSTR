@@ -25,7 +25,7 @@ class MoCapSyncApp(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("MoCapSTR: Sync / Trigger / Record for FreeMoCap v1.4.1")
+        self.title("MoCapSTR: Sync / Trigger / Record for FreeMoCap v1.4.2")
         self.geometry("1100x800")
         
         # Set Window Icon
@@ -323,12 +323,59 @@ class MoCapSyncApp(ctk.CTk):
         self.after(50, self.update_preview) # ~20 FPS UI update
 
     def on_closing(self):
-        self.recorder.stop_workers()
-        self.arduino.disconnect()
-        self.cam_mgr.close_all()
-        self.destroy()
+        try:
+            self.recorder.stop_workers()
+            self.arduino.disconnect()
+            self.cam_mgr.close_all()
+        except Exception as e:
+            print(f"[Shutdown] Error during cleanup: {e}")
+        finally:
+            try:
+                self.destroy()
+            except Exception:
+                pass
+            # Force immediate OS-level process exit to guarantee all DirectShow/UVC device handles are released
+            os._exit(0)
+
+_single_instance_mutex = None
+
+def cleanup_zombie_instances():
+    """
+    Kills any stale MoCapSTR background processes from previous crashes or unclosed sessions.
+    Leaves the current process untouched.
+    """
+    if sys.platform.startswith("win"):
+        try:
+            import subprocess
+            current_pid = os.getpid()
+            cmd = f'powershell -NoProfile -Command "Get-Process | Where-Object {{ ($_.ProcessName -match \'mocapstr\') -and ($_.Id -ne {current_pid}) }} | Stop-Process -Force"'
+            subprocess.run(cmd, shell=True, capture_output=True, timeout=3)
+        except Exception:
+            pass
+
+def enforce_single_instance():
+    """
+    Ensures single instance behavior using a Windows Named Mutex.
+    If another instance is detected, cleans up stale zombies to prevent exclusive USB camera locks.
+    """
+    global _single_instance_mutex
+    if sys.platform.startswith("win"):
+        try:
+            import ctypes
+            MUTEX_NAME = "Global\\MoCapSTR_Application_Singleton_Mutex_v1"
+            kernel32 = ctypes.windll.kernel32
+            mutex = kernel32.CreateMutexW(None, False, MUTEX_NAME)
+            last_error = kernel32.GetLastError()
+            if last_error == 183: # ERROR_ALREADY_EXISTS
+                print("[Startup] Existing instance or stale zombie detected. Cleaning up background instances...")
+                cleanup_zombie_instances()
+                time.sleep(0.5)
+            _single_instance_mutex = mutex
+        except Exception as e:
+            print(f"[Startup] Single instance check note: {e}")
 
 if __name__ == "__main__":
+    enforce_single_instance()
     app = MoCapSyncApp()
     app.protocol("WM_DELETE_WINDOW", app.on_closing)
     app.mainloop()

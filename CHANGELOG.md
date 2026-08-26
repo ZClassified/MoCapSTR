@@ -1,9 +1,14 @@
 # Changelog
 
-**Current Status:** System is at v1.4.1. Implemented Per-Camera Export Video Rotation with Live Preview Sync in `export_tab.py`, updated version display, and hardened initialization error-handling/timeouts.
-**Last Modified:** 2026-08-26 16:30:00
+**Current Status:** System is at v1.4.2. Hardened background process lifecycle with daemon worker threads, Windows Named Mutex single-instance enforcement, automatic zombie process cleaner on startup, and OS-level hard-kill on shutdown to prevent exclusive USB camera driver locks.
+**Last Modified:** 2026-08-26 18:05:00
 
 ---
+
+- **2026-08-26 (v1.4.2):** Version bump to v1.4.2. **Zombie Process Prevention & Camera Lock Elimination**:
+  - **`recorder.py`**: Configured `PreviewWorker`, `CameraWorker`, and `writer_thread` as `daemon=True` threads so background streaming loops cannot prevent Python from terminating when the window is closed.
+  - **`main.py`**: Added Windows Named Mutex (`Global\MoCapSTR_Application_Singleton_Mutex_v1`) single-instance enforcement and an automatic `cleanup_zombie_instances()` startup routine to automatically terminate any stale background processes from previous crashes or unclosed sessions.
+  - **`main.py`**: Hardened `on_closing()` shutdown sequence with `try...finally` resource disposal and immediate `os._exit(0)` to guarantee immediate release of all kernel-level DirectShow and UVC hardware device handles.
 
 - **2026-08-26 (v1.4.1):** Version bump to v1.4.1. **`export_tab.py`**: Added Per-Camera Export Video Rotation. Scanned projects now dynamically display individual rotation dropdowns and live thumbnail previews for each detected camera (`cam0`, `cam1`, `cam2`...). Added `[ 🔄 Sync from Live Preview ]` button to automatically import camera orientations from the Live Preview tab, and `[ Apply to All... ]` for batch assignment. Saved preferences persist in `export_settings.json`. **`setup_tab.py` & `recorder.py`**: Hardened camera initialization with `try...finally` guards to prevent the UI from getting stuck in "Initializing..." on hardware/driver glitches. Added explicit join timeouts to worker thread shutdowns to eliminate stop deadlocks.
 

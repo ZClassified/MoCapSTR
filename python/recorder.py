@@ -8,7 +8,7 @@ import fractions
 
 class PreviewWorker(threading.Thread):
     def __init__(self, camera_worker):
-        super().__init__()
+        super().__init__(daemon=True)
         self.camera_worker = camera_worker
         self.queue = queue.Queue(maxsize=2)
         self.is_running = True
@@ -50,7 +50,7 @@ class PreviewWorker(threading.Thread):
 
 class CameraWorker(threading.Thread):
     def __init__(self, cam_id, container, target_fps=50):
-        super().__init__()
+        super().__init__(daemon=True)
         self.cam_id = cam_id
         self.container = container
         self.stream = self.container.streams.video[0]
@@ -176,7 +176,7 @@ class CameraWorker(threading.Thread):
         # Mark as recording so the writer loop keeps running, but the run() loop
         # will only enqueue packets once _record_gate is set.
         self.is_recording = True
-        self.writer_thread = threading.Thread(target=self._writer_loop)
+        self.writer_thread = threading.Thread(target=self._writer_loop, daemon=True)
         self.writer_thread.start()
         return True
 
