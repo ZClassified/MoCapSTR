@@ -193,7 +193,7 @@ class CameraWorker(threading.Thread):
         self.is_recording = False
 
         if self.writer_thread:
-            self.writer_thread.join()
+            self.writer_thread.join(timeout=2.0)
             self.writer_thread = None
 
         # Capture and reset output_path atomically so that subsequent stop_recording()
@@ -294,7 +294,7 @@ class CameraWorker(threading.Thread):
         self.is_running = False
         self.stop_recording()
         self.preview_worker.stop()
-        self.preview_worker.join()
+        self.preview_worker.join(timeout=1.0)
 
 class MultiCamManager:
     def __init__(self):
@@ -319,7 +319,7 @@ class MultiCamManager:
         for worker in self.workers.values():
             worker.stop()
         for worker in self.workers.values():
-            worker.join()
+            worker.join(timeout=1.5)
         self.workers.clear()
 
     def start_recording(self, target_folder, fps, codec_selection, enabled_cameras=None):

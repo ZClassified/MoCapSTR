@@ -1,9 +1,11 @@
 # Changelog
 
-**Current Status:** Implemented dedicated `freemocap_bridge.py` module and One-Click 'Convert & Send to FreeMoCap' workflow in `export_tab.py`. System is at v1.4.0.
-**Last Modified:** 2026-08-22 19:28:00
+**Current Status:** System is at v1.4.1. Implemented Per-Camera Export Video Rotation with Live Preview Sync in `export_tab.py`, updated version display, and hardened initialization error-handling/timeouts.
+**Last Modified:** 2026-08-26 16:30:00
 
 ---
+
+- **2026-08-26 (v1.4.1):** Version bump to v1.4.1. **`export_tab.py`**: Added Per-Camera Export Video Rotation. Scanned projects now dynamically display individual rotation dropdowns and live thumbnail previews for each detected camera (`cam0`, `cam1`, `cam2`...). Added `[ 🔄 Sync from Live Preview ]` button to automatically import camera orientations from the Live Preview tab, and `[ Apply to All... ]` for batch assignment. Saved preferences persist in `export_settings.json`. **`setup_tab.py` & `recorder.py`**: Hardened camera initialization with `try...finally` guards to prevent the UI from getting stuck in "Initializing..." on hardware/driver glitches. Added explicit join timeouts to worker thread shutdowns to eliminate stop deadlocks.
 
 - **2026-08-10:** Added top control bar in Live Preview tab including Recording Timer, Frame Counter, Disk Space Warning, and live Dropped Frame detection.
 - **2026-08-10:** Implemented `PresetManager` to save/load all UI settings to `presets.json`. Overhauled the Setup Tab UI using `CTkFrame` cards for better grouping.

@@ -111,7 +111,10 @@ class FreeMoCapBridge:
         # Build session name
         timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         if not session_name:
-            session_name = f"session_{timestamp}_{parent_take_name}"
+            if "take" in parent_take_name.lower() and "_" in parent_take_name:
+                session_name = f"session_{parent_take_name}"
+            else:
+                session_name = f"session_{timestamp}_{parent_take_name}"
         elif not session_name.startswith("session_"):
             session_name = f"session_{session_name}"
 
@@ -142,6 +145,17 @@ class FreeMoCapBridge:
                     shutil.copy2(vfile, dest_file)
                 except Exception as e:
                     print(f"[FreeMoCapBridge] Failed to copy {vfile} to {dest_file}: {e}")
+
+        # Also transfer session_info.json if present
+        info_source = os.path.join(take_dir, "session_info.json")
+        if not os.path.exists(info_source) and os.path.basename(take_dir) == "synchronized_videos":
+            info_source = os.path.join(os.path.dirname(take_dir), "session_info.json")
+            
+        if os.path.exists(info_source):
+            try:
+                shutil.copy2(info_source, os.path.join(target_session_dir, "session_info.json"))
+            except Exception:
+                pass
 
         # Update most_recent_recording.toml
         self.update_most_recent_recording(target_session_dir)
