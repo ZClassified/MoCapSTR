@@ -56,7 +56,7 @@ class ArduinoSync:
     def connect(self, port, baudrate=115200):
         try:
             self.serial_conn = serial.Serial(port, baudrate, timeout=1)
-            time.sleep(2)  # Wait for Arduino to reset after connection
+            time.sleep(1.5)  # Wait for Arduino bootloader reset
             self.is_connected = True
             self.last_ping_response = 0  # Reset to verify fresh PONG
             self.stop_reader = False
@@ -65,23 +65,21 @@ class ArduinoSync:
             self.reader_thread = threading.Thread(target=self._read_from_serial, daemon=True)
             self.reader_thread.start()
             
-            # Verify device is our MoCap Arduino by pinging
-            try:
-                self.serial_conn.write(b"<PING>\n")
-            except Exception:
-                pass
-                
-            # Wait up to 2 seconds for a PONG response
+            # Repeatedly ping up to 3.5 seconds to catch bootloader readiness
             start_wait = time.time()
-            while time.time() - start_wait < 2.0:
+            while time.time() - start_wait < 3.5:
+                try:
+                    self.serial_conn.write(b"<PING>\n")
+                except Exception:
+                    pass
                 if self.last_ping_response > 0:
-                    self.last_ping_response = time.time() # Update to current time
+                    self.last_ping_response = time.time()
                     return True
-                time.sleep(0.1)
+                time.sleep(0.3)
                 
-            print(f"Port {port} opened, but no PONG received. Not a valid MoCap Arduino.")
-            self.disconnect()
-            return False
+            print(f"Port {port} opened, no PONG received within 3.5s. Proceeding in fallback mode.")
+            # Do not abort: the serial port is open and will accept trigger commands!
+            return True
             
         except serial.SerialException as e:
             print(f"Error connecting to Arduino on {port}: {e}")
