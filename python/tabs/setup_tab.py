@@ -147,7 +147,7 @@ class SetupTab(ctk.CTkScrollableFrame):
         self.btn_connect.pack(side="left", padx=(10, 0))
         
         # ==========================================
-        # Primary Action Button
+        # Primary Action Button & Status
         # ==========================================
         self.btn_init_system = ctk.CTkButton(
             self,
@@ -156,7 +156,15 @@ class SetupTab(ctk.CTkScrollableFrame):
             fg_color="#1f538d", hover_color="#14375e",
             height=50, font=ctk.CTkFont(weight="bold", size=16)
         )
-        self.btn_init_system.pack(fill="x", padx=15, pady=20)
+        self.btn_init_system.pack(fill="x", padx=15, pady=(20, 5))
+
+        self.lbl_init_status = ctk.CTkLabel(
+            self,
+            text="",
+            font=ctk.CTkFont(weight="bold", size=13),
+            anchor="center"
+        )
+        self.lbl_init_status.pack(fill="x", padx=15, pady=(0, 15))
 
         self.on_fps_changed() # Initialize warnings and USB FPS default
         self.update_workflow_ui()
@@ -321,9 +329,12 @@ class SetupTab(ctk.CTkScrollableFrame):
 
     def initialize_system_cmd(self):
         self.app.log("Initializing System...")
-        self.btn_init_system.configure(state="disabled", text="Initializing...")
+        self.btn_init_system.configure(state="disabled", text="Initialisiere Hardware & Kameras...", fg_color="#555555")
+        self.lbl_init_status.configure(text="⏳ Suche Arduino & Kameras (bitte kurz warten)...", text_color="#3a86ff")
         
         def init_task():
+            success = False
+            error_msg = None
             try:
                 cam_type = self.workflow_var.get()
                 trigger_on = self.chk_uvc_trigger_var.get()
@@ -338,9 +349,10 @@ class SetupTab(ctk.CTkScrollableFrame):
                     port = self.port_combo.get()
                     if port and port != "No Ports Found":
                         self.app.log(f"Auto-connecting to Arduino on {port}...")
+                        self.app.after(0, lambda: self.lbl_init_status.configure(text=f"⏳ Verbinde Arduino an {port}...", text_color="#3a86ff"))
                         if self.app.arduino.connect(port):
                             self.app.log("Arduino connected!", level="success")
-                            self.btn_connect.configure(text="Connected", state="disabled")
+                            self.app.after(0, lambda: self.btn_connect.configure(text="Connected", state="disabled"))
                         else:
                             self.app.log(f"Failed to connect Arduino on {port}. Trigger will not work.", "error")
                 
@@ -349,23 +361,19 @@ class SetupTab(ctk.CTkScrollableFrame):
                     trigger_on = False
 
                 # 2. CRITICAL FIX: Start Arduino trigger BEFORE touching PyAV!
-                # If the camera is already in hardware trigger mode from a previous run,
-                # stopping PyAV or re-opening the camera will DEADLOCK if the Arduino is not sending pulses.
                 if cam_type == "USB Webcams" and self.app.arduino.is_connected:
+                    self.app.after(0, lambda: self.lbl_init_status.configure(text=f"⏳ Starte Arduino-Trigger ({target_fps} FPS)...", text_color="#3a86ff"))
                     self.app.arduino.set_fps(target_fps)
                     self.app.arduino.start_trigger()
-                    # Fix 4: Allow the first trigger pulse to reach all cameras before
-                    # PyAV opens and verifies the streams. Without this short pause a
-                    # camera may not yet have received a pulse when the packet check runs.
-                    # Increased to 1.0s to ensure USB bus stabilizes under pulse load.
                     import time as _time
                     self.app.log("Waiting 1.0s for first trigger pulses and USB bus to stabilize...")
                     _time.sleep(1.0)
 
-                # 3. Cleanly stop existing PyAV workers (they will now exit safely because trigger is pulsing)
+                # 3. Cleanly stop existing PyAV workers
                 self.app.recorder.stop_workers()
                 
                 # 4. Open Cameras
+                self.app.after(0, lambda: self.lbl_init_status.configure(text="⏳ Öffne Kameras & setze Videoformate...", text_color="#3a86ff"))
                 res_str = self.res_combo.get().split(' ')[0]
                 target_w, target_h = map(int, res_str.split('x'))
                 
@@ -374,9 +382,6 @@ class SetupTab(ctk.CTkScrollableFrame):
                 except ValueError:
                     usb_fps = target_fps
                 
-                # Use the user-selected USB Polling FPS for the hardware trigger.
-                # This must be at least one step higher than the target capture FPS
-                # to prevent frame drops due to DSHOW polling alignment.
                 cam_fps = usb_fps if trigger_on and cam_type == "USB Webcams" else target_fps
                 fmt = "MJPG" 
                     
@@ -393,24 +398,60 @@ class SetupTab(ctk.CTkScrollableFrame):
                 )
                 self.app.log(f"Cameras found: {len(self.app.camera_indices)} ({self.app.camera_indices})", "success")
                 
-                # Must run GUI updates in the main thread!
-                self.app.after(0, self.app.preview_tab.setup_preview_grid)
-                
-                # 5. Start PyAV Workers
-                self.app.recorder.start_workers(self.app.cam_mgr.cameras, target_fps=target_fps)
-                self.app.log("Workers started. Go to Live Preview tab to see feeds.")
-                
-                # 6. Start Arduino Trigger
-                if cam_type == "USB Webcams" and self.app.arduino.is_connected and trigger_on:
-                    self.app.log(f"Hardware Trigger STARTED at {target_fps} FPS!", level="success")
-                elif self.app.arduino.is_connected:
-                    self.app.arduino.stop_trigger() # Turn off if not needed
+                if len(self.app.camera_indices) > 0:
+                    # Must run GUI updates in the main thread!
+                    self.app.after(0, self.app.preview_tab.setup_preview_grid)
+                    
+                    # 5. Start PyAV Workers
+                    self.app.recorder.start_workers(self.app.cam_mgr.cameras, target_fps=target_fps)
+                    self.app.log("Workers started. Go to Live Preview tab to see feeds.")
+                    
+                    # 6. Start Arduino Trigger
+                    if cam_type == "USB Webcams" and self.app.arduino.is_connected and trigger_on:
+                        self.app.log(f"Hardware Trigger STARTED at {target_fps} FPS!", level="success")
+                    elif self.app.arduino.is_connected:
+                        self.app.arduino.stop_trigger()
+
+                    success = True
+                else:
+                    error_msg = "Keine Kameras gefunden! Bitte USB-Kabel und Erkennung prüfen."
+                    
             except Exception as e:
                 self.app.log(f"Initialization error: {e}", "error")
                 import traceback
                 traceback.print_exc()
+                error_msg = str(e)
             finally:
-                self.app.after(0, lambda: self.btn_init_system.configure(state="normal", text="Initialize System & Start Preview"))
+                if success:
+                    def on_success():
+                        cam_count = len(self.app.camera_indices)
+                        self.btn_init_system.configure(
+                            state="normal",
+                            text="✓ System bereit (Klick zum Aktualisieren)",
+                            fg_color="#2a9d8f",
+                            hover_color="#21867a"
+                        )
+                        self.lbl_init_status.configure(
+                            text=f"✓ {cam_count} Kamera(s) aktiv! Live-Vorschau gestartet.",
+                            text_color="#2a9d8f"
+                        )
+                        # Switch to Live Preview Tab automatically
+                        self.app.tabview.set("2. Live Preview")
+                    self.app.after(0, on_success)
+                else:
+                    def on_fail():
+                        msg = error_msg or "Keine Kameras gefunden!"
+                        self.btn_init_system.configure(
+                            state="normal",
+                            text="⚠️ Initialisierung fehlgeschlagen — Erneut versuchen",
+                            fg_color="#e63946",
+                            hover_color="#c1121f"
+                        )
+                        self.lbl_init_status.configure(
+                            text=f"⚠️ {msg}",
+                            text_color="#e63946"
+                        )
+                    self.app.after(0, on_fail)
             
         threading.Thread(target=init_task, daemon=True).start()
 
