@@ -1,9 +1,16 @@
 # Changelog
 
-**Current Status:** System is at v1.4.2. Hardened background process lifecycle with daemon worker threads, Windows Named Mutex single-instance enforcement, automatic zombie process cleaner on startup, and OS-level hard-kill on shutdown to prevent exclusive USB camera driver locks.
-**Last Modified:** 2026-08-26 18:05:00
+**Current Status:** System is at v1.4.3. Resolved DirectShow format negotiation deadlock during camera initialization in hardware-trigger mode via two-stage startup pipeline, unified DirectShow UVC property control, automatic free-run hardware reset on startup/shutdown, and serial port collision handling.
+**Last Modified:** 2026-08-27 08:45:00
 
 ---
+
+- **2026-08-27 (v1.4.3):** Version bump to v1.4.3. **Two-Stage Hardware Sync & DirectShow Deadlock Fix**:
+  - **`camera_manager.py` & `setup_tab.py`**: Resolved camera initialization hang (`Setting USB Webcam format to MJPG...`) when opening in hardware-trigger mode. Implemented a two-stage initialization pipeline: PyAV DirectShow pin negotiation always occurs in Free-Run (`AutoFocus=0`) mode first (guaranteeing sub-second connection without graph lockups), and `AutoFocus=1` hardware trigger is cleanly engaged on the running stream once background workers are active.
+  - **`camera_manager.py`**: Replaced fragmented MSMF backend property setting with unified DirectShow (`CAP_DSHOW`) property control (`AUTOFOCUS`, `AUTO_EXPOSURE`, `EXPOSURE`, `GAIN`), eliminating MSMF index capture warnings and COM filter graph contention.
+  - **`camera_manager.py` & `main.py`**: Implemented `set_trigger_mode()` and `reset_hardware_trigger_mode()` to ensure cameras are automatically reset to free-run mode (`AutoFocus=0`) on startup and upon application shutdown, preventing physical sensors from remaining stuck in 0-FPS external trigger mode across sessions.
+  - **`arduino_sync.py`**: Added proactive disposal of stale serial connection handles in `connect()`, fixing `PermissionError(13, 'Zugriff verweigert')` when reconnecting to Arduino COM ports.
+  - **`README.md`**: Added prominent warning banner at the top of the repository clarifying experimental project status.
 
 - **2026-08-26 (v1.4.2):** Version bump to v1.4.2. **Zombie Process Prevention & Camera Lock Elimination**:
   - **`recorder.py`**: Configured `PreviewWorker`, `CameraWorker`, and `writer_thread` as `daemon=True` threads so background streaming loops cannot prevent Python from terminating when the window is closed.

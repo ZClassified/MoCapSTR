@@ -55,6 +55,11 @@ class ArduinoSync:
         
     def connect(self, port, baudrate=115200):
         try:
+            if self.serial_conn and self.serial_conn.is_open:
+                try:
+                    self.disconnect()
+                except Exception:
+                    pass
             self.serial_conn = serial.Serial(port, baudrate, timeout=1)
             time.sleep(1.5)  # Wait for Arduino bootloader reset
             self.is_connected = True

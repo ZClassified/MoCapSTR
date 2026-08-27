@@ -46,52 +46,31 @@ class CameraManager:
             
             valid_indices.append((i, cam_name))
             
-        # --- HARDWARE SYNC ---
-        # We MUST set properties BEFORE PyAV opens the stream!
-        # Due to OpenCV backend bugs on Windows:
-        # 1. DSHOW correctly sets Exposure, but fails to set AutoFocus.
-        # 2. MSMF correctly sets AutoFocus, but fails to set Exposure.
-        # CRITICAL: MSMF and DSHOW enumerate identical cameras in different orders!
-        # If we alternate MSMF and DSHOW in a single loop, MSMF(1) might open the same
-        # physical camera as DSHOW(0) and RESET its exposure.
-        # Fix: Apply ALL MSMF settings first, THEN apply ALL DSHOW settings.
-        if camera_type == "USB Webcams" and exposure_val is not None and gain_val is not None and trigger_on is not None:
+        # --- HARDWARE SYNC (Exposure & Gain) ---
+        # Set Exposure & Gain via DirectShow in Free-Run mode so av.open is guaranteed to succeed instantly.
+        if camera_type == "USB Webcams" and exposure_val is not None and gain_val is not None:
             import cv2
+            import gc
             
-            # Pass 1: Set Trigger via MSMF for all cameras
-            # CRITICAL BUGFIX: We do NOT use 'valid_indices' (which is DSHOW based) here.
-            # MSMF enumerates virtual cameras differently, meaning MSMF index 'i' might 
-            # not match DSHOW index 'i'. We aggressively apply the trigger setting to 
-            # the first 10 MSMF cameras to guarantee all physical cameras receive it.
-            print("Applying UVC Trigger via MSMF to all available cameras...")
-            for ms_idx in range(10):
-                try:
-                    cap = cv2.VideoCapture(ms_idx, cv2.CAP_MSMF)
-                    if cap.isOpened():
-                        cap.set(cv2.CAP_PROP_AUTOFOCUS, 1 if trigger_on else 0)
-                        cap.set(cv2.CAP_PROP_FOCUS, 0)
-                        cap.release()
-                except Exception:
-                    pass
-
-            # Fix 2: Give cameras time to switch into external trigger mode before
-            # PyAV tries to open the streams. Without this pause the DSHOW pass
-            # or PyAV may catch a camera mid-transition and misread its state.
-            if trigger_on:
-                print("Waiting 1.5s for cameras to securely enter trigger mode...")
-                time.sleep(1.5)
-
-            # Pass 2: Set Exposure/Gain via DSHOW for all cameras
+            print(f"Applying UVC Settings via DirectShow (Exposure={exposure_val}, Gain={gain_val})...")
             for i, cam_name in valid_indices:
                 try:
                     cap = cv2.VideoCapture(i, cv2.CAP_DSHOW)
                     if cap.isOpened():
+                        # Always ensure Free-Run (0) during open negotiation to prevent DirectShow graph lockup
+                        cap.set(cv2.CAP_PROP_AUTOFOCUS, 0)
+                        # Set Manual Exposure & Gain
                         cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.25) # 0.25 is manual in DirectShow (0.75 is auto)
                         cap.set(cv2.CAP_PROP_EXPOSURE, exposure_val)
                         cap.set(cv2.CAP_PROP_GAIN, gain_val)
                         cap.release()
+                    del cap
                 except Exception as e:
-                    print(f"DSHOW hardware sync failed for {cam_name} (index {i}): {e}")
+                    print(f"DirectShow hardware sync failed for {cam_name} (index {i}): {e}")
+            gc.collect()
+            
+            # Allow DirectShow COM graph to unbind cleanly from physical USB device before PyAV opens
+            time.sleep(0.5)
         # ---------------------------
 
         for i, cam_name in valid_indices:
@@ -130,31 +109,18 @@ class CameraManager:
                         
                     container = av.open(f'video={cam_name}', format='dshow', options=options)
                     
-                # Verify the stream is accessible.
+                # Verify the stream is accessible (limit probing to 30 packets).
                 stream = container.streams.video[0]
                 packet_found = False
-
-                if trigger_on:
-                    # Fix 1: In hardware-trigger mode a camera will NOT emit any
-                    # frames until it receives a trigger pulse. Waiting for a packet
-                    # here would block indefinitely and cause the camera to be
-                    # discarded even though it is healthy. If av.open() succeeded
-                    # and the video stream exists, the camera is present and open.
-                    packet_found = True
-                    print(f"Trigger mode: skipping packet verification for index {i} ({cam_name})")
-                else:
-                    # Fix 3: Limit probing to avoid hanging on a misbehaving
-                    # free-run camera. 50 empty packets is a reliable upper bound.
-                    max_probe_packets = 50
-                    probe_count = 0
-                    for packet in container.demux(stream):
-                        probe_count += 1
-                        if packet.size > 0:
-                            packet_found = True
-                            break
-                        if probe_count >= max_probe_packets:
-                            print(f"Free-run probe limit reached for index {i} ({cam_name}) — skipping.")
-                            break
+                max_probe_packets = 30
+                probe_count = 0
+                for packet in container.demux(stream):
+                    probe_count += 1
+                    if packet.size > 0:
+                        packet_found = True
+                        break
+                    if probe_count >= max_probe_packets:
+                        break
 
                 if packet_found:
                     self.cameras[i] = container
@@ -190,6 +156,41 @@ class CameraManager:
     def close_all(self):
         for index in list(self.cameras.keys()):
             self.close_camera(index)
+
+    def set_trigger_mode(self, trigger_on: bool):
+        """
+        Switches connected physical USB cameras between Hardware Trigger (AutoFocus=1)
+        and Free-Run (AutoFocus=0) mode. Called after streams are opened to prevent DirectShow graph locks.
+        """
+        try:
+            import cv2
+            import gc
+            if not self.device_names:
+                self.device_names = self._get_device_names()
+            if self.device_names:
+                mode_str = "Hardware Trigger (1)" if trigger_on else "Free-Run (0)"
+                print(f"[CameraManager] Setting UVC trigger mode to {mode_str}...")
+                for idx in range(len(self.device_names)):
+                    cam_name = self.device_names[idx].lower()
+                    if "virtual" in cam_name or "obs" in cam_name:
+                        continue
+                    try:
+                        cap = cv2.VideoCapture(idx, cv2.CAP_DSHOW)
+                        if cap.isOpened():
+                            cap.set(cv2.CAP_PROP_AUTOFOCUS, 1 if trigger_on else 0)
+                            if trigger_on:
+                                cap.set(cv2.CAP_PROP_FOCUS, 0)
+                            cap.release()
+                        del cap
+                    except Exception as e:
+                        print(f"[CameraManager] Failed to set trigger mode on index {idx}: {e}")
+                gc.collect()
+        except Exception as e:
+            print(f"[CameraManager] Error in set_trigger_mode: {e}")
+
+    def reset_hardware_trigger_mode(self):
+        """Resets all connected cameras back to free-run mode (AutoFocus=0) so they don't remain locked."""
+        self.set_trigger_mode(False)
             
 
     def apply_settings(self, index, width=1280, height=800, fps=50, format_str="MJPG", exposure_value=None, gain_value=None, wb_value=None):

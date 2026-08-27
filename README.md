@@ -1,12 +1,12 @@
 # MoCapSTR: Sync / Trigger / Record for FreeMoCap
 
+> [!CAUTION]
+> ### ⚠️ Project Status: Experimental Prototype / Work in Progress
+> **Please Note:** This project is currently undergoing active development and testing. It is **NOT YET in a state where it can be easily replicated as a turnkey / plug-and-play solution**. Hardware-level camera synchronization involves specific driver, USB controller bandwidth, and timing considerations. You may encounter issues depending on your hardware environment. Follow the issue tracker or discussions for ongoing updates.
+
 > **Disclaimer:** MoCapSTR is an independent open-source companion tool and is not officially affiliated with the FreeMoCap project.
 
 MoCapSTR is an open-source multi-camera recording tool designed to capture frame-accurate, hardware-synchronized video datasets for [FreeMoCap](https://github.com/freemocap/freemocap). It synchronizes global-shutter USB cameras (e.g. Innomaker OV9281) via an Arduino trigger signal, and also supports Blackmagic SDI capture cards.
-
-> [!WARNING]
-> **Project Status (Beta / Work in Progress):**
-> This software is an active open-source project and prototype. You may encounter bugs, hardware-specific quirks, or edge cases. Bug reports, feedback, and contributions are very welcome via [GitHub Issues](https://github.com/ZClassified/MoCapSTR/issues)!
 
 ---
 
