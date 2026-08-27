@@ -1,9 +1,12 @@
 # Changelog
 
-**Current Status:** System is at v1.4.4. Decoupled DirectShow stream negotiation from UVC hardware trigger activation, integrated Media Foundation UVC property control for live streams, and verified atomic start/stop recording pause synchronization.
-**Last Modified:** 2026-08-27 09:15:00
+**Current Status:** System is at v1.4.5. Upgraded hardware-trigger diagnostic tool to single-stream PyAV packet measurement, eliminating zombie thread reader race conditions and DirectShow frame drop errors.
+**Last Modified:** 2026-08-27 09:55:00
 
 ---
+
+- **2026-08-27 (v1.4.5):** Version bump to v1.4.5. **Hardware Trigger Diagnostic Tool Overhaul**:
+  - **`arduino/test_camera_trigger.py`**: Rewrote diagnostic tool to use lossless single-stream PyAV demuxing for frame measurement instead of multi-threaded `cv2.VideoCapture` `CAP_DSHOW` loops. Fixed zombie thread race conditions on paused trigger states that caused artificially degraded FPS readings (e.g. 3.2 FPS on 10 Hz trigger). Added automatic manual exposure optimization (1/128s) to guarantee accurate 10–60+ FPS hardware trigger validation.
 
 - **2026-08-27 (v1.4.4):** Version bump to v1.4.4. **Media Foundation UVC Property Routing & Watertight Sync Pipeline**:
   - **`camera_manager.py`**: Updated `set_trigger_mode()` to route `CAP_PROP_AUTOFOCUS` and `CAP_PROP_FOCUS` register updates through the Media Foundation provider (`CAP_MSMF`), eliminating exclusive DirectShow capture graph pin lock collisions on running streams.
