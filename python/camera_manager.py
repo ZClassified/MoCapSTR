@@ -160,20 +160,43 @@ class CameraManager:
     def set_trigger_mode(self, trigger_on: bool):
         """
         Switches connected physical USB cameras between Hardware Trigger (AutoFocus=1)
-        and Free-Run (AutoFocus=0) mode. Called after streams are opened to prevent DirectShow graph locks.
+        and Free-Run (AutoFocus=0) mode.
+        Uses Media Foundation (MSMF) to set UVC property registers directly without colliding
+        with the active DirectShow capture graph.
         """
         try:
             import cv2
             import gc
             if not self.device_names:
                 self.device_names = self._get_device_names()
-            if self.device_names:
-                mode_str = "Hardware Trigger (1)" if trigger_on else "Free-Run (0)"
-                print(f"[CameraManager] Setting UVC trigger mode to {mode_str}...")
-                for idx in range(len(self.device_names)):
+            
+            mode_str = "Hardware Trigger (1)" if trigger_on else "Free-Run (0)"
+            print(f"[CameraManager] Setting UVC trigger mode to {mode_str}...")
+            
+            num_cams = max(len(self.device_names), len(self.cameras), 1)
+            for idx in range(num_cams):
+                # Check if this is a known virtual camera by name
+                if idx < len(self.device_names):
                     cam_name = self.device_names[idx].lower()
                     if "virtual" in cam_name or "obs" in cam_name:
                         continue
+                        
+                # 1. First attempt: Media Foundation (accesses UVC controls on active devices)
+                success = False
+                try:
+                    cap = cv2.VideoCapture(idx, cv2.CAP_MSMF)
+                    if cap.isOpened():
+                        cap.set(cv2.CAP_PROP_AUTOFOCUS, 1 if trigger_on else 0)
+                        if trigger_on:
+                            cap.set(cv2.CAP_PROP_FOCUS, 0)
+                        cap.release()
+                        success = True
+                    del cap
+                except Exception:
+                    pass
+                    
+                # 2. Second attempt: DirectShow fallback if MSMF wasn't opened
+                if not success:
                     try:
                         cap = cv2.VideoCapture(idx, cv2.CAP_DSHOW)
                         if cap.isOpened():
@@ -182,9 +205,9 @@ class CameraManager:
                                 cap.set(cv2.CAP_PROP_FOCUS, 0)
                             cap.release()
                         del cap
-                    except Exception as e:
-                        print(f"[CameraManager] Failed to set trigger mode on index {idx}: {e}")
-                gc.collect()
+                    except Exception:
+                        pass
+            gc.collect()
         except Exception as e:
             print(f"[CameraManager] Error in set_trigger_mode: {e}")
 

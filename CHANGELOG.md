@@ -1,9 +1,14 @@
 # Changelog
 
-**Current Status:** System is at v1.4.3. Resolved DirectShow format negotiation deadlock during camera initialization in hardware-trigger mode via two-stage startup pipeline, unified DirectShow UVC property control, automatic free-run hardware reset on startup/shutdown, and serial port collision handling.
-**Last Modified:** 2026-08-27 08:45:00
+**Current Status:** System is at v1.4.4. Decoupled DirectShow stream negotiation from UVC hardware trigger activation, integrated Media Foundation UVC property control for live streams, and verified atomic start/stop recording pause synchronization.
+**Last Modified:** 2026-08-27 09:15:00
 
 ---
+
+- **2026-08-27 (v1.4.4):** Version bump to v1.4.4. **Media Foundation UVC Property Routing & Watertight Sync Pipeline**:
+  - **`camera_manager.py`**: Updated `set_trigger_mode()` to route `CAP_PROP_AUTOFOCUS` and `CAP_PROP_FOCUS` register updates through the Media Foundation provider (`CAP_MSMF`), eliminating exclusive DirectShow capture graph pin lock collisions on running streams.
+  - **`camera_manager.py` & `setup_tab.py`**: Hardened two-stage stream opening and trigger pipeline to ensure cameras open in Free-Run (`AutoFocus=0`) mode during format negotiation and transition to Hardware Trigger mode once worker loops are active.
+  - **`main.py` & `recorder.py`**: Verified and hardened the atomic recording synchronization pipeline (`toggle_record`), ensuring the 0.15s buffer drain flush and 0.20s end drain maintain frame-accurate alignment across all cameras without dropped frames.
 
 - **2026-08-27 (v1.4.3):** Version bump to v1.4.3. **Two-Stage Hardware Sync & DirectShow Deadlock Fix**:
   - **`camera_manager.py` & `setup_tab.py`**: Resolved camera initialization hang (`Setting USB Webcam format to MJPG...`) when opening in hardware-trigger mode. Implemented a two-stage initialization pipeline: PyAV DirectShow pin negotiation always occurs in Free-Run (`AutoFocus=0`) mode first (guaranteeing sub-second connection without graph lockups), and `AutoFocus=1` hardware trigger is cleanly engaged on the running stream once background workers are active.
