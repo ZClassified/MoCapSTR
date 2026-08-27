@@ -25,7 +25,7 @@ class MoCapSyncApp(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("MoCapSTR: Sync / Trigger / Record for FreeMoCap v1.4.2")
+        self.title("MoCapSTR: Sync / Trigger / Record for FreeMoCap v1.4.3")
         self.geometry("1100x800")
         
         # Set Window Icon
@@ -58,6 +58,9 @@ class MoCapSyncApp(ctk.CTk):
         
         self.build_ui()
         self.after(50, self.update_preview) # Start preview loop
+        
+        # Reset any leftover hardware trigger modes on startup in background
+        threading.Thread(target=self.cam_mgr.reset_hardware_trigger_mode, daemon=True).start()
         
 
     def handle_remote_toggle_rec(self):
@@ -324,9 +327,14 @@ class MoCapSyncApp(ctk.CTk):
 
     def on_closing(self):
         try:
+            print("[Shutdown] Stopping camera workers...")
             self.recorder.stop_workers()
-            self.arduino.disconnect()
+            print("[Shutdown] Closing camera streams...")
             self.cam_mgr.close_all()
+            print("[Shutdown] Resetting camera trigger to free-run mode...")
+            self.cam_mgr.reset_hardware_trigger_mode()
+            print("[Shutdown] Disconnecting Arduino...")
+            self.arduino.disconnect()
         except Exception as e:
             print(f"[Shutdown] Error during cleanup: {e}")
         finally:
@@ -334,6 +342,7 @@ class MoCapSyncApp(ctk.CTk):
                 self.destroy()
             except Exception:
                 pass
+            time.sleep(0.2)
             # Force immediate OS-level process exit to guarantee all DirectShow/UVC device handles are released
             os._exit(0)
 
@@ -348,8 +357,17 @@ def cleanup_zombie_instances():
         try:
             import subprocess
             current_pid = os.getpid()
-            cmd = f'powershell -NoProfile -Command "Get-Process | Where-Object {{ ($_.ProcessName -match \'mocapstr\') -and ($_.Id -ne {current_pid}) }} | Stop-Process -Force"'
-            subprocess.run(cmd, shell=True, capture_output=True, timeout=3)
+            ps_cmd = (
+                f'Get-Process | Where-Object {{ ($_.ProcessName -match "mocapstr") -or ($_.ProcessName -match "python" -and $_.Id -ne {current_pid}) }} | '
+                f'ForEach-Object {{ '
+                f'  $proc = $_; '
+                f'  $cmd = (Get-CimInstance Win32_Process -Filter "ProcessId = $($proc.Id)").CommandLine; '
+                f'  if ($proc.ProcessName -match "mocapstr" -or ($cmd -match "main\\.py" -or $cmd -match "MoCapSTR")) {{ '
+                f'    Stop-Process -Id $proc.Id -Force '
+                f'  }} '
+                f'}}'
+            )
+            subprocess.run(["powershell", "-NoProfile", "-Command", ps_cmd], capture_output=True, timeout=3)
         except Exception:
             pass
 

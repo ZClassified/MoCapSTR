@@ -360,19 +360,16 @@ class SetupTab(ctk.CTkScrollableFrame):
                     self.app.log("⚠️ No Arduino connected! Falling back to free-run mode (trigger disabled).", "error")
                     trigger_on = False
 
-                # 2. CRITICAL FIX: Start Arduino trigger BEFORE touching PyAV!
-                if cam_type == "USB Webcams" and self.app.arduino.is_connected:
+                # 2. Start Arduino trigger if trigger_on is requested
+                if cam_type == "USB Webcams" and self.app.arduino.is_connected and trigger_on:
                     self.app.after(0, lambda: self.lbl_init_status.configure(text=f"⏳ Starte Arduino-Trigger ({target_fps} FPS)...", text_color="#3a86ff"))
                     self.app.arduino.set_fps(target_fps)
                     self.app.arduino.start_trigger()
-                    import time as _time
-                    self.app.log("Waiting 1.0s for first trigger pulses and USB bus to stabilize...")
-                    _time.sleep(1.0)
 
                 # 3. Cleanly stop existing PyAV workers
                 self.app.recorder.stop_workers()
                 
-                # 4. Open Cameras
+                # 4. Open Cameras (Always opened safely in Free-Run first to guarantee 0s DirectShow negotiation)
                 self.app.after(0, lambda: self.lbl_init_status.configure(text="⏳ Öffne Kameras & setze Videoformate...", text_color="#3a86ff"))
                 res_str = self.res_combo.get().split(' ')[0]
                 target_w, target_h = map(int, res_str.split('x'))
@@ -394,7 +391,7 @@ class SetupTab(ctk.CTkScrollableFrame):
                     target_format=fmt,
                     exposure_val=int(self.exposure_slider.get()) if cam_type == "USB Webcams" else None,
                     gain_val=0 if cam_type == "USB Webcams" else None,
-                    trigger_on=trigger_on if cam_type == "USB Webcams" else None
+                    trigger_on=False # Always negotiate stream in free-run first
                 )
                 self.app.log(f"Cameras found: {len(self.app.camera_indices)} ({self.app.camera_indices})", "success")
                 
@@ -406,11 +403,14 @@ class SetupTab(ctk.CTkScrollableFrame):
                     self.app.recorder.start_workers(self.app.cam_mgr.cameras, target_fps=target_fps)
                     self.app.log("Workers started. Go to Live Preview tab to see feeds.")
                     
-                    # 6. Start Arduino Trigger
+                    # 6. Engage Hardware Trigger on running streams
                     if cam_type == "USB Webcams" and self.app.arduino.is_connected and trigger_on:
+                        self.app.cam_mgr.set_trigger_mode(True)
                         self.app.log(f"Hardware Trigger STARTED at {target_fps} FPS!", level="success")
-                    elif self.app.arduino.is_connected:
-                        self.app.arduino.stop_trigger()
+                    else:
+                        if self.app.arduino.is_connected:
+                            self.app.arduino.stop_trigger()
+                        self.app.cam_mgr.set_trigger_mode(False)
 
                     success = True
                 else:
