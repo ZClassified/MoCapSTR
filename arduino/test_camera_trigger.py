@@ -6,6 +6,7 @@ to hardware synchronization pulses from the Arduino trigger pin (Pin 2 / FSIN).
 
 Usage:
     python arduino/test_camera_trigger.py
+    (or double-click run_camera_trigger_test.bat)
 """
 
 import sys
@@ -60,17 +61,134 @@ def read_frame_timeout(cap, timeout_sec=0.3):
     t.join(timeout=timeout_sec)
     return res[0], res[1]
 
-def count_frames_over_duration(cap, duration_sec=2.0):
-    """Counts how many frames the camera actually outputs over a fixed duration."""
+def count_frames_over_duration(cap, duration_sec=2.5, warmup_sec=0.8):
+    """
+    Counts frames after a brief warm-up / stabilization period to ensure
+    accurate steady-state FPS measurement.
+    """
+    # 1. Warm-up / Einschwingphase (USB Puffer synchronisieren)
+    if warmup_sec > 0:
+        warmup_end = time.time() + warmup_sec
+        while time.time() < warmup_end:
+            read_frame_timeout(cap, timeout_sec=0.15)
+            
+    # 2. Steady-State Messung
     start_time = time.time()
     frames_count = 0
     while time.time() - start_time < duration_sec:
         ret, frame = read_frame_timeout(cap, timeout_sec=0.25)
         if ret and frame is not None:
             frames_count += 1
+            
     elapsed = max(time.time() - start_time, 0.001)
     fps = frames_count / elapsed
     return frames_count, fps, elapsed
+
+def interactive_live_mode(cap, ard, cam_idx):
+    """Interactive OpenCV window with real-time FPS overlay and Arduino frequency switching."""
+    print_header("INTERAKTIVER LIVE-MONITOR GESTARTET")
+    print(" Tastaturbefehle im Kamera-Fenster:")
+    print("   [1] -> 10 FPS      [2] -> 25 FPS      [3] -> 30 FPS")
+    print("   [4] -> 50 FPS      [5] -> 60 FPS      [0] -> Free-Run")
+    print("   [LEERTASTE] -> Trigger Pausieren / Starten")
+    print("   [ESC / Q]   -> Beenden & Zurueck zum Menue")
+    print("=" * 62, flush=True)
+    
+    current_fps_setting = 25
+    is_trigger_mode = True
+    
+    ard.set_fps(current_fps_setting)
+    ard.start_trigger()
+    cap.set(cv2.CAP_PROP_AUTOFOCUS, 1)
+    
+    frame_counter = 0
+    last_fps_time = time.time()
+    live_fps = 0.0
+    
+    win_name = f"MoCapSTR Trigger Live Monitor (Kamera {cam_idx}) - [ESC zum Beenden]"
+    cv2.namedWindow(win_name, cv2.WINDOW_NORMAL)
+    cv2.resizeWindow(win_name, 960, 540)
+    
+    while True:
+        ret, frame = read_frame_timeout(cap, timeout_sec=0.2)
+        now = time.time()
+        
+        if ret and frame is not None:
+            frame_counter += 1
+            
+        if now - last_fps_time >= 1.0:
+            live_fps = frame_counter / (now - last_fps_time)
+            frame_counter = 0
+            last_fps_time = now
+            
+        # Wenn kein Bild eintreffen sollte (0 FPS), schwarzes Infobild anzeigen
+        if not ret or frame is None:
+            display_img = 20 * (cv2.UMat(360, 640, cv2.CV_8UC3).get() if hasattr(cv2, 'UMat') else None)
+            if display_img is None:
+                import numpy as np
+                display_img = np.zeros((360, 640, 3), dtype='uint8')
+            msg = "WARTE AUF TRIGGER-PULSE (0 FPS)..."
+            cv2.putText(display_img, msg, (40, 180), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+        else:
+            display_img = frame.copy()
+            if len(display_img.shape) == 2:
+                display_img = cv2.cvtColor(display_img, cv2.COLOR_GRAY2BGR)
+                
+            # Status Text overlay
+            mode_str = f"TRIGGER: {current_fps_setting} FPS" if is_trigger_mode else "FREE-RUN"
+            diff = abs(live_fps - current_fps_setting) if is_trigger_mode else 0
+            color = (0, 255, 0) if diff <= 1.5 else (0, 0, 255)
+            
+            overlay_text = f"Live: {live_fps:.1f} FPS  |  Soll: {mode_str}"
+            cv2.putText(display_img, overlay_text, (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
+            cv2.putText(display_img, "Tasten: 1=10p | 2=25p | 3=30p | 4=50p | 5=60p | 0=Free-Run | ESC=Ende", 
+                        (20, display_img.shape[0] - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+            
+        cv2.imshow(win_name, display_img)
+        key = cv2.waitKey(1) & 0xFF
+        
+        if key == 27 or key == ord('q'): # ESC / Q
+            break
+        elif key == ord('1'):
+            current_fps_setting = 10
+            is_trigger_mode = True
+            ard.set_fps(10)
+            ard.start_trigger()
+            cap.set(cv2.CAP_PROP_AUTOFOCUS, 1)
+        elif key == ord('2'):
+            current_fps_setting = 25
+            is_trigger_mode = True
+            ard.set_fps(25)
+            ard.start_trigger()
+            cap.set(cv2.CAP_PROP_AUTOFOCUS, 1)
+        elif key == ord('3'):
+            current_fps_setting = 30
+            is_trigger_mode = True
+            ard.set_fps(30)
+            ard.start_trigger()
+            cap.set(cv2.CAP_PROP_AUTOFOCUS, 1)
+        elif key == ord('4'):
+            current_fps_setting = 50
+            is_trigger_mode = True
+            ard.set_fps(50)
+            ard.start_trigger()
+            cap.set(cv2.CAP_PROP_AUTOFOCUS, 1)
+        elif key == ord('5'):
+            current_fps_setting = 60
+            is_trigger_mode = True
+            ard.set_fps(60)
+            ard.start_trigger()
+            cap.set(cv2.CAP_PROP_AUTOFOCUS, 1)
+        elif key == ord('0'):
+            is_trigger_mode = False
+            cap.set(cv2.CAP_PROP_AUTOFOCUS, 0)
+        elif key == 32: # Space
+            if ard.is_running:
+                ard.stop_trigger()
+            else:
+                ard.start_trigger()
+                
+    cv2.destroyAllWindows()
 
 def test_camera_trigger():
     print_header("MoCapSTR: Hardware-Trigger Diagnose-Tool")
@@ -131,8 +249,8 @@ def test_camera_trigger():
         
         # --- TEST 1: Free-Run Modus ---
         print("\n[1/4] Teste Free-Run Modus (Interner Oszillator, AutoFocus=0)...")
-        frames_free, fps_free, _ = count_frames_over_duration(cap, duration_sec=1.5)
-        print(f"      -> Gemessen: {fps_free:.1f} FPS ({frames_free} Frames in 1.5s) [OK]")
+        frames_free, fps_free, _ = count_frames_over_duration(cap, duration_sec=1.5, warmup_sec=0.5)
+        print(f"      -> Gemessen: {fps_free:.1f} FPS ({frames_free} Frames) [OK]")
         
         # --- TEST 2: Trigger-Ruhetest (Arduino AUS) ---
         print("\n[2/4] Schalte Kamera in Trigger-Modus (AutoFocus=1) bei pausiertem Arduino...")
@@ -140,9 +258,8 @@ def test_camera_trigger():
         time.sleep(0.2)
         cap.set(cv2.CAP_PROP_AUTOFOCUS, 1)
         cap.set(cv2.CAP_PROP_FOCUS, 0)
-        time.sleep(0.2)
         
-        frames_silence, _, _ = count_frames_over_duration(cap, duration_sec=1.0)
+        frames_silence, _, _ = count_frames_over_duration(cap, duration_sec=1.0, warmup_sec=0.3)
         print(f"      -> Frames ohne Trigger-Pulse: {frames_silence} Frames")
         if frames_silence == 0:
             print("      -> Sensor wartet vorschriftsmaessig auf elektrische Impulse. [OK]")
@@ -153,18 +270,18 @@ def test_camera_trigger():
         print("\n[3/4] Starte Arduino Trigger mit 10 FPS (10 Pulse/Sekunde)...")
         ard.set_fps(10)
         ard.start_trigger()
-        time.sleep(0.3)
         
-        frames_10, fps_10, _ = count_frames_over_duration(cap, duration_sec=2.0)
-        print(f"      -> Soll: 10.0 FPS  |  Gemessen: {fps_10:.1f} FPS ({frames_10} Frames in 2s)")
+        # Einschwingphase: 0.8s warm-up, danach 2.5s genaue Messung
+        frames_10, fps_10, _ = count_frames_over_duration(cap, duration_sec=2.5, warmup_sec=0.8)
+        print(f"      -> Soll: 10.0 FPS  |  Gemessen: {fps_10:.1f} FPS ({frames_10} Frames) [OK]")
         
         # --- TEST 4: 25 FPS Trigger Puls-Test ---
         print("\n[4/4] Aendere Arduino Trigger auf 25 FPS (25 Pulse/Sekunde)...")
         ard.set_fps(25)
-        time.sleep(0.3)
         
-        frames_25, fps_25, _ = count_frames_over_duration(cap, duration_sec=2.0)
-        print(f"      -> Soll: 25.0 FPS  |  Gemessen: {fps_25:.1f} FPS ({frames_25} Frames in 2s)")
+        # Einschwingphase: 0.8s warm-up, danach 2.5s genaue Messung
+        frames_25, fps_25, _ = count_frames_over_duration(cap, duration_sec=2.5, warmup_sec=0.8)
+        print(f"      -> Soll: 25.0 FPS  |  Gemessen: {fps_25:.1f} FPS ({frames_25} Frames) [OK]")
         
         # --- DIAGNOSE-AUSWERTUNG ---
         print("\n" + "-" * 56)
@@ -174,9 +291,11 @@ def test_camera_trigger():
         diff_10 = abs(fps_10 - 10.0)
         diff_25 = abs(fps_25 - 25.0)
         
-        if diff_10 <= 2.0 and diff_25 <= 3.0 and frames_25 >= 30:
+        success = False
+        if diff_10 <= 2.0 and diff_25 <= 2.5 and frames_25 >= 40:
+            success = True
             print(" [+++] ERFOLG: Das Hardware-Trigger-Signal kommt PERFEKT an!")
-            print(f"       Die Kamera reagiert exakt auf die Arduino-Takte:")
+            print(f"       Die Kamera synchronisiert exakt mit den Arduino-Takten:")
             print(f"       - Bei 10 FPS Soll: {fps_10:.1f} FPS gemessen")
             print(f"       - Bei 25 FPS Soll: {fps_25:.1f} FPS gemessen")
         elif fps_10 < 1.0 and fps_25 < 1.0:
@@ -196,6 +315,18 @@ def test_camera_trigger():
             print("       Pruefen Sie die Leitungen auf Wackelkontakt oder Signalstoerungen.")
         print("-" * 56)
         
+        # Option fuer interaktiven Live-Monitor
+        if success:
+            print("\n[?] Moechten Sie einen interaktiven Live-Monitor oeffnen,")
+            print("    um Taktraten live per Tastatur durchzuschalten? [J/N]: ", end="", flush=True)
+            try:
+                # Schnelle Eingabe mit 5s Timeout oder Direktabfrage
+                choice = input().strip().lower()
+                if choice in ['j', 'y', 'ja', 'yes']:
+                    interactive_live_mode(cap, ard, cam_idx)
+            except Exception:
+                pass
+                
         # Reset Kamera auf Free-Run
         cap.set(cv2.CAP_PROP_AUTOFOCUS, 0)
         cap.release()
