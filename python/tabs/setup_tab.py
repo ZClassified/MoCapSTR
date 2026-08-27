@@ -5,9 +5,23 @@ from PIL import Image
 import threading
 import cv2
 
-class SetupTab(ctk.CTkScrollableFrame):
+def get_recommended_usb_fps(target_fps: int) -> str:
+    """
+    Calculates the optimal USB polling rate for a given target capture FPS in hardware trigger mode.
+    - <= 50 FPS: 60 FPS USB polling (16.6ms slots prevent beat frequency/aliasing, fits 4 cams comfortably)
+    - 51-60 FPS: 90 FPS USB polling
+    - > 60 FPS: 120 FPS USB polling
+    """
+    if target_fps <= 50:
+        return "60"
+    elif target_fps <= 60:
+        return "90"
+    else:
+        return "120"
+
+class SetupTab(ctk.CTkFrame):
     def __init__(self, parent, app):
-        super().__init__(parent)
+        super().__init__(parent, fg_color="transparent")
         self.app = app
         self.build_ui()
         
@@ -17,7 +31,7 @@ class SetupTab(ctk.CTkScrollableFrame):
         # Helper for card frames
         def create_card(parent, title):
             card = ctk.CTkFrame(parent, corner_radius=10)
-            card.pack(fill="x", padx=15, pady=8)
+            card.pack(fill="x", padx=15, pady=6)
             ctk.CTkLabel(card, text=title, font=ctk.CTkFont(weight="bold", size=14)).pack(anchor="w", padx=15, pady=(10, 5))
             inner_frame = ctk.CTkFrame(card, fg_color="transparent")
             inner_frame.pack(fill="x", padx=15, pady=(0, 10))
@@ -30,30 +44,30 @@ class SetupTab(ctk.CTkScrollableFrame):
         proj_inner.grid_columnconfigure(1, weight=1)
         
         # --- Project Name & Save Dir ---
-        ctk.CTkLabel(proj_inner, text="Project Name:").grid(row=0, column=0, sticky="w", pady=5)
+        ctk.CTkLabel(proj_inner, text="Project Name:").grid(row=0, column=0, sticky="w", pady=4)
         self.proj_name_entry = ctk.CTkEntry(proj_inner)
         self.proj_name_entry.insert(0, "My_MoCap_Project")
-        self.proj_name_entry.grid(row=0, column=1, sticky="ew", padx=10, pady=5)
+        self.proj_name_entry.grid(row=0, column=1, sticky="ew", padx=10, pady=4)
         
-        ctk.CTkLabel(proj_inner, text="Save Directory:").grid(row=1, column=0, sticky="w", pady=5)
+        ctk.CTkLabel(proj_inner, text="Save Directory:").grid(row=1, column=0, sticky="w", pady=4)
         dir_f = ctk.CTkFrame(proj_inner, fg_color="transparent")
-        dir_f.grid(row=1, column=1, sticky="ew", padx=10)
+        dir_f.grid(row=1, column=1, sticky="ew", padx=10, pady=4)
         self.lbl_save_dir = ctk.CTkLabel(dir_f, text=self.app.proj_mgr.base_path, text_color="gray", anchor="w")
         self.lbl_save_dir.pack(side="left", fill="x", expand=True)
         ctk.CTkButton(dir_f, text="Browse...", width=80, command=self.browse_directory).pack(side="right", padx=(5,0))
         
         # --- Codec ---
-        ctk.CTkLabel(proj_inner, text="Codec:").grid(row=2, column=0, sticky="w", pady=5)
+        ctk.CTkLabel(proj_inner, text="Codec:").grid(row=2, column=0, sticky="w", pady=4)
         self.codec_combo = ctk.CTkComboBox(proj_inner, values=list(self.app.recorder.get_supported_codecs().keys()))
-        self.codec_combo.grid(row=2, column=1, sticky="ew", padx=10, pady=5)
+        self.codec_combo.grid(row=2, column=1, sticky="ew", padx=10, pady=4)
 
         # --- Divider ---
-        ctk.CTkFrame(proj_inner, height=2, fg_color=("gray70", "gray30")).grid(row=3, column=0, columnspan=2, sticky="ew", pady=10)
+        ctk.CTkFrame(proj_inner, height=2, fg_color=("gray70", "gray30")).grid(row=3, column=0, columnspan=2, sticky="ew", pady=8)
 
         # --- Presets ---
-        ctk.CTkLabel(proj_inner, text="Preset:").grid(row=4, column=0, sticky="w", pady=5)
+        ctk.CTkLabel(proj_inner, text="Preset:").grid(row=4, column=0, sticky="w", pady=4)
         pre_f = ctk.CTkFrame(proj_inner, fg_color="transparent")
-        pre_f.grid(row=4, column=1, sticky="ew", padx=10, pady=5)
+        pre_f.grid(row=4, column=1, sticky="ew", padx=10, pady=4)
         
         self.preset_combo = ctk.CTkComboBox(pre_f, values=["Default"] + self.app.preset_mgr.get_preset_names(), width=140)
         self.preset_combo.pack(side="left", padx=(0, 5))
@@ -64,9 +78,9 @@ class SetupTab(ctk.CTkScrollableFrame):
         ctk.CTkButton(pre_f, text="Save", width=60, command=self.save_preset).pack(side="left")
 
         # --- Workflow Selection ---
-        ctk.CTkLabel(proj_inner, text="Workflow:").grid(row=5, column=0, sticky="w", pady=5)
+        ctk.CTkLabel(proj_inner, text="Workflow:").grid(row=5, column=0, sticky="w", pady=4)
         wf_f = ctk.CTkFrame(proj_inner, fg_color="transparent")
-        wf_f.grid(row=5, column=1, sticky="ew", padx=10, pady=5)
+        wf_f.grid(row=5, column=1, sticky="ew", padx=10, pady=4)
         self.workflow_var = ctk.StringVar(value="USB Webcams")
         
         r1 = ctk.CTkRadioButton(wf_f, text="Option 1: Innomaker USB (+ Arduino Trigger)", variable=self.workflow_var, value="USB Webcams", command=self.update_workflow_ui)
@@ -75,7 +89,7 @@ class SetupTab(ctk.CTkScrollableFrame):
         r2.pack(side="left")
 
         # --- Divider Between Cards ---
-        ctk.CTkFrame(self, height=2, fg_color=("gray70", "gray30")).pack(fill="x", padx=15, pady=(5, 5))
+        ctk.CTkFrame(self, height=2, fg_color=("gray70", "gray30")).pack(fill="x", padx=15, pady=(4, 4))
 
         # ==========================================
         # CARD 2: Hardware Configuration
@@ -84,16 +98,16 @@ class SetupTab(ctk.CTkScrollableFrame):
         hw_inner.grid_columnconfigure(1, weight=1)
         
         # --- Camera Basic Settings ---
-        ctk.CTkLabel(hw_inner, text="Resolution:").grid(row=0, column=0, sticky="w", pady=5)
+        ctk.CTkLabel(hw_inner, text="Resolution:").grid(row=0, column=0, sticky="w", pady=4)
         res_options = ["3840x2160 (4K)", "2560x1440 (1440p)", "1920x1080 (1080p)", "1280x800", "1280x720 (720p)", "1024x768", "800x600", "640x480", "640x400", "320x240"]
         self.res_combo = ctk.CTkComboBox(hw_inner, values=res_options)
         self.res_combo.set("1280x720 (720p)")
-        self.res_combo.grid(row=0, column=1, sticky="ew", padx=10, pady=5)
+        self.res_combo.grid(row=0, column=1, sticky="ew", padx=10, pady=4)
         
-        ctk.CTkLabel(hw_inner, text="Target FPS:").grid(row=1, column=0, sticky="w", pady=5)
+        ctk.CTkLabel(hw_inner, text="Target FPS:").grid(row=1, column=0, sticky="w", pady=4)
         
         fps_frame = ctk.CTkFrame(hw_inner, fg_color="transparent")
-        fps_frame.grid(row=1, column=1, sticky="ew", padx=10, pady=5)
+        fps_frame.grid(row=1, column=1, sticky="ew", padx=10, pady=4)
         
         self.fps_entry = ctk.CTkEntry(fps_frame, width=60)
         self.fps_entry.insert(0, "30")
@@ -102,42 +116,46 @@ class SetupTab(ctk.CTkScrollableFrame):
         self.fps_entry.bind("<Return>",   lambda e: self.on_fps_changed())
         
         ctk.CTkLabel(fps_frame, text="USB Polling:").pack(side="left", padx=(15, 5))
-        self.usb_fps_combo = ctk.CTkComboBox(fps_frame, values=["30", "60", "90", "120"], width=70)
+        self.usb_fps_combo = ctk.CTkComboBox(
+            fps_frame, 
+            values=["60", "90", "120", "30"], 
+            width=70,
+            command=lambda _: self._validate_usb_fps()
+        )
         self.usb_fps_combo.set("60")
         self.usb_fps_combo.pack(side="left")
 
+        # Dynamic warning/info badge for USB Polling & FPS compatibility (hidden by default)
+        self.lbl_usb_warn = ctk.CTkLabel(hw_inner, text="", font=ctk.CTkFont(size=11), anchor="w")
+
         # --- Hardware Tuning (USB Only) ---
         self.tuning_frame = ctk.CTkFrame(hw_inner, fg_color="transparent")
-        self.tuning_frame.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(5, 0))
+        self.tuning_frame.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(4, 2))
         self.tuning_frame.grid_columnconfigure(1, weight=1)
 
         self.lbl_exposure = ctk.CTkLabel(self.tuning_frame, text="Exposure: -8 (1/256s)", width=140, anchor="w")
-        self.lbl_exposure.grid(row=0, column=0, sticky="w", pady=5)
+        self.lbl_exposure.grid(row=0, column=0, sticky="w", pady=4)
         self.exposure_slider = ctk.CTkSlider(self.tuning_frame, from_=-11, to=-3, number_of_steps=8, command=self.update_exposure_label)
         self.exposure_slider.set(-8)
-        self.exposure_slider.grid(row=0, column=1, sticky="ew", padx=10, pady=5)
+        self.exposure_slider.grid(row=0, column=1, sticky="ew", padx=10, pady=4)
         
         self.lbl_exposure_warn = ctk.CTkLabel(self.tuning_frame, text="", text_color="red", font=ctk.CTkFont(size=11))
-        self.lbl_exposure_warn.grid(row=1, column=1, sticky="w", padx=10)
-
-
-        self._clamp_exposure_to_fps()
 
         # --- Arduino Sync (USB Only) ---
         self.arduino_frame = ctk.CTkFrame(hw_inner, fg_color="transparent")
-        self.arduino_frame.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(5, 0))
+        self.arduino_frame.grid(row=4, column=0, columnspan=2, sticky="ew", pady=(4, 0))
         self.arduino_frame.grid_columnconfigure(1, weight=1)
 
-        ctk.CTkFrame(self.arduino_frame, height=2, fg_color=("gray70", "gray30")).grid(row=0, column=0, columnspan=2, sticky="ew", pady=(5, 10))
+        ctk.CTkFrame(self.arduino_frame, height=2, fg_color=("gray70", "gray30")).grid(row=0, column=0, columnspan=2, sticky="ew", pady=(6, 8))
         
         self.chk_uvc_trigger_var = ctk.BooleanVar(value=True)
         self.chk_uvc_trigger = ctk.CTkCheckBox(self.arduino_frame, text="Enable UVC Hardware Trigger", variable=self.chk_uvc_trigger_var)
-        self.chk_uvc_trigger.grid(row=1, column=0, columnspan=2, sticky="w", pady=(0, 10))
+        self.chk_uvc_trigger.grid(row=1, column=0, columnspan=2, sticky="w", pady=(0, 6))
         
-        ctk.CTkLabel(self.arduino_frame, text="Arduino Port:").grid(row=2, column=0, sticky="w", pady=5)
+        ctk.CTkLabel(self.arduino_frame, text="Arduino Port:").grid(row=2, column=0, sticky="w", pady=4)
         
         ard_f = ctk.CTkFrame(self.arduino_frame, fg_color="transparent")
-        ard_f.grid(row=2, column=1, sticky="ew", padx=10, pady=5)
+        ard_f.grid(row=2, column=1, sticky="ew", padx=10, pady=4)
         
         ports = self.app.arduino.get_available_ports()
         self.port_combo = ctk.CTkComboBox(ard_f, values=ports if ports else ["No Ports Found"])
@@ -154,9 +172,9 @@ class SetupTab(ctk.CTkScrollableFrame):
             text="Initialize System & Start Preview",
             command=self.initialize_system_cmd,
             fg_color="#1f538d", hover_color="#14375e",
-            height=50, font=ctk.CTkFont(weight="bold", size=16)
+            height=48, font=ctk.CTkFont(weight="bold", size=15)
         )
-        self.btn_init_system.pack(fill="x", padx=15, pady=(20, 5))
+        self.btn_init_system.pack(fill="x", padx=15, pady=(16, 4))
 
         self.lbl_init_status = ctk.CTkLabel(
             self,
@@ -164,7 +182,7 @@ class SetupTab(ctk.CTkScrollableFrame):
             font=ctk.CTkFont(weight="bold", size=13),
             anchor="center"
         )
-        self.lbl_init_status.pack(fill="x", padx=15, pady=(0, 15))
+        self.lbl_init_status.pack(fill="x", padx=15, pady=(0, 12))
 
         self.on_fps_changed() # Initialize warnings and USB FPS default
         self.update_workflow_ui()
@@ -192,19 +210,60 @@ class SetupTab(ctk.CTkScrollableFrame):
         self._clamp_exposure_to_fps() # Check warning dynamically
 
     def on_fps_changed(self):
-        self._clamp_exposure_to_fps()
         try:
-            target = int(self.fps_entry.get())
-            if target <= 25:
-                self.usb_fps_combo.set("30")
-            elif target <= 50:
-                self.usb_fps_combo.set("60")
-            elif target <= 60:
-                self.usb_fps_combo.set("90")
-            else:
-                self.usb_fps_combo.set("120")
+            fps = int(self.fps_entry.get())
+            try:
+                usb_fps = int(self.usb_fps_combo.get())
+            except ValueError:
+                usb_fps = 0
+            
+            # If current USB polling is strictly lower than target FPS, or is 30 on 20/24/25 FPS,
+            # auto-suggest the safe recommended value
+            if usb_fps < fps or (usb_fps == 30 and fps in [20, 24, 25]):
+                self.usb_fps_combo.set(get_recommended_usb_fps(fps))
         except ValueError:
             pass
+            
+        self._clamp_exposure_to_fps()
+        self._validate_usb_fps()
+
+    def _validate_usb_fps(self):
+        """
+        Validates the chosen USB polling rate against target FPS to warn the user
+        if a beat-frequency drop or bandwidth bottleneck is expected.
+        """
+        try:
+            fps = int(self.fps_entry.get())
+            usb_fps = int(self.usb_fps_combo.get())
+        except ValueError:
+            self.lbl_usb_warn.configure(text="")
+            self.lbl_usb_warn.grid_remove()
+            return
+
+        recommended = get_recommended_usb_fps(fps)
+        
+        # Critical conflict: 30 FPS USB polling on 20/24/25 FPS trigger leads to 1/2 FPS
+        if usb_fps == 30 and fps in [20, 24, 25]:
+            self.lbl_usb_warn.configure(
+                text=f"⚠️ USB Polling (30) führt bei {fps} FPS zu Framerate-Halbierung (~15 FPS)! Mindestens 60 empfohlen.",
+                text_color="#e63946"
+            )
+            self.lbl_usb_warn.grid(row=2, column=0, columnspan=2, sticky="w", padx=10, pady=(1, 3))
+        elif usb_fps < fps:
+            self.lbl_usb_warn.configure(
+                text=f"⚠️ USB Polling ({usb_fps}) ist kleiner als Ziel-FPS ({fps})! Dropping erwartet. Empfohlen: {recommended}.",
+                text_color="#e63946"
+            )
+            self.lbl_usb_warn.grid(row=2, column=0, columnspan=2, sticky="w", padx=10, pady=(1, 3))
+        elif usb_fps == 30 and fps == 30:
+            self.lbl_usb_warn.configure(
+                text=f"Hinweis: Bei 30 FPS Trigger ist 60 USB Polling stabiler gegen Phasen-Drift.",
+                text_color="#f77f00"
+            )
+            self.lbl_usb_warn.grid(row=2, column=0, columnspan=2, sticky="w", padx=10, pady=(1, 3))
+        else:
+            self.lbl_usb_warn.configure(text="")
+            self.lbl_usb_warn.grid_remove()
 
     def _clamp_exposure_to_fps(self):
         """
@@ -231,8 +290,10 @@ class SetupTab(ctk.CTkScrollableFrame):
                 self.lbl_exposure_warn.configure(text=f"Warnung: {fps} FPS ist unmöglich (Sensor braucht 18ms).")
             else:
                 self.lbl_exposure_warn.configure(text=f"Warnung: Zyklus zu lang! Framerate wird sich halbieren.")
+            self.lbl_exposure_warn.grid(row=1, column=1, sticky="w", padx=10, pady=(0, 2))
         else:
             self.lbl_exposure_warn.configure(text="")
+            self.lbl_exposure_warn.grid_remove()
 
     def save_preset(self):
         name = self.preset_name_entry.get()
@@ -291,9 +352,10 @@ class SetupTab(ctk.CTkScrollableFrame):
             if "usb_fps" in data:
                 self.usb_fps_combo.set(data["usb_fps"])
             else:
-                self.on_fps_changed() # Auto-calculate if old preset doesn't have it
+                self.usb_fps_combo.set("60")
 
             self._clamp_exposure_to_fps()
+            self._validate_usb_fps()
             saved_exp = data.get("exposure", -8)
             # Entferne den Zwang, wir setzen einfach den geladenen Wert.
             self.exposure_slider.set(saved_exp)
