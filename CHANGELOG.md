@@ -1,9 +1,14 @@
 # Changelog
 
-**Current Status:** System is at v1.4.5. Upgraded hardware-trigger diagnostic tool to single-stream PyAV packet measurement, eliminating zombie thread reader race conditions and DirectShow frame drop errors.
-**Last Modified:** 2026-08-27 09:55:00
+**Current Status:** System is at v1.4.6. Intelligent USB polling rate recommendation engine, trigger FPS preservation, real-time warning badges, and compact zero-scroll SetupTab.
+**Last Modified:** 2026-08-27 10:50:00
 
 ---
+
+- **2026-08-27 (v1.4.6):** Version bump to v1.4.6. **Intelligent USB Polling Recommendation, Trigger FPS Preservation & Compact UI**:
+  - **`setup_tab.py`**: Added `get_recommended_usb_fps()` utility function to calculate physics-accurate USB polling rates ($\ge 60$ FPS for $\le 50$ FPS target triggers) to eliminate phase-drift/beat-frequency FPS halving (e.g. 15 FPS on 25p). Added real-time warning label (`lbl_usb_warn`) alerting users if a chosen USB polling rate is incompatible with target FPS. Added smart auto-suggestion on Target FPS change while preserving complete manual override freedom. Added default fallback of 60 FPS for legacy presets.
+  - **`setup_tab.py`**: Converted `SetupTab` from `CTkScrollableFrame` to clean `CTkFrame`, eliminating the unused right scrollbar and preventing scrolling into blank space now that all elements fit cleanly on screen.
+  - **`main.py`**: Updated window title to v1.4.6.
 
 - **2026-08-27 (v1.4.5):** Version bump to v1.4.5. **Hardware Trigger Diagnostic Tool Overhaul**:
   - **`arduino/test_camera_trigger.py`**: Rewrote diagnostic tool to use lossless single-stream PyAV demuxing for frame measurement instead of multi-threaded `cv2.VideoCapture` `CAP_DSHOW` loops. Fixed zombie thread race conditions on paused trigger states that caused artificially degraded FPS readings (e.g. 3.2 FPS on 10 Hz trigger). Added automatic manual exposure optimization (1/128s) to guarantee accurate 10–60+ FPS hardware trigger validation.
