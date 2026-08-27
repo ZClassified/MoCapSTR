@@ -206,4 +206,15 @@ def test_camera_trigger():
     print("\n[OK] Diagnose abgeschlossen. Kameras wurden sauber auf Free-Run zurueckgesetzt.\n")
 
 if __name__ == '__main__':
-    test_camera_trigger()
+    try:
+        test_camera_trigger()
+    except Exception as e:
+        print(f"\n[FEHLER] Unerwarteter Fehler: {e}")
+        import traceback
+        traceback.print_exc()
+    finally:
+        print("\n" + "=" * 62)
+        try:
+            input("Druecken Sie [ENTER], um das Fenster zu schliessen...")
+        except Exception:
+            pass
