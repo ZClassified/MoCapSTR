@@ -37,6 +37,7 @@ To build the complete hardware system (V1), you will need the following standard
 - 2x 5-pin Cage Clamp Terminals (WAGO 221 or similar) to bundle splitter box connections.
 - 4x Innomaker OV9281 USB global-shutter camera modules.
 - 4x 2-Pin Micro Plugs (e.g. JST 1.25mm 2-pin) to plug trigger lines cleanly onto the camera board's FSIN pins.
+- **Recommended Host PC USB PCIe Card (for 4+ Cameras):** **StarTech 4-Port USB 3.0 PCIe Card (Model: `P5Q4A-USB-CARD`)** — features 4 independent controller channels (1 dedicated host controller chip per port), completely eliminating motherboard USB bandwidth saturation and packet collisions.
 
 **Mechanics & Fasteners:**
 - **Trigger Box:** 8x M3 10mm screws, 8x M3 brass heat-set inserts.
@@ -155,6 +156,7 @@ Für den Nachbau des Gesamtsystems (V1) werden neben den [3D-Druckteilen](3Dprin
 - 2x 5-polige Käfigzugklemmen (z. B. WAGO 221) zum Zusammenführen der Signal- und Masseleitungen in der Splitter-Box.
 - 4x Innomaker OV9281 USB Global-Shutter Kameramodule.
 - 4x 2-Pin Mikro-Steckverbinder (z. B. JST 1.25mm 2-Pin), um die Triggerkabel direkt und steckbar auf die FSIN-Pins der Kameraplatinen zu stecken.
+- **Empfohlene Host-PC USB-PCIe-Erweiterungskarte (für 4+ Kameras):** **StarTech 4-Port USB 3.0 PCIe-Karte (Modell: `P5Q4A-USB-CARD`)** — verfügt über 4 getrennte Controller-Kanäle (1 dedizierter Controller-Chip pro Port), wodurch Bandbreiten-Engpässe und Paketkollisionen vollständig vermieden werden.
 
 **Mechanik & Schrauben:**
 - **Trigger-Box:** 8x M3 10mm Schrauben, 8x M3 Einschmelzgewinde.
@@ -228,5 +230,8 @@ Die vier Kabel kommen von der Splitter-Box an den Kameras an. Wir nutzen die ein
 
 ---
 
-## Kabel-Empfehlung
-Ein 2-adriges, geschirmtes Audiokabel (z.B. `2x 0.08 mm²` oder DMX-Steuerkabel) ist ideal für die Strecke von der Splitter-Box zu den Kameras. Für die Strecke zwischen Arduino und Box reicht jedes handelsübliche XLR-Mikrofonkabel.
+## Kabel- & USB-Empfehlungen
+
+- **Trigger-Kabel (Splitter zu Kameras):** Ein 2-adriges, geschirmtes Audiokabel (z. B. `2x 0.08 mm²` oder DMX-Steuerkabel) ist ideal für die Strecke von der Splitter-Box zu den Kameras.
+- **XLR-Kabel (Arduino zu Splitter):** Jedes handelsübliche 3-polige XLR-Mikrofonkabel.
+- **USB-PCIe-Erweiterungskarte:** **StarTech `P5Q4A-USB-CARD` (4-Port PCIe)** — Getestet und verifiziert für den synchronen Betrieb von 4 InnoMaker OV9281 Kameras. Verhindert Bandbreiten-Staus zuverlässig durch 4 separate Controller-Chips.

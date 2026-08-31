@@ -20,7 +20,8 @@ Hardware-level synchronization has fundamentally different USB bandwidth require
 ### The Motherboard Bottleneck & Recommended Setup
 Most standard PC motherboards share only 1 or 2 USB host controllers across all external USB ports:
 - **Motherboard Limits:** In our testing, standard onboard USB controllers reliably handle a **maximum of 3 cameras** in hardware-trigger mode before bandwidth saturation causes dropped frames.
-- **Recommended for 4+ Cameras:** We strongly recommend using a **PCIe USB expansion card with dedicated host controllers per port** (e.g. 4 separate USB controller chips on a single PCIe card) to ensure unconstrained bandwidth for all cameras.
+- **Recommended for 4+ Cameras (Verified Hardware):** We strongly recommend using a **PCIe USB expansion card with dedicated host controllers per port** (e.g. 4 separate USB controller chips on a single PCIe card) to ensure unconstrained bandwidth for all cameras.
+  - **Tested & Verified Model:** **StarTech 4-Port USB 3.0 PCIe Card (Model: `P5Q4A-USB-CARD`)** — features 4 independent controller channels, reliably streaming 4 InnoMaker OV9281 cameras simultaneously without frame drops.
 - **USB Polling Rate:** In the Setup tab, always set `USB Polling` at least 1 step higher than your target recording FPS (e.g. Target 30 FPS -> USB Polling 60 FPS) to ensure Windows polls the USB buffer fast enough.
 
 <p align="center">
@@ -37,7 +38,7 @@ Most standard PC motherboards share only 1 or 2 USB host controllers across all 
 - **Zero-Copy PyAV Backend:** Writes raw MJPEG streams directly to disk via FFmpeg/PyAV without CPU decoding, minimizing frame drops.
 - **Live Preview & Charuco Calibration:** Multi-camera live view with per-camera rotation (0°, 90°, 180°, 270°) and live `cv2.aruco` Charuco board detection overlay.
 - **FreeMoCap Folder Structure:** Direct export into FreeMoCap's expected `synchronized_videos/` structure with matching frame counts.
-- **Built-in Offline Converter:** Batch-converts raw `.avi` recordings into compatible H.264 (`.mp4`) videos for FreeMoCap import.
+- **Built-in Offline Converter:** Batch-converts raw `.avi` recordings into compatible H.264 (`.mp4`) files.
 - **Hardware Diagnostics:** Built-in Camera Test tab to scan connected cameras for supported resolutions, framerates, and pixel formats.
 
 ---
@@ -111,7 +112,8 @@ Hardware-Synchronisation stellt völlig andere Anforderungen an den USB-Bus als 
 ### Der Mainboard-Flaschenhals & Hardware-Empfehlung
 Auf herkömmlichen PC-Mainboards teilen sich fast alle USB-Ports nur 1 bis 2 interne USB-Host-Controller:
 - **Mainboard-Limit:** In Praxistests schaffen normale Onboard-Controller im Hardware-Trigger-Modus **maximal 3 Kameras** zuverlässig. Bei 4 Kameras kommt es zu Bandbreiten-Staus und Frame-Drops.
-- **Empfehlung für 4+ Kameras:** Eine **PCIe-USB-Erweiterungskarte mit je einem dedizierten USB-Controller-Chip pro Port** (z. B. 4 getrennte Controller auf einer Karte) wird dringend empfohlen.
+- **Empfehlung für 4+ Kameras (Verifizierte Hardware):** Eine **PCIe-USB-Erweiterungskarte mit je einem dedizierten USB-Controller-Chip pro Port** (z. B. 4 getrennte Controller auf einer Karte) wird dringend empfohlen.
+  - **Getestetes & verifiziertes Modell:** **StarTech 4-Port USB 3.0 PCIe-Karte (Modell: `P5Q4A-USB-CARD`)** — verfügt über 4 getrennte USB-Host-Controller und betreibt 4 InnoMaker OV9281 Kameras absolut reibungslos ohne Frame-Drops.
 - **USB-Polling-Rate:** Im Setup-Tab muss `USB Polling` immer mindestens 1 Stufe höher eingestellt sein als die Ziel-FPS (z. B. Ziel 30 FPS -> Polling 60 FPS), damit Windows die USB-Puffer schnell genug leert.
 
 <p align="center">
