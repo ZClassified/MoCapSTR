@@ -1,8 +1,9 @@
 # MoCapSTR: Sync / Trigger / Record for FreeMoCap
 
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![FFmpeg](https://img.shields.io/badge/FFmpeg-Required-55a000?logo=ffmpeg&logoColor=white)](https://ffmpeg.org/)
-[![Platform Windows](https://img.shields.io/badge/Platform-Windows-0078D6?logo=windows&logoColor=white)](#)
+[![Backend: PyAV (FFmpeg)](https://img.shields.io/badge/Backend-PyAV_(FFmpeg)-55a000?logo=ffmpeg&logoColor=white)](https://pyav.org/)
+[![Hardware Sync: Arduino](https://img.shields.io/badge/Hardware_Sync-Arduino-00979D?logo=arduino&logoColor=white)](https://www.arduino.cc/)
+[![Platform: Windows](https://img.shields.io/badge/Platform-Windows-0078D6?logo=windows&logoColor=white)](#)
 [![Version](https://img.shields.io/badge/Version-1.4.8-orange)](https://github.com/ZClassified/MoCapSTR/releases)
 [![License: GPL v3](https://img.shields.io/badge/License-GPL_v3-007EC6.svg)](LICENSE)
 [![FreeMoCap](https://img.shields.io/badge/FreeMoCap-Compatible-7952B3?logo=github)](https://github.com/freemocap/freemocap)
