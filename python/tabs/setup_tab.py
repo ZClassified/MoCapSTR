@@ -9,17 +9,10 @@ import gc
 
 def get_recommended_usb_fps(target_fps: int) -> str:
     """
-    Calculates the optimal USB polling rate for a given target capture FPS in hardware trigger mode.
-    - <= 50 FPS: 60 FPS USB polling (16.6ms slots prevent beat frequency/aliasing, fits 4 cams comfortably)
-    - 51-60 FPS: 90 FPS USB polling
-    - > 60 FPS: 120 FPS USB polling
+    Returns the default USB polling mode. 'Auto' dynamically uses 120 FPS in Hardware Trigger
+    mode to prevent beat-frequency packet loss while matching target_fps in Free-Run mode.
     """
-    if target_fps <= 50:
-        return "60"
-    elif target_fps <= 60:
-        return "90"
-    else:
-        return "120"
+    return "Auto"
 
 class SetupTab(ctk.CTkFrame):
     def __init__(self, parent, app):
@@ -112,7 +105,7 @@ class SetupTab(ctk.CTkFrame):
         fps_frame.grid(row=1, column=1, sticky="ew", padx=10, pady=4)
         
         self.fps_entry = ctk.CTkEntry(fps_frame, width=60)
-        self.fps_entry.insert(0, "30")
+        self.fps_entry.insert(0, "50")
         self.fps_entry.pack(side="left")
         self.fps_entry.bind("<FocusOut>", lambda e: self.on_fps_changed())
         self.fps_entry.bind("<Return>",   lambda e: self.on_fps_changed())
@@ -120,11 +113,11 @@ class SetupTab(ctk.CTkFrame):
         ctk.CTkLabel(fps_frame, text="USB Polling:").pack(side="left", padx=(15, 5))
         self.usb_fps_combo = ctk.CTkComboBox(
             fps_frame, 
-            values=["60", "90", "120", "30"], 
-            width=70,
+            values=["Auto", "120", "90", "60", "30"], 
+            width=80,
             command=lambda _: self._validate_usb_fps()
         )
-        self.usb_fps_combo.set("60")
+        self.usb_fps_combo.set("Auto")
         self.usb_fps_combo.pack(side="left")
 
         # Dynamic warning/info badge for USB Polling & FPS compatibility (hidden by default)
@@ -135,13 +128,13 @@ class SetupTab(ctk.CTkFrame):
         self.tuning_frame.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(4, 2))
         self.tuning_frame.grid_columnconfigure(1, weight=1)
 
-        self.lbl_exposure = ctk.CTkLabel(self.tuning_frame, text="Exposure: -8 (1/256s)", width=140, anchor="w")
+        self.lbl_exposure = ctk.CTkLabel(self.tuning_frame, text="Exposure: -9 (1/512s)", width=140, anchor="w")
         self.lbl_exposure.grid(row=0, column=0, sticky="w", pady=4)
         self.exposure_slider = ctk.CTkSlider(self.tuning_frame, from_=-11, to=-3, number_of_steps=8, command=self.update_exposure_label)
-        self.exposure_slider.set(-8)
+        self.exposure_slider.set(-9)
         self.exposure_slider.grid(row=0, column=1, sticky="ew", padx=10, pady=4)
         
-        self.lbl_exposure_warn = ctk.CTkLabel(self.tuning_frame, text="", text_color="red", font=ctk.CTkFont(size=11))
+        self.lbl_exposure_warn = ctk.CTkLabel(self.tuning_frame, text="", text_color="#f77f00", font=ctk.CTkFont(size=11))
 
         # --- Arduino Sync (USB Only) ---
         self.arduino_frame = ctk.CTkFrame(hw_inner, fg_color="transparent")
@@ -212,54 +205,30 @@ class SetupTab(ctk.CTkFrame):
         self._clamp_exposure_to_fps() # Check warning dynamically
 
     def on_fps_changed(self):
-        try:
-            fps = int(self.fps_entry.get())
-            try:
-                usb_fps = int(self.usb_fps_combo.get())
-            except ValueError:
-                usb_fps = 0
-            
-            # If current USB polling is strictly lower than target FPS, or is 30 on 20/24/25 FPS,
-            # auto-suggest the safe recommended value
-            if usb_fps < fps or (usb_fps == 30 and fps in [20, 24, 25]):
-                self.usb_fps_combo.set(get_recommended_usb_fps(fps))
-        except ValueError:
-            pass
-            
         self._clamp_exposure_to_fps()
         self._validate_usb_fps()
 
     def _validate_usb_fps(self):
         """
-        Validates the chosen USB polling rate against target FPS to warn the user
-        if a beat-frequency drop or bandwidth bottleneck is expected.
+        Validates manual USB polling rate against target FPS.
         """
+        usb_val = self.usb_fps_combo.get()
+        if usb_val == "Auto":
+            self.lbl_usb_warn.configure(text="")
+            self.lbl_usb_warn.grid_remove()
+            return
+
         try:
             fps = int(self.fps_entry.get())
-            usb_fps = int(self.usb_fps_combo.get())
+            usb_fps = int(usb_val)
         except ValueError:
             self.lbl_usb_warn.configure(text="")
             self.lbl_usb_warn.grid_remove()
             return
 
-        recommended = get_recommended_usb_fps(fps)
-        
-        # Critical conflict: 30 FPS USB polling on 20/24/25 FPS trigger leads to 1/2 FPS
-        if usb_fps == 30 and fps in [20, 24, 25]:
+        if usb_fps < fps:
             self.lbl_usb_warn.configure(
-                text=f"⚠️ USB Polling (30) führt bei {fps} FPS zu Framerate-Halbierung (~15 FPS)! Mindestens 60 empfohlen.",
-                text_color="#e63946"
-            )
-            self.lbl_usb_warn.grid(row=2, column=0, columnspan=2, sticky="w", padx=10, pady=(1, 3))
-        elif usb_fps < fps:
-            self.lbl_usb_warn.configure(
-                text=f"⚠️ USB Polling ({usb_fps}) ist kleiner als Ziel-FPS ({fps})! Dropping erwartet. Empfohlen: {recommended}.",
-                text_color="#e63946"
-            )
-            self.lbl_usb_warn.grid(row=2, column=0, columnspan=2, sticky="w", padx=10, pady=(1, 3))
-        elif usb_fps == 30 and fps == 30:
-            self.lbl_usb_warn.configure(
-                text=f"Hinweis: Bei 30 FPS Trigger ist 60 USB Polling stabiler gegen Phasen-Drift.",
+                text=f"Hinweis: Manuelles USB Polling ({usb_fps}) ist kleiner als Ziel-FPS ({fps}).",
                 text_color="#f77f00"
             )
             self.lbl_usb_warn.grid(row=2, column=0, columnspan=2, sticky="w", padx=10, pady=(1, 3))
@@ -269,8 +238,7 @@ class SetupTab(ctk.CTkFrame):
 
     def _clamp_exposure_to_fps(self):
         """
-        Calculates if the current exposure time exceeds the frame interval (1/FPS)
-        and displays a warning instead of rigidly clamping the slider.
+        Warns only if the physical shutter exposure time exceeds the frame period (1/FPS).
         """
         try:
             fps = int(self.fps_entry.get())
@@ -283,15 +251,13 @@ class SetupTab(ctk.CTkFrame):
         current_val = int(round(self.exposure_slider.get()))
         shutter_s = 1.0 / (2 ** abs(current_val))
         
-        # Readout time for full 720p sensor in trigger mode is roughly 18ms.
-        total_cycle = shutter_s + 0.018
-        
-        if total_cycle > frame_period_s:
-            max_safe_exposure_s = frame_period_s - 0.018
-            if max_safe_exposure_s <= 0:
-                self.lbl_exposure_warn.configure(text=f"Warnung: {fps} FPS ist unmöglich (Sensor braucht 18ms).")
-            else:
-                self.lbl_exposure_warn.configure(text=f"Warnung: Zyklus zu lang! Framerate wird sich halbieren.")
+        if shutter_s > frame_period_s:
+            shutter_ms = shutter_s * 1000.0
+            period_ms = frame_period_s * 1000.0
+            self.lbl_exposure_warn.configure(
+                text=f"⚠️ Belichtung ({shutter_ms:.1f}ms) ist länger als 1 Frame ({period_ms:.1f}ms bei {fps} FPS).",
+                text_color="#f77f00"
+            )
             self.lbl_exposure_warn.grid(row=1, column=1, sticky="w", padx=10, pady=(0, 2))
         else:
             self.lbl_exposure_warn.configure(text="")
@@ -451,12 +417,16 @@ class SetupTab(ctk.CTkFrame):
                 res_str = self.res_combo.get().split(' ')[0]
                 target_w, target_h = map(int, res_str.split('x'))
                 
-                try:
-                    usb_fps = int(self.usb_fps_combo.get())
-                except ValueError:
-                    usb_fps = target_fps
-                
-                cam_fps = usb_fps if trigger_on and cam_type == "USB Webcams" else target_fps
+                usb_fps_str = self.usb_fps_combo.get()
+                if usb_fps_str == "Auto":
+                    # In Hardware Trigger mode: request 120 FPS USB stream to prevent beat frequency packet loss.
+                    # In Free-Run mode: request matching target_fps.
+                    cam_fps = 120 if trigger_on and cam_type == "USB Webcams" else target_fps
+                else:
+                    try:
+                        cam_fps = int(usb_fps_str)
+                    except ValueError:
+                        cam_fps = target_fps
                 fmt = "MJPG" 
                     
                 self.app.camera_indices = self.app.cam_mgr.find_and_open_cameras(

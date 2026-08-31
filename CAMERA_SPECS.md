@@ -41,7 +41,7 @@
 - **Unterstützung OS:** WinXP/Vista/Win7/Win8/Win10, Linux mit UVC (über linux-2.6.26), MAC-OS X 10.4.8 oder höher, Android 4.0 oder höher mit UVC
 
 ## External Trigger & Strobe
-- **Externe Trigger:** Unterstützung (Verwenden Sie UVC Parameter "Fokus")
+- **Externe Trigger:** Unterstützung (Aktivierung über UVC-Parameter `AutoFocus = 1` / `Focus = 0`)
 
 ### Pin-Beschreibung (Trigger)
 - **`FSIN +`** : Externer Trigger-Eingang (3,3 V–5 V) - *Direkt kompatibel mit 5V Arduino Ausgängen*
@@ -50,3 +50,29 @@
 ### Pin-Beschreibung (Strobe)
 - **`STROBE +`** : Sensor-STROB+ (Signal für externen Blitz)
 - **`STROBE -`** : Masse (GND)
+
+---
+
+## Hardware-Trigger Frameraten & Timing-Charakteristik
+
+Empirische Benchmark-Messungen mit MoCapSTR haben folgende Leistungsdaten für den InnoMaker OV9281 ermittelt:
+
+| Betriebsmodus | Maximale Framerate | Verhalten |
+| :--- | :--- | :--- |
+| **Free-Run (Interner Takt)** | **120 FPS** (1280x720 / 1280x800) | Kontinuierliches Sensor-Pipelining, extrem flüssig. |
+| **Hardware-Trigger (FSIN-Sync)** | **50 FPS** (1280x720 & 640x400) | Synchroner Frame-Zyklus im USB-ISP mit $\approx 18\text{–}20\text{ ms}$ Lockout. |
+
+### Wichtige Erkenntnisse für den Trigger-Betrieb:
+1. **50 FPS Hardware-Limit:** 
+   Im Trigger-Modus benötigt der USB-Bridge-Chip der Kamera nach jedem Puls $\approx 18\text{–}20\text{ ms}$ für Belichtung, Zeilenauslese, JPEG-Kompression und USB-Endpunkt-Freigabe, bevor der Trigger-Eingang für den nächsten Frame freigeschaltet wird.
+   - **50 Hz Trigger (20,0 ms Periode):** $\rightarrow$ **50.0 FPS** (1:1 sauber).
+   - **60 Hz Trigger (16,6 ms Periode):** $\rightarrow$ **30.0 FPS** (1:2, jeder 2. Puls wird verworfen).
+   - **90 Hz Trigger (11,1 ms Periode):** $\rightarrow$ **45.0 FPS** (1:2, jeder 2. Puls wird verworfen).
+   - **120 Hz Trigger (8,33 ms Periode):** $\rightarrow$ **40.0 FPS** (1:3, 2 von 3 Pulsen werden verworfen).
+2. **Empfohlene MoCapSTR-Einstellung:**
+   - **Auflösung:** `1280x720 (720p)`
+   - **Target FPS:** `50`
+   - **USB Polling:** `Auto` (fordert 120 FPS USB-Stream an)
+   - **Belichtung:** `-9` (1/512s) oder `-10` (1/1024s)
+   - **Trigger-Pulsweite (Arduino):** `250 µs` bis `500 µs`
+

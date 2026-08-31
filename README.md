@@ -6,7 +6,7 @@
 
 > **Disclaimer:** MoCapSTR is an independent open-source companion tool and is not officially affiliated with the FreeMoCap project.
 
-MoCapSTR is an open-source multi-camera recording tool designed to capture frame-accurate, hardware-synchronized video datasets for [FreeMoCap](https://github.com/freemocap/freemocap). It synchronizes global-shutter USB cameras (e.g. Innomaker OV9281) via an Arduino trigger signal, and also supports Blackmagic SDI capture cards.
+MoCapSTR is an open-source multi-camera recording tool designed to capture frame-accurate, hardware-synchronized video datasets for [FreeMoCap](https://github.com/freemocap/freemocap). It synchronizes global-shutter USB cameras (e.g. Innomaker OV9281, tested up to 50 FPS hardware-synced / 120 FPS free-run) via an Arduino trigger signal, and also supports Blackmagic SDI capture cards.
 
 ---
 
@@ -22,7 +22,14 @@ Most standard PC motherboards share only 1 or 2 USB host controllers across all 
 - **Motherboard Limits:** In our testing, standard onboard USB controllers reliably handle a **maximum of 3 cameras** in hardware-trigger mode before bandwidth saturation causes dropped frames.
 - **Recommended for 4+ Cameras (Verified Hardware):** We strongly recommend using a **PCIe USB expansion card with dedicated host controllers per port** (e.g. 4 separate USB controller chips on a single PCIe card) to ensure unconstrained bandwidth for all cameras.
   - **Tested & Verified Model:** **StarTech 4-Port USB 3.0 PCIe Card (Model: `P5Q4A-USB-CARD`)** — features 4 independent controller channels, reliably streaming 4 InnoMaker OV9281 cameras simultaneously without frame drops.
-- **USB Polling Rate:** In the Setup tab, always set `USB Polling` at least 1 step higher than your target recording FPS (e.g. Target 30 FPS -> USB Polling 60 FPS) to ensure Windows polls the USB buffer fast enough.
+- **Smart USB Polling Rate:** In the Setup tab, `USB Polling` defaults to **`Auto`**. In Hardware Trigger mode, `Auto` requests a 120 FPS UVC stream to eliminate beat-frequency host polling jitter, while in Free-Run mode it matches your target FPS.
+
+### InnoMaker OV9281 Hardware Trigger Characterization (Max 50 FPS)
+Extensive empirical benchmark sweeping has characterized the InnoMaker OV9281 USB camera in hardware-trigger mode:
+- **Free-Run Mode:** The camera sensor streams up to **120 FPS** (1280x720 / 1280x800 MJPG) via continuous internal pipelining.
+- **Hardware-Trigger Mode:** The on-board USB bridge ISP firmware operates with a fixed non-overlapping state machine lockout window of **$\approx 18\text{–}20\text{ ms}$** per frame (regardless of resolution).
+- **Physical Hardware Ceiling:** As a result, the physical hardware ceiling in trigger mode is strictly **50 FPS** (20 ms frame period). Triggering faster than 50 Hz causes the firmware to reject subsequent pulses, producing exact harmonic sub-rates (60 Hz $\rightarrow$ 30 FPS, 90 Hz $\rightarrow$ 45 FPS, 120 Hz $\rightarrow$ 40 FPS).
+- **Optimal Setting for Motion Capture:** **1280x720 (720p HD) @ 50 FPS** with **`Auto` USB Polling** and **Exposure `-9` / `-10`** (~1–2 ms shutter). This delivers 200 frame-accurate, global-shutter synchronized images per second across 4 cameras without motion blur or frame drops.
 
 <p align="center">
   <img src="3Dprint/v1_prototype/images_assembly/51_trigger_and_splitter_case_connected.jpg" width="480" alt="MoCapSTR Hardware Setup" />
@@ -107,7 +114,7 @@ GPL-3.0 License. See [LICENSE](LICENSE) for details.
 
 > **Hinweis:** MoCapSTR ist ein unabhängiges Open-Source Companion-Tool und steht nicht in offizieller Verbindung mit dem FreeMoCap-Projekt.
 
-MoCapSTR ist eine Multi-Kamera-Aufnahmesoftware zur Erstellung synchroner, frame-genauer Datensätze für [FreeMoCap](https://github.com/freemocap/freemocap). Sie synchronisiert Global-Shutter USB-Kameras (z. B. Innomaker OV9281) über ein Arduino-Triggersignal und unterstützt zusätzlich Blackmagic SDI Capture Cards.
+MoCapSTR ist eine Multi-Kamera-Aufnahmesoftware zur Erstellung synchroner, frame-genauer Datensätze für [FreeMoCap](https://github.com/freemocap/freemocap). Sie synchronisiert Global-Shutter USB-Kameras (z. B. Innomaker OV9281, getestet bis 50 FPS Hardware-Sync / 120 FPS Free-Run) über ein Arduino-Triggersignal und unterstützt zusätzlich Blackmagic SDI Capture Cards.
 
 > [!WARNING]
 > **Projektstatus (Beta / Prototyp):**
@@ -127,7 +134,14 @@ Auf herkömmlichen PC-Mainboards teilen sich fast alle USB-Ports nur 1 bis 2 int
 - **Mainboard-Limit:** In Praxistests schaffen normale Onboard-Controller im Hardware-Trigger-Modus **maximal 3 Kameras** zuverlässig. Bei 4 Kameras kommt es zu Bandbreiten-Staus und Frame-Drops.
 - **Empfehlung für 4+ Kameras (Verifizierte Hardware):** Eine **PCIe-USB-Erweiterungskarte mit je einem dedizierten USB-Controller-Chip pro Port** (z. B. 4 getrennte Controller auf einer Karte) wird dringend empfohlen.
   - **Getestetes & verifiziertes Modell:** **StarTech 4-Port USB 3.0 PCIe-Karte (Modell: `P5Q4A-USB-CARD`)** — verfügt über 4 getrennte USB-Host-Controller und betreibt 4 InnoMaker OV9281 Kameras absolut reibungslos ohne Frame-Drops.
-- **USB-Polling-Rate:** Im Setup-Tab muss `USB Polling` immer mindestens 1 Stufe höher eingestellt sein als die Ziel-FPS (z. B. Ziel 30 FPS -> Polling 60 FPS), damit Windows die USB-Puffer schnell genug leert.
+- **Intelligentes USB-Polling:** Im Setup-Tab steht `USB Polling` standardmäßig auf **`Auto`**. Im Hardware-Trigger-Modus fordert `Auto` automatisch einen 120-FPS-UVC-Stream an, um Phasen-Schwebungen (Jitter) zu eliminieren. Im Free-Run-Modus passt es sich der Ziel-FPS an.
+
+### InnoMaker OV9281 Hardware-Trigger Charakterisierung (Max. 50 FPS)
+Umfassende Benchmark-Messreihen haben das Verhalten der InnoMaker OV9281 USB-Kameras im Trigger-Modus eindeutig charakterisiert:
+- **Free-Run Modus:** Der Sensor streamt via Pipelining problemlos mit bis zu **120 FPS** (1280x720 / 1280x800 MJPG).
+- **Hardware-Trigger Modus:** Der interne Firmware-Zustandsautomat des USB-Bridge-Controllers (ISP) besitzt pro Frame ein festes Auslese- und Freischaltfenster (*Lockout*) von **$\approx 18\text{–}20\text{ ms}$** (unabhängig von der gewählten Auflösung).
+- **Physikalisches Hardware-Limit:** Im Trigger-Modus liegt die maximale Obergrenze daher stabil bei **50 FPS** (20 ms Periodendauer). Bei Triggerraten über 50 Hz werden nachfolgende Pulse vom Sensor verworfen, wodurch sich exakte sub-harmonische Raten ergeben (60 Hz $\rightarrow$ 30 FPS, 90 Hz $\rightarrow$ 45 FPS, 120 Hz $\rightarrow$ 40 FPS).
+- **Optimale Einstellung für Motion Capture:** **1280x720 (720p HD) @ 50 FPS** mit **`Auto` USB-Polling** und **Belichtung `-9` / `-10`** (~1–2 ms Verschlusszeit). Dies liefert 200 gestochen scharfe, mikrosekundengenau synchrone Bilder pro Sekunde über alle 4 Kameras ohne Motion Blur oder Frame-Drops.
 
 <p align="center">
   <img src="3Dprint/v1_prototype/images_assembly/51_trigger_and_splitter_case_connected.jpg" width="480" alt="MoCapSTR Hardware Setup" />

@@ -1,11 +1,28 @@
 # Changelog
 
-**Current Status:** System is at v1.4.7. Golden State Machine for camera re-init, decoupled instant rotation rendering, live hardware exposure re-sync, and visual stream-stall watchdog.
-**Last Modified:** 2026-08-31 13:00:00
+**Current Status:** System is at v1.4.8. Comprehensive empirical validation of InnoMaker OV9281 trigger timing characteristics (50 FPS physical ceiling in hardware trigger mode), Smart Auto USB Polling, removal of artificial red UI warnings, and dedicated hardware benchmarking tools.
+**Last Modified:** 2026-08-31 14:10:00
 
 ---
 
-- **2026-08-31 (v1.4.7):** Version bump to v1.4.7. **Golden State Machine Re-Init, Decoupled Rotation & Stream-Stall Watchdog**:
+- **2026-08-31 (v1.4.8):** Version bump to v1.4.8. **InnoMaker OV9281 Trigger Characterization, Smart Auto USB Polling & UI Clean-up**:
+  - **Empirical Hardware Trigger Characterization (50 FPS Physical Limit)**:
+    - Conducted rigorous multi-frequency sweep benchmark testing on InnoMaker OV9281 UVC camera modules.
+    - Proved mathematically that while Free-Run mode easily streams at 120 FPS, the on-board USB bridge ISP firmware has a fixed non-overlapping state-machine lockout window of $\approx 18\text{–}20\text{ ms}$ per triggered frame (independent of resolution, 1280x720 and 640x400 both exhibit this lockout).
+    - Verified exact harmonic sub-rates when exceeding the lockout: 50 Hz $\rightarrow$ 50 FPS (1:1), 60 Hz $\rightarrow$ 30 FPS (1:2), 90 Hz $\rightarrow$ 45 FPS (1:2), 120 Hz $\rightarrow$ 40 FPS (1:3).
+    - Established **50 FPS @ 1280x720 (720p HD)** with Global Shutter and 1ms exposure as the verified optimal performance sweet-spot for 4-camera hardware synchronization.
+  - **`setup_tab.py` - Smart Auto USB Polling**:
+    - Introduced `"Auto"` as default USB Polling mode. In Hardware Trigger mode, `"Auto"` requests the maximum 120 FPS UVC stream to completely eliminate beat-frequency host polling collisions (e.g. 15 FPS on 30p), while matching target FPS in Free-Run mode.
+    - Preserved manual overrides (`120`, `90`, `60`, `30`) for future camera boards with constrained USB 2.0/3.0 bandwidth or lower max framerates.
+  - **`setup_tab.py` - UI Warning Clean-up**:
+    - Removed all hardcoded 18ms text and intrusive red warning blocks.
+    - Replaced exposure clamping with pure physics validation ($\text{shutter\_time} > \frac{1}{\text{target\_fps}}$), showing a subtle note only if exposure duration exceeds 1 complete frame interval.
+    - Polling warning only alerts if manual polling rate is strictly lower than target FPS (silent on `Auto`).
+    - Set optimal UI defaults: Target FPS = `50`, USB Polling = `Auto`, Exposure = `-9` (1/512s).
+  - **`tests_hardware/`**:
+    - Added [`test_trigger_fps_live.py`](file:///e:/GitHub%20Projekte/MoCapSTR/tests_hardware/test_trigger_fps_live.py): Interactive OpenCV live monitor with real-time microsecond delta-t measurements, keyboard shortcuts for live FPS switching (`1`..`6`), pulse width cycling (`P`), polling modes (`U`), resolution toggling (`R`), and exposure adjustments (`E`).
+    - Added [`test_trigger_fps_optimizer.py`](file:///e:/GitHub%20Projekte/MoCapSTR/tests_hardware/test_trigger_fps_optimizer.py): Automated timing matrix and packet arrival benchmark tool.
+  - **`main.py`**: Updated window title to v1.4.8.
   - **`setup_tab.py` & `camera_manager.py`**: Implemented the deterministic 10-step Golden State Machine for hardware initialization & settings re-application: (1) Quiesce hardware by stopping Arduino trigger, (2) Reset cameras to Free-Run (`AutoFocus=0`), (3) Drain and cleanly stop previous PyAV worker threads, (4) Close PyAV container handles, (5) Enforce Windows DirectShow COM & USB bus settling delay (`time.sleep(0.3)` + `gc.collect()`), (6) Auto-connect Arduino, (7) Set DirectShow UVC Exposure & Gain in Free-Run and open PyAV streams (0s latency negotiation), (8) Engage Hardware Trigger (`AutoFocus=1`), (9) Start PyAV background workers, (10) Start Arduino pulse generation. Eliminates USB endpoint collisions, DirectShow COM deadlocks, and sensor state machine corruption when updating exposure on 4-camera InnoMaker setups.
   - **`recorder.py` & `preview_tab.py`**: Decoupled rotation and preview rendering in `PreviewWorker`. Caches the latest raw unrotated frame (`raw_frame`) and adds `apply_rotation_to_cached_frame()`. Changing rotation dropdowns in the UI now re-renders and rotates the displayed preview immediately without waiting for a new packet from USB.
   - **`recorder.py` & `main.py`**: Added stream-stall watchdog timestamp `last_packet_time` to `CameraWorker`. If an active camera stops delivering packets for $> 2.0$ seconds while the hardware trigger is active, the UI tile immediately displays a prominent red warning overlay (`⚠️ NO SIGNAL / FROZEN (0.0 FPS)`).
