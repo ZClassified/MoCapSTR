@@ -12,38 +12,48 @@ class PreviewWorker(threading.Thread):
         self.camera_worker = camera_worker
         self.queue = queue.Queue(maxsize=2)
         self.is_running = True
+        self.raw_frame = None
         
     def run(self):
         while self.is_running:
             try:
                 bgr_frame = self.queue.get(timeout=0.1)
-                
-                # Apply rotation
-                if self.camera_worker.rotation_degrees == 90:
-                    bgr_frame = cv2.rotate(bgr_frame, cv2.ROTATE_90_CLOCKWISE)
-                elif self.camera_worker.rotation_degrees == 180:
-                    bgr_frame = cv2.rotate(bgr_frame, cv2.ROTATE_180)
-                elif self.camera_worker.rotation_degrees == 270:
-                    bgr_frame = cv2.rotate(bgr_frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
-                    
-                # Charuco Detection offloading
-                if self.camera_worker.show_charuco and self.camera_worker.charuco_dict is not None and self.camera_worker.charuco_params is not None:
-                    gray = cv2.cvtColor(bgr_frame, cv2.COLOR_BGR2GRAY)
-                    try:
-                        if hasattr(cv2.aruco, 'ArucoDetector'):
-                            detector = cv2.aruco.ArucoDetector(self.camera_worker.charuco_dict, self.camera_worker.charuco_params)
-                            corners, ids, rejected = detector.detectMarkers(gray)
-                        else:
-                            corners, ids, rejected = cv2.aruco.detectMarkers(gray, self.camera_worker.charuco_dict, parameters=self.camera_worker.charuco_params)
-                            
-                        if corners and len(corners) > 0:
-                            cv2.aruco.drawDetectedMarkers(bgr_frame, corners, ids)
-                    except Exception as e:
-                        pass
-                        
-                self.camera_worker.latest_frame = bgr_frame
+                self.raw_frame = bgr_frame
+                self._process_and_update(bgr_frame)
             except queue.Empty:
                 pass
+
+    def _process_and_update(self, bgr_frame):
+        frame = bgr_frame.copy()
+        # Apply rotation
+        if self.camera_worker.rotation_degrees == 90:
+            frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
+        elif self.camera_worker.rotation_degrees == 180:
+            frame = cv2.rotate(frame, cv2.ROTATE_180)
+        elif self.camera_worker.rotation_degrees == 270:
+            frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
+            
+        # Charuco Detection offloading
+        if self.camera_worker.show_charuco and self.camera_worker.charuco_dict is not None and self.camera_worker.charuco_params is not None:
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            try:
+                if hasattr(cv2.aruco, 'ArucoDetector'):
+                    detector = cv2.aruco.ArucoDetector(self.camera_worker.charuco_dict, self.camera_worker.charuco_params)
+                    corners, ids, rejected = detector.detectMarkers(gray)
+                else:
+                    corners, ids, rejected = cv2.aruco.detectMarkers(gray, self.camera_worker.charuco_dict, parameters=self.camera_worker.charuco_params)
+                    
+                if corners and len(corners) > 0:
+                    cv2.aruco.drawDetectedMarkers(frame, corners, ids)
+            except Exception:
+                pass
+                
+        self.camera_worker.latest_frame = frame
+
+    def apply_rotation_to_cached_frame(self):
+        """Immediately re-renders and rotates the cached frame even if stream is paused/stopped."""
+        if self.raw_frame is not None:
+            self._process_and_update(self.raw_frame)
                 
     def stop(self):
         self.is_running = False
@@ -64,6 +74,7 @@ class CameraWorker(threading.Thread):
         
         self.current_fps = 0.0
         self.last_fps_time = time.time()
+        self.last_packet_time = time.time() # Watchdog timestamp
         self.frame_count_for_fps = 0
         self.last_preview_time = 0
         
@@ -109,6 +120,8 @@ class CameraWorker(threading.Thread):
         
     def set_rotation(self, degrees):
         self.rotation_degrees = degrees
+        if self.preview_worker:
+            self.preview_worker.apply_rotation_to_cached_frame()
         
     def prepare_recording(self, output_path, fps, codec_selection, record_gate):
         """
@@ -250,9 +263,11 @@ class CameraWorker(threading.Thread):
                 if packet.dts is None:
                     continue
                     
+                now = time.time()
+                self.last_packet_time = now
+                
                 # Calculate FPS based on received packets
                 self.frame_count_for_fps += 1
-                now = time.time()
                 if now - self.last_fps_time >= 1.0:
                     self.current_fps = self.frame_count_for_fps / (now - self.last_fps_time)
                     self.frame_count_for_fps = 0
@@ -293,13 +308,23 @@ class CameraWorker(threading.Thread):
     def stop(self):
         self.is_running = False
         self.stop_recording()
-        self.preview_worker.stop()
-        self.preview_worker.join(timeout=1.0)
+        if self.preview_worker:
+            self.preview_worker.stop()
+            self.preview_worker.join(timeout=1.0)
 
 class MultiCamManager:
     def __init__(self):
         self.workers = {} # idx -> CameraWorker
         self.is_recording = False
+        
+    def get_stalled_cameras(self, timeout_sec=2.0):
+        """Returns list of camera indices that haven't received a frame for > timeout_sec."""
+        now = time.time()
+        stalled = []
+        for idx, worker in self.workers.items():
+            if now - worker.last_packet_time > timeout_sec:
+                stalled.append(idx)
+        return stalled
         
     def get_supported_codecs(self):
         return {
