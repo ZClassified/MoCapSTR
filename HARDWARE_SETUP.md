@@ -35,7 +35,7 @@ To build the complete hardware system (V1), you will need the following standard
 - 1x DC Barrel Jack for optional external power supply on the Arduino box (8mm mounting hole, standard 5.5x2.1mm).
 - 4x DC Barrel Jacks for the splitter box outputs (8mm mounting holes).
 - 2x 5-pin Cage Clamp Terminals (WAGO 221 or similar) to bundle splitter box connections.
-- 4x Innomaker OV9281 USB global-shutter camera modules.
+- 4x Innomaker OV9281 USB global-shutter camera modules *(supports up to 120 FPS in free-run; tested maximum 50 FPS in hardware-trigger mode due to USB bridge firmware lockout)*.
 - 4x 2-Pin Micro Plugs (e.g. JST 1.25mm 2-pin) to plug trigger lines cleanly onto the camera board's FSIN pins.
 - **Recommended Host PC USB PCIe Card (for 4+ Cameras):** **StarTech 4-Port USB 3.0 PCIe Card (Model: `P5Q4A-USB-CARD`)** — features 4 independent controller channels (1 dedicated host controller chip per port), completely eliminating motherboard USB bandwidth saturation and packet collisions.
 
@@ -168,7 +168,7 @@ Für den Nachbau des Gesamtsystems (V1) werden neben den [3D-Druckteilen](3Dprin
 - 1x Hohlstecker-Buchse (DC Barrel Jack) zur optionalen Stromversorgung am Arduino (8mm Einbaudurchmesser, Standard 5.5x2.1mm).
 - 4x Hohlstecker-Buchsen für die Splitter-Box Ausgänge (8mm Einbaudurchmesser).
 - 2x 5-polige Käfigzugklemmen (z. B. WAGO 221) zum Zusammenführen der Signal- und Masseleitungen in der Splitter-Box.
-- 4x Innomaker OV9281 USB Global-Shutter Kameramodule.
+- 4x Innomaker OV9281 USB Global-Shutter Kameramodule *(unterstützt bis zu 120 FPS im Free-Run; getestetes Maximum im Hardware-Trigger-Modus liegt bei 50 FPS durch die Bridge-Firmware)*.
 - 4x 2-Pin Mikro-Steckverbinder (z. B. JST 1.25mm 2-Pin), um die Triggerkabel direkt und steckbar auf die FSIN-Pins der Kameraplatinen zu stecken.
 - **Empfohlene Host-PC USB-PCIe-Erweiterungskarte (für 4+ Kameras):** **StarTech 4-Port USB 3.0 PCIe-Karte (Modell: `P5Q4A-USB-CARD`)** — verfügt über 4 getrennte Controller-Kanäle (1 dedizierter Controller-Chip pro Port), wodurch Bandbreiten-Engpässe und Paketkollisionen vollständig vermieden werden.
 
