@@ -111,8 +111,22 @@ The four cables from the splitter box are connected to the cameras. We use singl
 
 ---
 
-## Cable Recommendation
-A 2-core shielded audio cable (e.g., `2x 0.08 mm²` or DMX control cable) is ideal for the run from the splitter box to the cameras. For the connection between the Arduino enclosure and the splitter box, any standard XLR microphone cable will work.
+## Cable & USB Recommendations
+
+- **Trigger Cable (Splitter to Cameras):** A 2-core shielded audio cable (e.g., `2x 0.08 mm²` or DMX control cable) is ideal for the run from the splitter box to the cameras.
+- **XLR Cable (Arduino to Splitter):** Standard 3-pin XLR microphone cable.
+- **Host PC USB Expansion Card:** **StarTech `P5Q4A-USB-CARD` (4-Port PCIe)** — Verified for 4-camera hardware-sync capture without bandwidth bottlenecks.
+
+---
+
+## Troubleshooting & Hardware Diagnostics
+
+### Camera is Frozen on a Single Frame (`0.0 FPS` / `⚠️ NO SIGNAL / FROZEN`)
+If a camera opens during initialization with a single initial frame but remains frozen at `0.0 FPS` while the other cameras stream smoothly at 25/30 FPS:
+1. **Free-Run Test:** In the MoCapSTR software (Setup tab), uncheck `[ ] Enable UVC Hardware Trigger` and initialize. If all cameras stream live in Free-Run, your USB card, cable, and driver are fine — the fault is **100% in the physical trigger connection**.
+2. **Check Splitter Box Terminals:** Open the splitter box and check whether the WAGO cage clamp terminal or DC connector wire for that specific camera is loose or disconnected.
+3. **Verify `FSIN+` / `FSIN-` Polarity:** The camera input diode requires correct polarity (Red = `FSIN+`, Black = `FSIN-` / Ground). If reversed, trigger pulses cannot trigger the sensor.
+4. **Cross-Test Ports:** Swap the DC barrel jack of the faulty camera with a working camera at the splitter box to quickly isolate whether the cable or splitter output is broken.
 
 ---
 ---
@@ -235,3 +249,14 @@ Die vier Kabel kommen von der Splitter-Box an den Kameras an. Wir nutzen die ein
 - **Trigger-Kabel (Splitter zu Kameras):** Ein 2-adriges, geschirmtes Audiokabel (z. B. `2x 0.08 mm²` oder DMX-Steuerkabel) ist ideal für die Strecke von der Splitter-Box zu den Kameras.
 - **XLR-Kabel (Arduino zu Splitter):** Jedes handelsübliche 3-polige XLR-Mikrofonkabel.
 - **USB-PCIe-Erweiterungskarte:** **StarTech `P5Q4A-USB-CARD` (4-Port PCIe)** — Getestet und verifiziert für den synchronen Betrieb von 4 InnoMaker OV9281 Kameras. Verhindert Bandbreiten-Staus zuverlässig durch 4 separate Controller-Chips.
+
+---
+
+## Fehlerbehebung & Hardware-Diagnose (Troubleshooting)
+
+### Kamera zeigt ein Standbild bei `0.0 FPS` (`⚠️ NO SIGNAL / FROZEN`)
+Wenn eine Kamera beim Initialisieren ein einziges Standbild liefert, danach aber mit `0.0 FPS` und rotem Warn-Overlay einfriert (während die anderen Kameras flüssig laufen):
+1. **Free-Run-Gegenprobe:** Deaktiviere in MoCapSTR (Setup-Tab) das Häkchen `[ ] Enable UVC Hardware Trigger` und klicke auf Initialisieren. Wenn die Kamera im Free-Run flüssig läuft, sind USB-Karte, Kabel und Treiber zu 100 % in Ordnung – der Fehler liegt **ausschließlich an der physischen Trigger-Leitung**.
+2. **Klemmen in der Splitter-Box prüfen:** Öffne die Splitter-Box und prüfe, ob die WAGO-Klemme oder die Lötverbindung zur DC-Buchse der betroffenen Kamera lose ist oder herausgerutscht ist.
+3. **Polarität an der Kamera prüfen (`FSIN+` / `FSIN-`):** Die Eingangsschutzdiode des OV9281-Moduls erfordert zwingend die korrekte Polarität (Rot = `FSIN+`, Schwarz = `FSIN-` / Masse). Bei vertauschten Adern blockiert die Diode und der Sensor erhält keine Pulse.
+4. **Kreuztest an der Splitter-Box:** Stecke den DC-Hohlstecker der betroffenen Kamera an der Splitter-Box in einen funktionierenden Ausgang um, um sofort zu sehen, ob das Kabel oder die Splitter-Buchse die Ursache ist.
