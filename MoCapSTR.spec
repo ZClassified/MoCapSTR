@@ -16,6 +16,7 @@ hiddenimports = [
     'av',
     'serial',
     'serial.tools.list_ports',
+    'freemocap_bridge',
 ] + collect_submodules('customtkinter')
 
 a = Analysis(
