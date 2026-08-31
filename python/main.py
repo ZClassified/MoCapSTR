@@ -25,7 +25,7 @@ class MoCapSyncApp(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("MoCapSTR: Sync / Trigger / Record for FreeMoCap v1.4.6")
+        self.title("MoCapSTR: Sync / Trigger / Record for FreeMoCap v1.4.7")
         self.geometry("1100x800")
         
         # Set Window Icon
@@ -268,28 +268,39 @@ class MoCapSyncApp(ctk.CTk):
                     # Convert BGR to RGB (creates a new array, safe to modify)
                     rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                     
-                    # --- FPS Overlay ---
+                    # --- FPS & Stall Overlay ---
                     fps = 0.0
+                    is_stalled = False
+                    now = time.time()
                     if idx in self.recorder.workers:
-                        fps = self.recorder.workers[idx].current_fps
+                        worker = self.recorder.workers[idx]
+                        fps = worker.current_fps
+                        # If trigger is supposed to be running, check if camera hasn't sent packets for > 2.0s
+                        if self.arduino.is_running and (now - getattr(worker, 'last_packet_time', now) > 2.0):
+                            is_stalled = True
+                            fps = 0.0
                         
                     try:
                         target_fps = float(self.setup_tab.fps_entry.get())
                     except ValueError:
                         target_fps = 50.0
                         
-                    # Determine color based on deviation
-                    diff = abs(fps - target_fps)
-                    if diff <= 0.5:
-                        color = (0, 255, 0) # Green (Perfect)
-                    elif diff <= 3.0:
-                        color = (255, 255, 0) # Yellow (Slight deviation)
+                    # Determine color and text based on deviation or stall
+                    if is_stalled:
+                        color = (255, 0, 0) # Red
+                        text = "⚠️ NO SIGNAL / FROZEN (0.0 FPS)"
                     else:
-                        color = (255, 0, 0) # Red (Significant deviation)
+                        diff = abs(fps - target_fps)
+                        if diff <= 0.5:
+                            color = (0, 255, 0) # Green (Perfect)
+                        elif diff <= 3.0:
+                            color = (255, 255, 0) # Yellow (Slight deviation)
+                        else:
+                            color = (255, 0, 0) # Red (Significant deviation)
+                        text = f"FPS: {fps:.1f}"
                         
-                    text = f"FPS: {fps:.1f}"
                     font = cv2.FONT_HERSHEY_SIMPLEX
-                    # Smaller font scale (50% smaller)
+                    # Smaller font scale
                     font_scale = max(0.35, rgb_frame.shape[0] / 1600.0)
                     thickness = max(1, int(font_scale * 1.5))
                     (text_w, text_h), baseline = cv2.getTextSize(text, font, font_scale, thickness)

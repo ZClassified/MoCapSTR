@@ -1,9 +1,15 @@
 # Changelog
 
-**Current Status:** System is at v1.4.6. Intelligent USB polling rate recommendation engine, trigger FPS preservation, real-time warning badges, and compact zero-scroll SetupTab.
-**Last Modified:** 2026-08-27 10:50:00
+**Current Status:** System is at v1.4.7. Golden State Machine for camera re-init, decoupled instant rotation rendering, live hardware exposure re-sync, and visual stream-stall watchdog.
+**Last Modified:** 2026-08-31 13:00:00
 
 ---
+
+- **2026-08-31 (v1.4.7):** Version bump to v1.4.7. **Golden State Machine Re-Init, Decoupled Rotation & Stream-Stall Watchdog**:
+  - **`setup_tab.py` & `camera_manager.py`**: Implemented the deterministic 10-step Golden State Machine for hardware initialization & settings re-application: (1) Quiesce hardware by stopping Arduino trigger, (2) Reset cameras to Free-Run (`AutoFocus=0`), (3) Drain and cleanly stop previous PyAV worker threads, (4) Close PyAV container handles, (5) Enforce Windows DirectShow COM & USB bus settling delay (`time.sleep(0.3)` + `gc.collect()`), (6) Auto-connect Arduino, (7) Set DirectShow UVC Exposure & Gain in Free-Run and open PyAV streams (0s latency negotiation), (8) Engage Hardware Trigger (`AutoFocus=1`), (9) Start PyAV background workers, (10) Start Arduino pulse generation. Eliminates USB endpoint collisions, DirectShow COM deadlocks, and sensor state machine corruption when updating exposure on 4-camera InnoMaker setups.
+  - **`recorder.py` & `preview_tab.py`**: Decoupled rotation and preview rendering in `PreviewWorker`. Caches the latest raw unrotated frame (`raw_frame`) and adds `apply_rotation_to_cached_frame()`. Changing rotation dropdowns in the UI now re-renders and rotates the displayed preview immediately without waiting for a new packet from USB.
+  - **`recorder.py` & `main.py`**: Added stream-stall watchdog timestamp `last_packet_time` to `CameraWorker`. If an active camera stops delivering packets for $> 2.0$ seconds while the hardware trigger is active, the UI tile immediately displays a prominent red warning overlay (`⚠️ NO SIGNAL / FROZEN (0.0 FPS)`).
+  - **`main.py`**: Updated window title to v1.4.7.
 
 - **2026-08-27 (v1.4.6):** Version bump to v1.4.6. **Intelligent USB Polling Recommendation, Trigger FPS Preservation & Compact UI**:
   - **`setup_tab.py`**: Added `get_recommended_usb_fps()` utility function to calculate physics-accurate USB polling rates ($\ge 60$ FPS for $\le 50$ FPS target triggers) to eliminate phase-drift/beat-frequency FPS halving (e.g. 15 FPS on 25p). Added real-time warning label (`lbl_usb_warn`) alerting users if a chosen USB polling rate is incompatible with target FPS. Added smart auto-suggestion on Target FPS change while preserving complete manual override freedom. Added default fallback of 60 FPS for legacy presets.

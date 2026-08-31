@@ -4,6 +4,8 @@ from tkinter import filedialog
 from PIL import Image
 import threading
 import cv2
+import time
+import gc
 
 def get_recommended_usb_fps(target_fps: int) -> str:
     """
@@ -392,7 +394,7 @@ class SetupTab(ctk.CTkFrame):
     def initialize_system_cmd(self):
         self.app.log("Initializing System...")
         self.btn_init_system.configure(state="disabled", text="Initialisiere Hardware & Kameras...", fg_color="#555555")
-        self.lbl_init_status.configure(text="⏳ Suche Arduino & Kameras (bitte kurz warten)...", text_color="#3a86ff")
+        self.lbl_init_status.configure(text="⏳ Bereite System & Kameras vor...", text_color="#3a86ff")
         
         def init_task():
             success = False
@@ -406,7 +408,29 @@ class SetupTab(ctk.CTkFrame):
                 except ValueError:
                     target_fps = 30
                     
-                # 1. Auto-connect Arduino if not connected
+                # 1. Quiesce hardware: Stop Arduino trigger first if running to avoid sensor interrupts during reset
+                if self.app.arduino.is_running:
+                    self.app.after(0, lambda: self.lbl_init_status.configure(text="⏳ Pausiere Trigger & setze Kameras zurück...", text_color="#3a86ff"))
+                    self.app.arduino.stop_trigger()
+                    time.sleep(0.1)
+
+                # 2. Reset cameras to Free-Run (AutoFocus=0) mode
+                if cam_type == "USB Webcams":
+                    self.app.cam_mgr.reset_hardware_trigger_mode()
+
+                # 3. Cleanly stop existing PyAV workers (demux loop exits quickly now that trigger is stopped)
+                self.app.after(0, lambda: self.lbl_init_status.configure(text="⏳ Beende vorherige Video-Streams...", text_color="#3a86ff"))
+                self.app.recorder.stop_workers()
+
+                # 4. Close existing PyAV containers
+                self.app.cam_mgr.close_all()
+
+                # 5. DirectShow COM & USB bus settling delay + GC
+                import gc
+                gc.collect()
+                time.sleep(0.3)
+
+                # 6. Auto-connect Arduino if not connected
                 if cam_type == "USB Webcams" and not self.app.arduino.is_connected:
                     port = self.port_combo.get()
                     if port and port != "No Ports Found":
@@ -422,16 +446,7 @@ class SetupTab(ctk.CTkFrame):
                     self.app.log("⚠️ No Arduino connected! Falling back to free-run mode (trigger disabled).", "error")
                     trigger_on = False
 
-                # 2. Start Arduino trigger if trigger_on is requested
-                if cam_type == "USB Webcams" and self.app.arduino.is_connected and trigger_on:
-                    self.app.after(0, lambda: self.lbl_init_status.configure(text=f"⏳ Starte Arduino-Trigger ({target_fps} FPS)...", text_color="#3a86ff"))
-                    self.app.arduino.set_fps(target_fps)
-                    self.app.arduino.start_trigger()
-
-                # 3. Cleanly stop existing PyAV workers
-                self.app.recorder.stop_workers()
-                
-                # 4. Open Cameras (Always opened safely in Free-Run first to guarantee 0s DirectShow negotiation)
+                # 7. Open Cameras (DirectShow UVC exposure/gain is set in Free-Run, then PyAV opens cleanly)
                 self.app.after(0, lambda: self.lbl_init_status.configure(text="⏳ Öffne Kameras & setze Videoformate...", text_color="#3a86ff"))
                 res_str = self.res_combo.get().split(' ')[0]
                 target_w, target_h = map(int, res_str.split('x'))
@@ -461,18 +476,26 @@ class SetupTab(ctk.CTkFrame):
                     # Must run GUI updates in the main thread!
                     self.app.after(0, self.app.preview_tab.setup_preview_grid)
                     
-                    # 5. Start PyAV Workers
+                    # 8. Engage Hardware Trigger mode if requested
+                    if cam_type == "USB Webcams" and self.app.arduino.is_connected and trigger_on:
+                        self.app.after(0, lambda: self.lbl_init_status.configure(text=f"⏳ Aktiviere Hardware-Trigger ({target_fps} FPS)...", text_color="#3a86ff"))
+                        self.app.cam_mgr.set_trigger_mode(True)
+                        time.sleep(0.2)
+                    else:
+                        self.app.cam_mgr.set_trigger_mode(False)
+
+                    # 9. Start PyAV Workers
                     self.app.recorder.start_workers(self.app.cam_mgr.cameras, target_fps=target_fps)
                     self.app.log("Workers started. Go to Live Preview tab to see feeds.")
                     
-                    # 6. Engage Hardware Trigger on running streams
+                    # 10. Start Arduino trigger if trigger_on is requested
                     if cam_type == "USB Webcams" and self.app.arduino.is_connected and trigger_on:
-                        self.app.cam_mgr.set_trigger_mode(True)
+                        self.app.arduino.set_fps(target_fps)
+                        self.app.arduino.start_trigger()
                         self.app.log(f"Hardware Trigger STARTED at {target_fps} FPS!", level="success")
                     else:
                         if self.app.arduino.is_connected:
                             self.app.arduino.stop_trigger()
-                        self.app.cam_mgr.set_trigger_mode(False)
 
                     success = True
                 else:
@@ -489,7 +512,7 @@ class SetupTab(ctk.CTkFrame):
                         cam_count = len(self.app.camera_indices)
                         self.btn_init_system.configure(
                             state="normal",
-                            text="✓ System bereit (Klick zum Aktualisieren)",
+                            text="✓ System bereit (Klick zum Aktualisieren / Anwenden)",
                             fg_color="#2a9d8f",
                             hover_color="#21867a"
                         )

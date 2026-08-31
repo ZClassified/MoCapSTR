@@ -15,6 +15,36 @@ class CameraManager:
         except ImportError:
             return []
             
+    def apply_uvc_exposure_and_gain(self, valid_indices, exposure_val, gain_val=0):
+        """
+        Sets manual exposure and gain via DirectShow while ensuring Free-Run (AutoFocus=0) mode.
+        Ensures clean unbinding and COM release before PyAV opens streams.
+        """
+        if exposure_val is None:
+            return
+        import cv2
+        import gc
+        
+        print(f"[CameraManager] Applying UVC Settings via DirectShow (Exposure={exposure_val}, Gain={gain_val})...")
+        for i, cam_name in valid_indices:
+            try:
+                cap = cv2.VideoCapture(i, cv2.CAP_DSHOW)
+                if cap.isOpened():
+                    # Always ensure Free-Run (0) during open negotiation to prevent DirectShow graph lockup
+                    cap.set(cv2.CAP_PROP_AUTOFOCUS, 0)
+                    # Set Manual Exposure & Gain
+                    cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.25) # 0.25 is manual in DirectShow (0.75 is auto)
+                    cap.set(cv2.CAP_PROP_EXPOSURE, exposure_val)
+                    cap.set(cv2.CAP_PROP_GAIN, gain_val)
+                    cap.release()
+                del cap
+            except Exception as e:
+                print(f"[CameraManager] DirectShow hardware sync failed for {cam_name} (index {i}): {e}")
+        gc.collect()
+        
+        # Allow DirectShow COM graph to unbind cleanly from physical USB device before PyAV opens
+        time.sleep(0.3)
+
     def find_and_open_cameras(self, max_index=6, backend_name="MSMF", camera_type="USB Webcams", target_w=1280, target_h=720, target_fps=50, target_format="MJPG", exposure_val=None, gain_val=None, trigger_on=None):
         """Scans for available cameras using PyAV (FFmpeg) and keeps them open."""
         self.close_all()
@@ -48,29 +78,8 @@ class CameraManager:
             
         # --- HARDWARE SYNC (Exposure & Gain) ---
         # Set Exposure & Gain via DirectShow in Free-Run mode so av.open is guaranteed to succeed instantly.
-        if camera_type == "USB Webcams" and exposure_val is not None and gain_val is not None:
-            import cv2
-            import gc
-            
-            print(f"Applying UVC Settings via DirectShow (Exposure={exposure_val}, Gain={gain_val})...")
-            for i, cam_name in valid_indices:
-                try:
-                    cap = cv2.VideoCapture(i, cv2.CAP_DSHOW)
-                    if cap.isOpened():
-                        # Always ensure Free-Run (0) during open negotiation to prevent DirectShow graph lockup
-                        cap.set(cv2.CAP_PROP_AUTOFOCUS, 0)
-                        # Set Manual Exposure & Gain
-                        cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.25) # 0.25 is manual in DirectShow (0.75 is auto)
-                        cap.set(cv2.CAP_PROP_EXPOSURE, exposure_val)
-                        cap.set(cv2.CAP_PROP_GAIN, gain_val)
-                        cap.release()
-                    del cap
-                except Exception as e:
-                    print(f"DirectShow hardware sync failed for {cam_name} (index {i}): {e}")
-            gc.collect()
-            
-            # Allow DirectShow COM graph to unbind cleanly from physical USB device before PyAV opens
-            time.sleep(0.5)
+        if camera_type == "USB Webcams" and exposure_val is not None:
+            self.apply_uvc_exposure_and_gain(valid_indices, exposure_val, gain_val if gain_val is not None else 0)
         # ---------------------------
 
         for i, cam_name in valid_indices:
@@ -208,6 +217,7 @@ class CameraManager:
                     except Exception:
                         pass
             gc.collect()
+            time.sleep(0.2)
         except Exception as e:
             print(f"[CameraManager] Error in set_trigger_mode: {e}")
 
