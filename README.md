@@ -1,5 +1,12 @@
 # MoCapSTR: Sync / Trigger / Record for FreeMoCap
 
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![FFmpeg](https://img.shields.io/badge/FFmpeg-Required-55a000?logo=ffmpeg&logoColor=white)](https://ffmpeg.org/)
+[![Platform Windows](https://img.shields.io/badge/Platform-Windows-0078D6?logo=windows&logoColor=white)](#)
+[![Version](https://img.shields.io/badge/Version-1.4.8-orange)](https://github.com/ZClassified/MoCapSTR/releases)
+[![License: GPL v3](https://img.shields.io/badge/License-GPL_v3-007EC6.svg)](LICENSE)
+[![FreeMoCap](https://img.shields.io/badge/FreeMoCap-Compatible-7952B3?logo=github)](https://github.com/freemocap/freemocap)
+
 > [!CAUTION]
 > ### ⚠️ Project Status: Experimental Prototype / Work in Progress
 > **Please Note:** This project is currently undergoing active development and testing. It is **NOT YET in a state where it can be easily replicated as a turnkey / plug-and-play solution**. Hardware-level camera synchronization involves specific driver, USB controller bandwidth, and timing considerations. You may encounter issues depending on your hardware environment. Follow the issue tracker or discussions for ongoing updates.
