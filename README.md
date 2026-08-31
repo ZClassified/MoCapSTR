@@ -83,6 +83,24 @@ python python/main.py
 
 ---
 
+## Troubleshooting & FAQ
+
+### 1. Camera shows `0.0 FPS` or a Frozen Image (`⚠️ NO SIGNAL / FROZEN`)
+- **Symptom:** When clicking "Initialize System", one or more camera feeds show an initial frame and immediately freeze at `0.0 FPS` with a red warning overlay.
+- **Root Cause:** The camera has switched to Hardware Trigger mode (`AutoFocus=1`) and is waiting for electrical pulses on its `FSIN` pin. If no trigger pulse or ground reaches the camera, the sensor produces zero further frames.
+- **Step-by-Step Diagnostic:**
+  1. **Quick Software Isolation (Free-Run Test):** In the **Setup** tab, uncheck `Enable UVC Hardware Trigger` and click **Initialize System**. If all cameras stream smoothly at 30/60 FPS in Free-Run mode, your USB card, bandwidth, and software are 100% working — the issue is **strictly the physical hardware trigger connection**.
+  2. **Check Splitter Box Wiring:** Open the splitter box and ensure all WAGO cage clamp terminals and DC jack solder joints are firm and not disconnected.
+  3. **Check `FSIN+` / `FSIN-` Polarity:** Ensure the 2-pin plug on the camera PCB is oriented correctly (Red = `FSIN+`, Black = `FSIN-` / Ground). If polarity is reversed, the camera's internal diode blocks the trigger pulses.
+  4. **Cross-Test Cables:** Swap the DC barrel jack of the frozen camera with a working camera at the splitter box to isolate whether the cable or splitter port is faulty.
+
+### 2. Differing Brightness Between Identical Cameras
+- **Symptom:** One camera feed looks noticeably brighter or darker than the others despite identical hardware.
+- **Root Cause:** Global-shutter monochrome sensors have a linear luminance curve without automatic HDR tone-mapping. A camera pointing toward white walls/daylight receives 80–90% reflected light, while a camera pointing into a dark corner receives only 2–5%. Manual M12 lens focus depth also slightly affects optical light transmission (T-stop).
+- **Solution:** Provide uniform room lighting, verify lens focus, and use the **Exposure** slider in the Setup tab (shutter settings `-8` to `-9` are optimal for motion tracking).
+
+---
+
 ## License
 
 GPL-3.0 License. See [LICENSE](LICENSE) for details.
@@ -172,6 +190,24 @@ python python/main.py
 3. **Aufnahme:** Aufnahme über den Software-Button oder den physischen Taster an der Trigger-Box starten/stoppen.
 4. **Export & Convert Tab:** Aufnahmen gesammelt in H.264 (`.mp4`) für FreeMoCap umwandeln.
 5. **Import in FreeMoCap:** In FreeMoCap "Process Pre-recorded Data" wählen, den Projektordner auswählen und das Tracking starten.
+
+---
+
+## Fehlerbehebung & Häufige Probleme (Troubleshooting)
+
+### 1. Kamera zeigt `0.0 FPS` oder ein eingefrorenes Bild (`⚠️ NO SIGNAL / FROZEN`)
+- **Symptom:** Nach dem Klick auf "Initialize System" zeigt eine Kamera nur ein einzelnes Standbild und bleibt mit einem roten Warn-Overlay bei `0.0 FPS` stehen (oder alle Kameras bleiben stehen).
+- **Ursache:** Die Kamera ist im Hardware-Trigger-Modus (`AutoFocus=1`) und wartet auf externe 5V-Taktsignale am `FSIN`-Pin. Wenn kein Signal oder keine Masse ankommt, liefert der Sensor keine weiteren Frames.
+- **Lösungsschritte zur Fehlersuche:**
+  1. **Schnelltest im Free-Run-Modus:** Deaktiviere im Tab **„1. Project & Setup“** das Häkchen `[ ] Enable UVC Hardware Trigger` und klicke auf Initialisieren. Laufen alle Kameras im Free-Run flüssig mit ~30 FPS, sind USB-Karte, Treiber und Software zu 100 % in Ordnung – der Fehler liegt **ausschließlich an der physischen Trigger-Leitung**.
+  2. **Splitter-Box Verkabelung prüfen:** Prüfe, ob in der Splitter-Box eine Klemme (WAGO) lose ist oder ein Kabel an einer DC-Buchse abgegangen ist.
+  3. **Polarität an der Kamera prüfen (`FSIN+` / `FSIN-`):** Prüfe, ob der 2-Pin JST-Stecker richtig herum aufgesteckt ist (Rot = `FSIN+`, Schwarz = `FSIN-`). Bei vertauschten Adern sperrt die sensorinterne Schutzdiode das Triggersignal.
+  4. **Kreuztest durchführen:** Stecke den DC-Stecker der betroffenen Kamera an der Splitter-Box in einen funktionierenden Port um, um Kabel- vs. Buchsendefekte zu isolieren.
+
+### 2. Unterschiedliche Helligkeit trotz gleicher Kameras
+- **Symptom:** Eine Kamera wirkt deutlich heller oder dunkler als die anderen.
+- **Ursache:** Der OV9281 ist ein monochromer Global-Shutter-Sensor mit linearer Lichtkurve (ohne automatische Dynamikkompression/HDR). Eine weiße Wand reflektiert 80–90 % des Lichts, eine schattige Raumecke nur 2–5 %. Auch die Einschraubtiefe der M12-Objektive (Fokus) beeinflusst die Lichtmenge (T-Stop).
+- **Lösung:** Raum gleichmäßig ausleuchten, Objektivfokus prüfen und den Belichtungsregler im Setup-Tab anpassen (für MoCap/Charuco-Tracking sind kürzere Belichtungszeiten wie `-8` oder `-9` ideal).
 
 ---
 
