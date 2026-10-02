@@ -84,7 +84,8 @@ cd MoCapSTR
 pip install -r requirements.txt
 python python/main.py
 ```
-*(Flash the Arduino sketch from `arduino/trigger_firmware/trigger_firmware.ino` using the Arduino IDE. **Updating from v1.4.x: re-flash the sketch** – the app shows a warning if the firmware is outdated.)*
+**Arduino firmware:** Connect the Arduino Nano/Uno, select its port in the Setup tab and click **Firmware aufspielen** – no Arduino IDE needed. The button turns orange when the firmware is missing or outdated (e.g. after updating MoCapSTR).
+*(Alternatively flash `arduino/trigger_firmware/trigger_firmware.ino` with the Arduino IDE. After changing the sketch, rebuild the bundled HEX with `python arduino/build_firmware.py`.)*
 
 **Running the tests** (no hardware needed):
 ```bash
@@ -201,7 +202,8 @@ cd MoCapSTR
 pip install -r requirements.txt
 python python/main.py
 ```
-*(Den Arduino-Sketch aus `arduino/trigger_firmware/trigger_firmware.ino` über die Arduino IDE flashen. **Update von v1.4.x: Sketch neu flashen** – die App warnt, wenn die Firmware veraltet ist.)*
+**Arduino-Firmware:** Arduino Nano/Uno anschließen, im Setup-Tab den Port wählen und auf **Firmware aufspielen** klicken – keine Arduino IDE nötig. Der Button wird orange, wenn die Firmware fehlt oder veraltet ist (z. B. nach einem MoCapSTR-Update).
+*(Alternativ `arduino/trigger_firmware/trigger_firmware.ino` über die Arduino IDE flashen. Nach Änderungen am Sketch die mitgelieferte HEX-Datei mit `python arduino/build_firmware.py` neu bauen.)*
 
 **Tests ausführen** (ohne Hardware):
 ```bash

@@ -1,7 +1,11 @@
 # -*- mode: python ; coding: utf-8 -*-
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
-datas = [('design/Icon.ico', 'design')] + collect_data_files('customtkinter')
+datas = [
+    ('design/Icon.ico', 'design'),
+    ('arduino/trigger_firmware/trigger_firmware.hex', 'arduino/trigger_firmware'),
+    ('arduino/trigger_firmware/trigger_firmware.version', 'arduino/trigger_firmware'),
+] + collect_data_files('customtkinter')
 hiddenimports = [
     'customtkinter',
     'pygrabber',
@@ -17,6 +21,8 @@ hiddenimports = [
     'serial',
     'serial.tools.list_ports',
     'freemocap_bridge',
+    'firmware_flasher',
+    'clip_sync',
 ] + collect_submodules('customtkinter')
 
 a = Analysis(

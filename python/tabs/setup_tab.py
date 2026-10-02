@@ -1,11 +1,13 @@
 import customtkinter as ctk
 import tkinter as tk
-from tkinter import filedialog
+from tkinter import filedialog, messagebox
 from PIL import Image
 import threading
 import cv2
 import time
 import gc
+
+from firmware_flasher import FlashError, bundled_firmware, flash_bundled_firmware, is_outdated
 
 def get_recommended_usb_fps(target_fps: int) -> str:
     """
@@ -158,7 +160,10 @@ class SetupTab(ctk.CTkFrame):
         ctk.CTkButton(ard_f, text="Refresh", width=80, command=self.refresh_ports).pack(side="left", padx=(10, 0))
         self.btn_connect = ctk.CTkButton(ard_f, text="Connect", width=100, command=self.connect_arduino)
         self.btn_connect.pack(side="left", padx=(10, 0))
-        
+        self.btn_flash = ctk.CTkButton(ard_f, text="Firmware aufspielen", width=150, command=self.flash_firmware_cmd)
+        self.btn_flash.pack(side="left", padx=(10, 0))
+        self._flash_btn_default_colors = (self.btn_flash.cget("fg_color"), self.btn_flash.cget("hover_color"))
+
         # ==========================================
         # Primary Action Button & Status
         # ==========================================
@@ -535,11 +540,107 @@ class SetupTab(ctk.CTkFrame):
 
     def log_arduino_connected(self):
         arduino = self.app.arduino
-        if arduino.firmware_version:
-            self.app.log(f"Arduino connected! (Firmware v{arduino.firmware_version})", level="success")
-        elif arduino.is_responsive() is None:
-            self.app.log("Arduino port opened, but the firmware does not answer PING. "
-                         "Is trigger_firmware.ino flashed?", "error")
+        try:
+            _, bundled_version = bundled_firmware()
+        except OSError:
+            bundled_version = None
+
+        if arduino.is_responsive() is None:
+            self.app.log("Arduino port opened, but no trigger firmware answers. "
+                         "Click 'Firmware aufspielen' to install it.", "error")
+            outdated = True
+        elif bundled_version and is_outdated(arduino.firmware_version, bundled_version):
+            installed = f"v{arduino.firmware_version}" if arduino.firmware_version else "< v1.5.0"
+            self.app.log(f"Arduino connected, but the trigger firmware is outdated ({installed}). "
+                         f"Click 'Firmware aufspielen' to update to v{bundled_version}.", "error")
+            outdated = True
         else:
-            self.app.log("Arduino connected, but the trigger firmware is outdated. "
-                         "Please flash arduino/trigger_firmware/trigger_firmware.ino (v1.5.0).", "error")
+            self.app.log(f"Arduino connected! (Firmware v{arduino.firmware_version})", level="success")
+            outdated = False
+        self.app.after(0, self._highlight_flash_button, outdated)
+
+    def _highlight_flash_button(self, highlight):
+        if highlight:
+            self.btn_flash.configure(text="⚠️ Firmware aktualisieren", fg_color="#f77f00", hover_color="#c96700")
+        else:
+            fg, hover = self._flash_btn_default_colors
+            self.btn_flash.configure(text="Firmware aufspielen", fg_color=fg, hover_color=hover)
+
+    def flash_firmware_cmd(self):
+        if self.app.recorder.is_recording:
+            self.app.log("Stop the recording before flashing the firmware.", "error")
+            return
+        port = self.port_combo.get()
+        if not port or port == "No Ports Found":
+            self.app.log("Select the Arduino port first.", "error")
+            return
+        try:
+            _, version = bundled_firmware()
+        except OSError as e:
+            self.app.log(f"Bundled firmware not found: {e}", "error")
+            return
+        if not messagebox.askyesno(
+                "Firmware aufspielen",
+                f"Trigger-Firmware v{version} auf das Arduino an {port} aufspielen?\n\n"
+                "Unterstützt: Arduino Nano / Uno (ATmega328P).\n"
+                "Der Trigger ist dabei kurz unterbrochen. Ein abgebrochener Vorgang "
+                "kann einfach wiederholt werden."):
+            return
+
+        self.btn_flash.configure(state="disabled")
+        self.btn_connect.configure(state="disabled")
+        self.btn_init_system.configure(state="disabled")
+
+        def status(text, color="#3a86ff"):
+            self.app.after(0, lambda: self.lbl_init_status.configure(text=text, text_color=color))
+
+        def log(text, level="info"):
+            self.app.after(0, lambda: self.app.log(text, level))
+
+        def flash_task():
+            arduino = self.app.arduino
+            trigger_was_running = arduino.is_running
+            trigger_fps = arduino.current_fps
+            success = False
+            try:
+                # The port can only be used by one program/connection at a time
+                if arduino.is_connected or (arduino.serial_conn and arduino.serial_conn.is_open):
+                    arduino.disconnect()
+                status("⏳ Firmware wird aufgespielt...")
+                flash_bundled_firmware(
+                    port,
+                    progress=lambda p: status(f"⏳ Firmware wird aufgespielt... {int(p * 100)}%"),
+                    log=log)
+                success = True
+            except FlashError as e:
+                log(f"Firmware flashing failed: {e}", "error")
+            except Exception as e:
+                log(f"Firmware flashing failed unexpectedly: {e}", "error")
+
+            # Reconnect (also after a failure: the old firmware is usually still running)
+            status("⏳ Verbinde Arduino neu...")
+            time.sleep(0.5)
+            if arduino.connect(port):
+                self.log_arduino_connected()
+                if trigger_was_running:
+                    arduino.set_fps(trigger_fps)
+                    arduino.start_trigger()
+                    log(f"Hardware Trigger restarted at {trigger_fps} FPS.", "success")
+            else:
+                log(f"Could not reconnect to Arduino on {port}.", "error")
+
+            def done():
+                self.btn_flash.configure(state="normal")
+                self.btn_init_system.configure(state="normal")
+                if arduino.is_connected:
+                    self.btn_connect.configure(text="Connected", state="disabled")
+                else:
+                    self.btn_connect.configure(text="Connect", state="normal")
+                if success:
+                    self.lbl_init_status.configure(text="✓ Firmware aktualisiert", text_color="#2a9d8f")
+                else:
+                    self.lbl_init_status.configure(text="⚠️ Firmware konnte nicht aufgespielt werden (siehe Log)",
+                                                   text_color="#e63946")
+            self.app.after(0, done)
+
+        threading.Thread(target=flash_task, daemon=True).start()
