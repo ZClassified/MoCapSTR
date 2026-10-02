@@ -17,7 +17,7 @@ Dieses Dokument hält Ursache, getroffene Entscheidungen und den Arbeitsplan fes
 | Thema | Entscheidung |
 |---|---|
 | Anbindung | Über **DirectShow** (`format='dshow'`), wie bei den USB-Kameras. Der Desktop-Video-Treiber stellt jeden SDI-Eingang als eigenes Gerät bereit ("Decklink Video Capture", "Decklink Video Capture (2)", …). Kein DeckLink SDK, kein eigener FFmpeg-Build. |
-| Aufnahmeformat | Wählbar. **Standard: unkomprimiert** (einfachster und verlustfreier Weg, braucht viel Platz). **Optional: Kodierung auf der Grafikkarte** (`h264_nvenc`, in PyAV vorhanden). |
+| Aufnahmeformat | Wählbar. **Standard: unkomprimiert** (einfachster und verlustfreier Weg, braucht viel Platz). **Optional: Kodierung auf der Grafikkarte**, herstellerunabhängig: AMD (`h264_amf`/`hevc_amf`), NVIDIA (`h264_nvenc`), Intel (`h264_qsv`). Alle sind in den PyAV-Paketen enthalten. Das Tool bietet nur Encoder an, die sich auf dem PC tatsächlich öffnen lassen. |
 | Genlock | **Kein Bestandteil des Tools.** Genlock ist externe Hardware zwischen den Kameras. Das Tool muss mit und ohne Genlock funktionieren. Ohne Genlock können die Belichtungen bis zu einem halben Frame auseinanderliegen. Das ist bei FreeMoCap mit Webcams genauso und funktioniert. |
 | Frame-Ausrichtung | Ohne Arduino-Trigger gibt es keinen Stopp/Neustart des Takts. Start und Ende werden **nach der Aufnahme per Ankunftszeitstempel ausgerichtet** (`clip_sync`, die Zeitstempel werden seit v1.5.0 mitgeschrieben). |
 | Interlaced | Muss **erkannt** werden, mit Hinweis "Kamera auf progressiv umstellen". PsF darf **nicht** als Fehler gelten (siehe 3.3). |
@@ -40,7 +40,11 @@ Dieses Dokument hält Ursache, getroffene Entscheidungen und den Arbeitsplan fes
 ### 3.2 Aufnahmepfad
 
 - **Unkomprimiert:** Die Pakete von DirectShow (rawvideo) unverändert per Stream-Copy in `.avi`/`.mkv` schreiben, wie bisher bei MJPEG. Zu prüfen: Kann FreeMoCap (OpenCV) rawvideo-AVI in dieser Größe flüssig lesen? Bei AVI gibt es eine 4-GB-Grenze pro Datei → für unkomprimiert vermutlich **MKV**.
-- **GPU-Kodierung:** Frames dekodieren und mit `h264_nvenc` kodieren, pro Kamera ein eigener Thread. Zu prüfen: NVENC-Sitzungslimit der Grafikkarte (bei aktuellen GeForce-Karten 8, bei älteren 3) und die Latenz.
+- **GPU-Kodierung:** Frames dekodieren und mit dem Hardware-Encoder der Grafikkarte kodieren, pro Kamera ein eigener Thread.
+  - Verfügbare Encoder beim Start ermitteln: Testweise öffnen und ein paar Frames kodieren. Nur was funktioniert, erscheint in der Auswahl.
+  - **DeckLink-PC: AMD Radeon RX 5600 XT** (VCN 2.0) → `h264_amf` oder `hevc_amf`. Kein AV1-Encoder, kein NVENC.
+  - Zu prüfen: Schafft der Encoder die Summe aller Kameras in Echtzeit (z. B. 4× 720p50 = 200 Bilder/s, 4× 1080p50 = 200 Bilder/s in Full HD)? Wie viele Encoder-Sitzungen laufen gleichzeitig stabil (bei NVIDIA-GeForce je nach Generation 3 bis 8), und wie hoch ist die Latenz?
+  - Falls die GPU nicht reicht: Warnung vor der Aufnahme bzw. Rückfall auf unkomprimiert.
 - Die vorhandene Logik bleibt nutzbar: Aufnahme-Sessions, das Auffüllen verlorener Frames und die Zeitstempel-CSV im FreeMoCap-Format.
 
 ### 3.3 Interlaced vs. PsF vs. progressiv
@@ -60,6 +64,7 @@ Dieses Dokument hält Ursache, getroffene Entscheidungen und den Arbeitsplan fes
 
 ### 3.5 Hardware-Hinweise
 
+- **DeckLink-PC (Testsystem):** DeckLink Duo 2, AMD Radeon RX 5600 XT, SSD. Python, IDE und Claude Code werden dort eingerichtet, sodass direkt am Gerät getestet und nachgebessert werden kann.
 - **DeckLink Duo 2:** 4 SDI-Anschlüsse, einzeln als Ein- oder Ausgang konfigurierbar (in "Blackmagic Desktop Video Setup"), Eingänge bis **1080p60 (3G-SDI), kein UHD**.
 - **Panasonic AG-HPX500 / AW-HE870** (vorhanden): liefern 1080PsF25 oder 720p50. **Für Mocap 720p50 empfehlen** (doppelte zeitliche Auflösung, PsF25 ist für schnelle Bewegungen grob).
 - **Blackmagic 12K / ARRI Alexa:** Den SDI-Ausgang an der Kamera auf **1080p** (progressiv) stellen, da die Duo 2 kein UHD/12G-SDI annimmt. Beide haben Genlock.
@@ -72,20 +77,14 @@ Dieses Dokument hält Ursache, getroffene Entscheidungen und den Arbeitsplan fes
    - Mit 1, 2 und 4 Eingängen gleichzeitig je ein paar Sekunden aufnehmen.
    - Messen: FPS, verlorene Frames, Ankunftsversatz zwischen den Eingängen, Datenrate, Gerätezeitstempel.
    - `idet` auf jedem Eingang laufen lassen.
-   - Testen, wie schnell `h264_nvenc` und MJPEG kodieren (wenn eine NVIDIA-GPU da ist).
+   - Testen, welche GPU-Encoder sich öffnen lassen (AMF/NVENC/QSV) und wie schnell sie mit 1 bis 4 gleichzeitigen Streams kodieren, zum Vergleich auch MJPEG auf der CPU.
    - Schreibgeschwindigkeit der Ziel-SSD messen.
+   - Version des Desktop-Video-Treibers mit in den Bericht schreiben.
 2. **Umbau** auf Basis der Messwerte:
    - Blackmagic-Zweig in `camera_manager.py` auf DirectShow umstellen, `device_number` fixen.
    - Formatwahl aus den Gerätedaten statt fester Liste.
-   - Aufnahmeoption "Unkomprimiert / GPU (NVENC)" im Setup-Tab.
+   - Aufnahmeoption "Unkomprimiert / GPU-Kodierung (AMF, NVENC, QSV – je nach PC)" im Setup-Tab.
    - Interlace/PsF-Erkennung mit Hinweis in der Vorschau.
    - Ausrichtung per Zeitstempel in `clip_sync` (Modus ohne Trigger) und Prüfung von Datenrate und Speicherplatz vor der Aufnahme.
    - Tests mit simulierten Daten wie bei den USB-Kameras.
 3. **Test am DeckLink-PC** schrittweise mit 1, 2 und 4 Kameras, mit und ohne Genlock, mit 720p50 und PsF25. Danach Import in FreeMoCap 2 (gleiche Frame-Zahl, erkannte Bildrate).
-
-## 5. Noch offen
-
-- [ ] Grafikkarte im DeckLink-PC (NVIDIA? Modell → NVENC-Sitzungslimit)
-- [ ] SSD im DeckLink-PC (NVMe/SATA, freier Platz)
-- [ ] Läuft dort Python, oder nur die EXE? Kann dort Claude Code installiert werden (direktes Testen statt Berichte hin und her)?
-- [ ] Desktop-Video-Treiberversion auf dem DeckLink-PC
