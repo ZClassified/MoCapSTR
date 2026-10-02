@@ -6,6 +6,8 @@ import queue
 import av
 import fractions
 
+from clip_sync import RecordingResult, TIMESTAMP_FIELDS, add_copy_stream
+
 class PreviewWorker(threading.Thread):
     def __init__(self, camera_worker):
         super().__init__(daemon=True)
@@ -58,6 +60,34 @@ class PreviewWorker(threading.Thread):
     def stop(self):
         self.is_running = False
 
+class RecordingSession:
+    """
+    State of one camera for one recording. A fresh object per take, so a writer
+    thread that is still finishing an old take can never touch the next one.
+    """
+    def __init__(self, output_path, container, stream, fps, timestamps_path, timestamps_file, queue_size):
+        self.output_path = output_path
+        self.container = container
+        self.stream = stream
+        # Packet time base (frame index units). The muxer may use a different
+        # stream time base (Matroska: 1/1000); PyAV rescales on mux().
+        self.time_base = fractions.Fraction(1, int(round(fps)))
+        self.timestamps_path = timestamps_path
+        self.timestamps_file = timestamps_file
+        self.packet_queue = queue.Queue(maxsize=queue_size)
+
+        # Packets arriving before this perf_counter_ns() value are discarded.
+        # None = no restriction. Used to drop stale frames from before the
+        # trigger restart (see MultiCamManager.release_recording_gate()).
+        self.min_arrival_ns = None
+
+        self.frames_recorded = 0
+        self.filled_frames = 0
+        self.dropped_packets = 0
+        self.mux_errors = 0
+        self.pending_gap = 0  # packets dropped since the last enqueued one (demux thread only)
+
+
 class CameraWorker(threading.Thread):
     def __init__(self, cam_id, container, target_fps=50):
         super().__init__(daemon=True)
@@ -65,38 +95,43 @@ class CameraWorker(threading.Thread):
         self.container = container
         self.stream = self.container.streams.video[0]
         self.target_fps = target_fps
-        
+
         self.is_running = True
         self.is_recording = False
-        
+
         self.latest_frame = None
         self.rotation_degrees = 0
-        
+
         self.current_fps = 0.0
         self.last_fps_time = time.time()
         self.last_packet_time = time.time() # Watchdog timestamp
         self.frame_count_for_fps = 0
         self.last_preview_time = 0
-        
-        self.packet_queue = queue.Queue(maxsize=int(target_fps * 3))
+
+        self.session = None
         self.writer_thread = None
-        self.frames_recorded = 0
-        
+
         self.show_charuco = False
         self.charuco_dict = None
         self.charuco_params = None
-        
-        self.output_container = None
-        self.output_stream = None
-        self.output_path = None
 
         # Shared threading.Event used for atomic start across all cameras.
         # Packets are only enqueued once this gate is set by MultiCamManager.
         self._record_gate = None
-        
+
         self.preview_worker = PreviewWorker(self)
         self.preview_worker.start()
-        
+
+    @property
+    def frames_recorded(self):
+        session = self.session
+        return session.frames_recorded if session else 0
+
+    @property
+    def lost_frames(self):
+        session = self.session
+        return (session.dropped_packets + session.mux_errors) if session else 0
+
     def set_charuco(self, show, dict_str=None):
         self.show_charuco = show
         if show and dict_str:
@@ -112,18 +147,18 @@ class CameraWorker(threading.Thread):
                 self.charuco_dict = cv2.aruco.getPredefinedDictionary(dict_id)
             else:
                 self.charuco_dict = cv2.aruco.Dictionary_get(dict_id)
-                
+
             if hasattr(cv2.aruco, 'DetectorParameters'):
                 self.charuco_params = cv2.aruco.DetectorParameters()
             else:
                 self.charuco_params = cv2.aruco.DetectorParameters_create()
-        
+
     def set_rotation(self, degrees):
         self.rotation_degrees = degrees
         if self.preview_worker:
             self.preview_worker.apply_rotation_to_cached_frame()
-        
-    def prepare_recording(self, output_path, fps, codec_selection, record_gate):
+
+    def prepare_recording(self, output_path, fps, codec_selection, record_gate, timestamps_path=None):
         """
         Phase 1 of the two-phase atomic start:
         Opens the output container and prepares the output stream.
@@ -131,141 +166,183 @@ class CameraWorker(threading.Thread):
         MultiCamManager calls record_gate.set() for all cameras simultaneously.
 
         Args:
-            output_path:    Destination file path.
-            fps:            Target frames per second.
-            codec_selection: PyAV codec name (e.g. 'mjpeg').
-            record_gate:    Shared threading.Event; set by MultiCamManager
-                            after all cameras are prepared.
+            output_path:     Destination file path.
+            fps:             Target frames per second.
+            codec_selection: PyAV codec name; only 'mjpeg' (stream copy) is supported.
+            record_gate:     Shared threading.Event; set by MultiCamManager
+                             after all cameras are prepared.
+            timestamps_path: Optional CSV path for per-frame timestamps.
 
         Returns:
             True on success, False if the output container could not be opened.
         """
         if not self.is_running:
             return False
-
-        # Reset state for this new session BEFORE any I/O, so that a subsequent
-        # stop_recording() call on a failed prepare sees clean defaults.
-        self.frames_recorded = 0
-        self.recording_fps = fps
-        self.output_path = None      # Will be set only on successful open
-        self._record_gate = record_gate
-
-        # Flush any leftover packets from a previous session
-        while not self.packet_queue.empty():
-            try:
-                self.packet_queue.get_nowait()
-            except queue.Empty:
-                break
-                
-        # For simplicity and maximum performance, we use PyAV Stream Copy for MJPG
-        # If they selected a hardware encoder, we would need a decoding/encoding pipeline.
-        # Here we prioritize the zero-copy pipeline if MJPG is selected.
-        try:
-            self.output_container = av.open(output_path, mode='w')
-            if codec_selection == "MJPG" or codec_selection == "mjpeg":
-                # Direct Stream Copy
-                self.output_stream = self.output_container.add_stream(self.stream.name)
-                self.output_stream.width = self.stream.codec_context.width
-                self.output_stream.height = self.stream.codec_context.height
-                if self.stream.codec_context.pix_fmt:
-                    self.output_stream.pix_fmt = self.stream.codec_context.pix_fmt
-                # Override time_base to match our target_fps for clean monotonic PTS
-                self.output_stream.time_base = fractions.Fraction(1, int(fps))
-            else:
-                # Transcoding path (simplified fallback)
-                self.output_stream = self.output_container.add_stream(codec_selection, rate=fps)
-                self.output_stream.width = self.stream.codec_context.width
-                self.output_stream.height = self.stream.codec_context.height
-                self.output_stream.pix_fmt = 'yuv420p'
-        except Exception as e:
-            print(f"[{self.cam_id}] Error opening output container: {e}")
-            # output_path stays None — stop_recording() will return (None, 0)
+        if self.session is not None:
+            print(f"[{self.cam_id}] Previous recording still active - cannot prepare a new one.")
+            return False
+        if codec_selection not in ("MJPG", "mjpeg"):
+            print(f"[{self.cam_id}] Codec '{codec_selection}' not supported - only MJPEG stream copy.")
             return False
 
-        # Only assign output_path after successful container open, so that
-        # stop_recording() can use it as a reliable indicator of success.
-        self.output_path = output_path
+        container = None
+        timestamps_file = None
+        try:
+            # Zero-copy pipeline: the camera's MJPEG packets are written unchanged.
+            container = av.open(output_path, mode='w')
+            stream = add_copy_stream(container, self.stream, fps)
 
+            if timestamps_path:
+                os.makedirs(os.path.dirname(timestamps_path), exist_ok=True)
+                timestamps_file = open(timestamps_path, "w", newline="", encoding="utf-8")
+                timestamps_file.write(",".join(TIMESTAMP_FIELDS) + "\n")
+        except Exception as e:
+            print(f"[{self.cam_id}] Error opening output container: {e}")
+            for handle in (container, timestamps_file):
+                if handle is not None:
+                    try:
+                        handle.close()
+                    except Exception:
+                        pass
+            return False
+
+        session = RecordingSession(output_path, container, stream, fps,
+                                   timestamps_path, timestamps_file,
+                                   queue_size=int(self.target_fps * 3))
+        self._record_gate = record_gate
+        self.session = session
         # Mark as recording so the writer loop keeps running, but the run() loop
         # will only enqueue packets once _record_gate is set.
         self.is_recording = True
-        self.writer_thread = threading.Thread(target=self._writer_loop, daemon=True)
+        self.writer_thread = threading.Thread(target=self._writer_loop, args=(session,), daemon=True)
         self.writer_thread.start()
         return True
 
-    def stop_recording(self):
+    def request_stop(self):
+        """Stops accepting new packets. The writer keeps draining its queue."""
+        self.is_recording = False
+        self._record_gate = None
+
+    def finish_recording(self, stall_timeout=5.0):
         """
-        Stop recording, drain the writer queue, and close the output container.
+        Waits until the writer has written all queued packets and closed the file.
+        Gives up only if the writer makes no progress for `stall_timeout` seconds.
 
         Returns:
-            Tuple (output_path, frames_recorded) for use by trim_clips_to_min_frames(),
-            or (None, 0) if this worker was not recording in the current session.
+            RecordingResult, or None if this worker was not recording.
         """
-        # Clear the gate first so no new packets slip through during the shutdown window.
-        self._record_gate = None
-        self.is_recording = False
+        self.request_stop()
+        session = self.session
+        if session is None:
+            return None
 
-        if self.writer_thread:
-            self.writer_thread.join(timeout=2.0)
-            self.writer_thread = None
+        complete = True
+        writer = self.writer_thread
+        if writer:
+            last_progress = (session.frames_recorded, session.packet_queue.qsize())
+            last_change = time.time()
+            while writer.is_alive():
+                writer.join(timeout=0.5)
+                progress = (session.frames_recorded, session.packet_queue.qsize())
+                if progress != last_progress:
+                    last_progress = progress
+                    last_change = time.time()
+                elif time.time() - last_change > stall_timeout:
+                    print(f"[{self.cam_id}] Writer stalled - giving up waiting.")
+                    complete = False
+                    break
+        self.writer_thread = None
+        self.session = None
 
-        # Capture and reset output_path atomically so that subsequent stop_recording()
-        # calls (e.g. from MultiCamManager iterating all workers) always return
-        # (None, 0) for cameras that were not part of this recording session.
-        path = self.output_path
-        frames = self.frames_recorded
-        self.output_path = None   # Reset: prevents stale paths leaking into next session
+        print(f"[{self.cam_id}] Stopped recording. Saved {session.frames_recorded} frames "
+              f"({session.filled_frames} filled).")
+        return RecordingResult(
+            path=session.output_path,
+            frames=session.frames_recorded,
+            filled_frames=session.filled_frames,
+            dropped_packets=session.dropped_packets,
+            mux_errors=session.mux_errors,
+            timestamps_path=session.timestamps_path,
+            complete=complete,
+        )
 
-        if self.output_container:
+    def stop_recording(self):
+        return self.finish_recording()
+
+    def _write_frame(self, session, data, arrival_ns, device_time, filler):
+        packet = av.Packet(data)
+        packet.stream = session.stream
+        packet.time_base = session.time_base
+        packet.pts = session.frames_recorded
+        packet.dts = session.frames_recorded
+        packet.is_keyframe = True  # MJPEG: every frame is intra-coded
+        session.container.mux(packet)
+
+        if session.timestamps_file:
+            session.timestamps_file.write(
+                f"{session.frames_recorded},"
+                f"{'' if arrival_ns is None else arrival_ns},"
+                f"{'' if device_time is None else f'{device_time:.6f}'},"
+                f"{1 if filler else 0}\n")
+        session.frames_recorded += 1
+        if filler:
+            session.filled_frames += 1
+
+    def _writer_loop(self, session):
+        """
+        Writes queued packets. Lost packets (queue overflow, mux error) are replaced
+        by a copy of the previous frame, so frame N stays frame N on every camera.
+        Closes the output files when done.
+        """
+        last_data = None
+        pending_fill = 0
+        try:
+            while self.is_recording and self.session is session or not session.packet_queue.empty():
+                try:
+                    data, arrival_ns, device_time, gap = session.packet_queue.get(timeout=0.1)
+                except queue.Empty:
+                    continue
+
+                pending_fill += gap
+                if pending_fill and last_data is not None:
+                    for _ in range(pending_fill):
+                        try:
+                            self._write_frame(session, last_data, None, None, filler=True)
+                        except Exception as e:
+                            print(f"[{self.cam_id}] Mux error (filler): {e}")
+                    pending_fill = 0
+
+                try:
+                    self._write_frame(session, data, arrival_ns, device_time, filler=False)
+                    last_data = data
+                except Exception as e:
+                    print(f"[{self.cam_id}] Mux error: {e}")
+                    session.mux_errors += 1
+                    pending_fill += 1
+        finally:
             try:
-                self.output_container.close()
-            except:
-                pass
-            self.output_container = None
-            self.output_stream = None
-            
-        print(f"[{self.cam_id}] Stopped recording. Saved {frames} frames.")
-        return path, frames
-        
-    def _writer_loop(self):
-        while self.is_recording or not self.packet_queue.empty():
-            try:
-                packet = self.packet_queue.get(timeout=0.1)
-                
-                # Mux packet
-                if self.output_stream and self.output_container:
-                    try:
-                        if self.output_stream.type == packet.stream.type and self.output_stream.name == packet.stream.name:
-                            # Stream Copy
-                            packet.stream = self.output_stream
-                            packet.time_base = fractions.Fraction(1, int(self.recording_fps))
-                            packet.pts = self.frames_recorded
-                            packet.dts = self.frames_recorded
-                            self.output_container.mux(packet)
-                            # Count only after a successful stream-copy mux.
-                            # The transcoding no-op path does NOT increment so that
-                            # frames_recorded always matches the actual file contents.
-                            self.frames_recorded += 1
-                        else:
-                            # Transcoding path - highly simplified, requires decoded frames
-                            pass
-                    except Exception as e:
-                        print(f"[{self.cam_id}] Mux error: {e}")
-            except queue.Empty:
-                continue
+                session.container.close()
+            except Exception as e:
+                print(f"[{self.cam_id}] Error closing output container: {e}")
+            if session.timestamps_file:
+                try:
+                    session.timestamps_file.close()
+                except Exception:
+                    pass
 
     def run(self):
         try:
             for packet in self.container.demux(self.stream):
+                arrival_ns = time.perf_counter_ns()
                 if not self.is_running:
                     break
-                    
+
                 if packet.dts is None:
                     continue
-                    
+
                 now = time.time()
                 self.last_packet_time = now
-                
+
                 # Calculate FPS based on received packets
                 self.frame_count_for_fps += 1
                 if now - self.last_fps_time >= 1.0:
@@ -283,19 +360,28 @@ class CameraWorker(threading.Thread):
                             break # Only decode first frame in packet
                     except Exception as e:
                         pass
-                        
+
                 # 2. Enqueue packet for recording.
                 # The gate check ensures all cameras start capturing simultaneously:
                 # packets are only accepted once MultiCamManager has opened the shared
                 # record_gate for every camera (two-phase atomic start).
-                if self.is_recording:
-                    gate_open = (self._record_gate is None or self._record_gate.is_set())
-                    if gate_open:
+                gate = self._record_gate
+                session = self.session
+                if self.is_recording and session is not None and gate is not None and gate.is_set():
+                    min_ns = session.min_arrival_ns
+                    if min_ns is None or arrival_ns >= min_ns:
+                        device_time = None
+                        if packet.pts is not None and packet.time_base is not None:
+                            device_time = float(packet.pts * packet.time_base)
                         try:
-                            self.packet_queue.put_nowait(packet)
+                            session.packet_queue.put_nowait((bytes(packet), arrival_ns, device_time, session.pending_gap))
+                            session.pending_gap = 0
                         except queue.Full:
+                            # The writer fills the gap with a copy of the previous frame
+                            session.pending_gap += 1
+                            session.dropped_packets += 1
                             print(f"[{self.cam_id}] Queue full! Dropping packet.")
-                        
+
                 # 3. An den PreviewWorker schicken
                 if bgr_frame is not None:
                     try:
@@ -304,10 +390,10 @@ class CameraWorker(threading.Thread):
                         pass # Drop frame if worker is busy
         except Exception as e:
             print(f"[{self.cam_id}] Demux loop error: {e}")
-            
+
     def stop(self):
         self.is_running = False
-        self.stop_recording()
+        self.finish_recording()
         if self.preview_worker:
             self.preview_worker.stop()
             self.preview_worker.join(timeout=1.0)
@@ -316,7 +402,7 @@ class MultiCamManager:
     def __init__(self):
         self.workers = {} # idx -> CameraWorker
         self.is_recording = False
-        
+
     def get_stalled_cameras(self, timeout_sec=2.0):
         """Returns list of camera indices that haven't received a frame for > timeout_sec."""
         now = time.time()
@@ -325,13 +411,13 @@ class MultiCamManager:
             if now - worker.last_packet_time > timeout_sec:
                 stalled.append(idx)
         return stalled
-        
+
     def get_supported_codecs(self):
         return {
             "MJPG (.avi) - Fast & Zero Copy": ("mjpeg", ".avi"),
             "MJPG (.mkv) - Fast & Zero Copy": ("mjpeg", ".mkv")
         }
-        
+
     def start_workers(self, cameras, target_fps=50):
         """Starts background grabbing for all opened PyAV containers"""
         for idx, container in cameras.items():
@@ -339,15 +425,21 @@ class MultiCamManager:
                 worker = CameraWorker(f"Cam_{idx}", container, target_fps)
                 worker.start()
                 self.workers[idx] = worker
-                
+
     def stop_workers(self):
         for worker in self.workers.values():
             worker.stop()
         for worker in self.workers.values():
             worker.join(timeout=1.5)
         self.workers.clear()
+        self.is_recording = False
 
-    def start_recording(self, target_folder, fps, codec_selection, enabled_cameras=None):
+    def recording_workers(self):
+        """{cam_idx: worker} of all cameras taking part in the current recording."""
+        return {idx: w for idx, w in self.workers.items() if w.session is not None}
+
+    def start_recording(self, target_folder, fps, codec_selection, enabled_cameras=None,
+                        hold_until_released=False):
         """
         Two-phase atomic recording start:
 
@@ -359,12 +451,21 @@ class MultiCamManager:
                   check before enqueuing packets. Because a single Event.set() call
                   is atomic, all cameras start capturing their first frame in the
                   same OS scheduler slice — eliminating start-of-clip frame drift.
+
+        With hold_until_released=True every packet is discarded until
+        release_recording_gate() is called. Used in hardware-trigger mode: the
+        trigger is restarted after this call and only frames of the new pulses
+        are recorded.
+
+        Returns:
+            True if at least one camera is recording.
         """
         if self.is_recording:
             return False
-            
+
         codecs = self.get_supported_codecs()
         fourcc_str, ext = codecs.get(codec_selection, ("mjpeg", ".avi"))
+        timestamps_folder = os.path.join(os.path.dirname(target_folder), "timestamps")
 
         # Shared gate: keeps all workers waiting until every container is ready.
         record_gate = threading.Event()
@@ -376,11 +477,19 @@ class MultiCamManager:
                 continue
             filename = f"cam{idx}{ext}"
             output_path = os.path.join(target_folder, filename)
+            timestamps_path = os.path.join(timestamps_folder, f"cam{idx}_timestamps.csv")
             success = worker.prepare_recording(output_path, fps,
                                                codec_selection=fourcc_str,
-                                               record_gate=record_gate)
+                                               record_gate=record_gate,
+                                               timestamps_path=timestamps_path)
             if success:
+                if hold_until_released:
+                    worker.session.min_arrival_ns = float("inf")
                 prepared.append(idx)
+
+        if not prepared:
+            print("[MultiCamManager] No camera could be prepared for recording.")
+            return False
 
         # Phase 2: Arm — open the gate for ALL prepared cameras simultaneously
         record_gate.set()
@@ -388,119 +497,44 @@ class MultiCamManager:
 
         self.is_recording = True
         return True
-        
+
+    def release_recording_gate(self, min_arrival_ns):
+        """Accept packets that arrive at or after time.perf_counter_ns() == min_arrival_ns."""
+        for worker in self.workers.values():
+            session = worker.session
+            if session is not None:
+                session.min_arrival_ns = min_arrival_ns
+
     def stop_recording(self):
         """
         Stop all camera workers and collect their results.
 
         Returns:
-            dict {cam_idx: (output_path, frames_recorded)} for post-processing.
-            Only includes cameras that were actually recording this session
-            (output_path is None for workers that were skipped via enabled_cameras).
+            dict {cam_idx: RecordingResult} for post-processing (clip_sync.finalize_clips).
+            Only includes cameras that actually recorded frames in this session.
         """
         if not self.is_recording:
             return {}
+        # Stop all cameras first, then wait: all clips end at the same moment
+        # and the writers drain in parallel instead of one after another.
+        for worker in self.workers.values():
+            worker.request_stop()
         results = {}
         for idx, worker in self.workers.items():
-            path, frames = worker.stop_recording()
-            # path is None for workers not included in this session, or for any
-            # worker whose prepare_recording() failed. Both are safely excluded.
-            if path and frames > 0:
-                results[idx] = (path, frames)
+            result = worker.finish_recording()
+            if result and result.frames > 0:
+                results[idx] = result
         self.is_recording = False
         return results
-
-    def trim_clips_to_min_frames(self, results):
-        """
-        Post-recording trim: re-mux every clip that is longer than the shortest
-        clip, so all output files contain exactly the same number of frames.
-
-        Uses PyAV stream-copy (no re-encoding) for speed and lossless trimming.
-        A temporary file is written first; on success it atomically replaces the
-        original, so the original is never corrupted.
-
-        Args:
-            results: dict returned by stop_recording(),
-                     format {cam_idx: (output_path, frames_recorded)}.
-
-        Returns:
-            dict {cam_idx: final_frame_count} with the confirmed frame counts.
-        """
-        if len(results) < 2:
-            print("[Trim] Single camera — skipping trim.")
-            return {idx: frames for idx, (_, frames) in results.items()}
-
-        frame_counts = {idx: frames for idx, (_, frames) in results.items()}
-        min_frames = min(frame_counts.values())
-        max_frames = max(frame_counts.values())
-        delta = max_frames - min_frames
-
-        print(f"[Trim] Frame counts per camera: {frame_counts}")
-        if delta == 0:
-            print("[Trim] All clips already equal — no trim needed.")
-            return frame_counts
-
-        print(f"[Trim] Trimming all clips to {min_frames} frames (delta was {delta}).")
-
-        final_counts = {}
-        for idx, (path, frames) in results.items():
-            if frames <= min_frames:
-                print(f"[Trim] Cam {idx}: {frames} frames — OK.")
-                final_counts[idx] = frames
-                continue
-
-            print(f"[Trim] Cam {idx}: {frames} → {min_frames} frames...")
-            tmp_path = path + ".trimming.tmp"
-            try:
-                with av.open(path) as src:
-                    src_stream = src.streams.video[0]
-                    with av.open(tmp_path, mode='w') as dst:
-                        # Mirror the output stream setup from prepare_recording()
-                        dst_stream = dst.add_stream(src_stream.name)
-                        dst_stream.width = src_stream.codec_context.width
-                        dst_stream.height = src_stream.codec_context.height
-                        if src_stream.codec_context.pix_fmt:
-                            dst_stream.pix_fmt = src_stream.codec_context.pix_fmt
-                        dst_stream.time_base = src_stream.time_base
-
-                        frame_idx = 0
-                        for packet in src.demux(src_stream):
-                            if packet.dts is None:
-                                continue
-                            if frame_idx >= min_frames:
-                                break
-                            # Reassign monotonic PTS/DTS matching the original convention
-                            packet.stream = dst_stream
-                            packet.pts = frame_idx
-                            packet.dts = frame_idx
-                            packet.time_base = dst_stream.time_base
-                            dst.mux(packet)
-                            frame_idx += 1
-
-                # Atomic replace: only executed if re-mux succeeded
-                os.replace(tmp_path, path)
-                print(f"[Trim] Cam {idx}: done ({frame_idx} frames written).")
-                final_counts[idx] = frame_idx
-
-            except Exception as e:
-                print(f"[Trim] Cam {idx}: FAILED — {e}. Original file kept.")
-                if os.path.exists(tmp_path):
-                    try:
-                        os.remove(tmp_path)
-                    except Exception:
-                        pass
-                final_counts[idx] = frames  # Keep reported count for original file
-
-        return final_counts
 
     def get_latest_frames(self):
         """Returns a dict of {cam_idx: frame} for preview"""
         return {idx: worker.latest_frame for idx, worker in self.workers.items() if worker.latest_frame is not None}
-        
+
     def set_camera_rotation(self, cam_idx, degrees):
         if cam_idx in self.workers:
             self.workers[cam_idx].set_rotation(degrees)
-            
+
     def set_charuco_settings(self, show, dict_str):
         for worker in self.workers.values():
             worker.set_charuco(show, dict_str)

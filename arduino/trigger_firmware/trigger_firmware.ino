@@ -1,3 +1,5 @@
+#define FIRMWARE_VERSION "1.5.0"
+
 const int TRIGGER_PIN = 2; // Pin connected to FSIN of cameras
 const int BTN_REC_PIN = 4;  // Push button to toggle record
 const int LED_PIN = 13;    // Onboard LED for visual feedback
@@ -27,7 +29,8 @@ void setup() {
   Serial.begin(115200);
   inputString.reserve(50);
   
-  Serial.println("OV9281 Sync Trigger Ready");
+  Serial.print("OV9281 Sync Trigger Ready v");
+  Serial.println(FIRMWARE_VERSION);
 }
 
 void loop() {
@@ -91,6 +94,9 @@ void loop() {
       Serial.println("Trigger STOPPED");
     } else if (inputString == "<PING>") {
       Serial.println("PONG");
+    } else if (inputString == "<VERSION>") {
+      Serial.print("VERSION:");
+      Serial.println(FIRMWARE_VERSION);
     } else {
       Serial.println("Error: Unknown command");
     }
@@ -107,16 +113,25 @@ void loop() {
       // WICHTIG: += statt = verhindert Timing-Drift.
       // Mit = würde jeder Puls (pulseWidthMicros) zu einem kumulativen Fehler führen.
       previousMicros += intervalMicros;
-      
+
+      // Lagen wir mehr als ein Intervall zurück (z.B. durch lange Serial-Ausgaben),
+      // nicht mit einer Salve von Pulsen aufholen: Die Kameras würden diese im
+      // Lockout-Fenster ohnehin verwerfen. Stattdessen Takt neu ausrichten.
+      if (currentMicros - previousMicros >= intervalMicros) {
+        previousMicros = currentMicros;
+      }
+
       // Start pulse
       digitalWrite(TRIGGER_PIN, HIGH);
       digitalWrite(LED_PIN, HIGH);
-      
+
       // Blocking wait for pulse width.
       // pulseWidthMicros MUSS deutlich kleiner als intervalMicros sein!
-      // Bei 120 FPS: intervalMicros = 8333µs -> 500µs Puls ist sicher.
-      delayMicroseconds(pulseWidthMicros);
-      
+      // micros()-Schleife statt delayMicroseconds(): letzteres ist auf AVR
+      // nur bis ca. 16383µs genau.
+      unsigned long pulseStart = micros();
+      while (micros() - pulseStart < pulseWidthMicros) {}
+
       // End pulse
       digitalWrite(TRIGGER_PIN, LOW);
       digitalWrite(LED_PIN, LOW);
@@ -125,11 +140,19 @@ void loop() {
 }
 
 void serialEvent() {
-  while (Serial.available()) {
+  // Nur bis zum ersten '>' lesen: Weitere Befehle bleiben im Serial-Puffer und
+  // werden nach der Verarbeitung dieses Befehls gelesen. Sonst würden z.B.
+  // "<FPS:50>" und "<START>" in einem Durchlauf zusammengeklebt und <START> ginge verloren.
+  while (Serial.available() && !stringComplete) {
     char inChar = (char)Serial.read();
+    if (inputString.length() == 0 && inChar != '<') {
+      continue; // Zeilenumbrüche/Müll zwischen Befehlen verwerfen
+    }
     inputString += inChar;
     if (inChar == '>') {
       stringComplete = true;
+    } else if (inputString.length() > 48) {
+      inputString = ""; // Unvollständiger/überlanger Befehl: verwerfen
     }
   }
 }

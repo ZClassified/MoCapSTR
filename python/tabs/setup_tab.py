@@ -358,6 +358,9 @@ class SetupTab(ctk.CTkFrame):
             self.app.log(f"Preset '{name}' loaded.", "success")
 
     def initialize_system_cmd(self):
+        if self.app.recorder.is_recording:
+            self.app.log("Stop the recording before re-initializing the system.", "error")
+            return
         self.app.log("Initializing System...")
         self.btn_init_system.configure(state="disabled", text="Initialisiere Hardware & Kameras...", fg_color="#555555")
         self.lbl_init_status.configure(text="⏳ Bereite System & Kameras vor...", text_color="#3a86ff")
@@ -403,7 +406,7 @@ class SetupTab(ctk.CTkFrame):
                         self.app.log(f"Auto-connecting to Arduino on {port}...")
                         self.app.after(0, lambda: self.lbl_init_status.configure(text=f"⏳ Verbinde Arduino an {port}...", text_color="#3a86ff"))
                         if self.app.arduino.connect(port):
-                            self.app.log("Arduino connected!", level="success")
+                            self.log_arduino_connected()
                             self.app.after(0, lambda: self.btn_connect.configure(text="Connected", state="disabled"))
                         else:
                             self.app.log(f"Failed to connect Arduino on {port}. Trigger will not work.", "error")
@@ -527,5 +530,16 @@ class SetupTab(ctk.CTkFrame):
     def connect_arduino(self):
         port = self.port_combo.get()
         if self.app.arduino.connect(port):
-            self.app.log("Arduino connected!", level="success")
+            self.log_arduino_connected()
             self.btn_connect.configure(text="Connected", state="disabled")
+
+    def log_arduino_connected(self):
+        arduino = self.app.arduino
+        if arduino.firmware_version:
+            self.app.log(f"Arduino connected! (Firmware v{arduino.firmware_version})", level="success")
+        elif arduino.is_responsive() is None:
+            self.app.log("Arduino port opened, but the firmware does not answer PING. "
+                         "Is trigger_firmware.ino flashed?", "error")
+        else:
+            self.app.log("Arduino connected, but the trigger firmware is outdated. "
+                         "Please flash arduino/trigger_firmware/trigger_firmware.ino (v1.5.0).", "error")

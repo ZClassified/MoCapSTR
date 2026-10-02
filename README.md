@@ -4,7 +4,7 @@
 [![Backend: PyAV (FFmpeg)](https://img.shields.io/badge/Backend-PyAV_(FFmpeg)-55a000?logo=ffmpeg&logoColor=white)](https://pyav.org/)
 [![Hardware Sync: Arduino](https://img.shields.io/badge/Hardware_Sync-Arduino-00979D?logo=arduino&logoColor=white)](https://www.arduino.cc/)
 [![Platform: Windows](https://img.shields.io/badge/Platform-Windows-0078D6?logo=windows&logoColor=white)](#)
-[![Version](https://img.shields.io/badge/Version-1.4.8-orange)](https://github.com/ZClassified/MoCapSTR/releases)
+[![Version](https://img.shields.io/badge/Version-1.5.0-orange)](https://github.com/ZClassified/MoCapSTR/releases)
 [![License: GPL v3](https://img.shields.io/badge/License-GPL_v3-007EC6.svg)](LICENSE)
 [![FreeMoCap](https://img.shields.io/badge/FreeMoCap-Compatible-7952B3?logo=github)](https://github.com/freemocap/freemocap)
 
@@ -84,7 +84,12 @@ cd MoCapSTR
 pip install -r requirements.txt
 python python/main.py
 ```
-*(Flash the Arduino sketch from `arduino/trigger_firmware/trigger_firmware.ino` using the Arduino IDE).*
+*(Flash the Arduino sketch from `arduino/trigger_firmware/trigger_firmware.ino` using the Arduino IDE. **Updating from v1.4.x: re-flash the sketch** – the app shows a warning if the firmware is outdated.)*
+
+**Running the tests** (no hardware needed):
+```bash
+python -m unittest discover tests
+```
 
 ---
 
@@ -196,7 +201,12 @@ cd MoCapSTR
 pip install -r requirements.txt
 python python/main.py
 ```
-*(Den Arduino-Sketch aus `arduino/trigger_firmware/trigger_firmware.ino` über die Arduino IDE flashen).*
+*(Den Arduino-Sketch aus `arduino/trigger_firmware/trigger_firmware.ino` über die Arduino IDE flashen. **Update von v1.4.x: Sketch neu flashen** – die App warnt, wenn die Firmware veraltet ist.)*
+
+**Tests ausführen** (ohne Hardware):
+```bash
+python -m unittest discover tests
+```
 
 ---
 

@@ -8,6 +8,7 @@ from camera_manager import CameraManager
 from arduino_sync import ArduinoSync
 from project_manager import ProjectManager
 from recorder import MultiCamManager
+from clip_sync import finalize_clips
 from preset_manager import PresetManager
 import cv2
 from PIL import Image, ImageTk
@@ -25,7 +26,7 @@ class MoCapSyncApp(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("MoCapSTR: Sync / Trigger / Record for FreeMoCap v1.4.8")
+        self.title("MoCapSTR: Sync / Trigger / Record for FreeMoCap v1.5.0")
         self.geometry("1100x800")
         
         # Set Window Icon
@@ -52,8 +53,14 @@ class MoCapSyncApp(ctk.CTk):
         self.camera_enable_vars = {} # Stores IntVars for checkboxes
         
         self.record_start_time = 0
+        self.record_fps = 50
+        self.record_hardware_trigger = False
         self.ui_tick = 0
-        self.last_free_space = 0
+        self.last_free_space = None
+        self.last_ping_sent = 0.0
+        self.arduino_was_connected = False
+        self.arduino_unresponsive_logged = False
+        self.last_warning_text = ""
         self.txt_log = None # Injected by SetupTab
         
         self.build_ui()
@@ -93,7 +100,7 @@ class MoCapSyncApp(ctk.CTk):
             total, used, free = shutil.disk_usage(self.proj_mgr.base_path)
             return free // (2**30)
         except Exception:
-            return 0
+            return None  # Unknown - must not trigger the low-space auto-stop
 
     def log(self, message, level="info"):
         if not self.txt_log:
@@ -165,12 +172,25 @@ class MoCapSyncApp(ctk.CTk):
                 self.log("Synchronizing start frame...")
                 self.arduino.stop_trigger()
                 time.sleep(0.15) # Wait for pyav buffers to drain
-                
-            self.recorder.start_recording(save_dir, fps, codec, enabled_cams)
+
+            started = self.recorder.start_recording(save_dir, fps, codec, enabled_cams,
+                                                    hold_until_released=trigger_was_running)
+            if not started:
+                self.log("Error: Recording could not be started (no camera ready).", level="error")
+                if trigger_was_running:
+                    self.arduino.start_trigger()
+                return
             self.record_start_time = time.time()
-            
+            self.record_fps = fps
+            self.record_hardware_trigger = trigger_was_running
+
             if trigger_was_running:
                 self.arduino.start_trigger()
+                # The first new pulse fires one trigger interval after <START>.
+                # Anything arriving before half an interval is a stale frame from
+                # before the restart and must not become frame 0.
+                interval_ns = int(1e9 / max(1, self.arduino.current_fps))
+                self.recorder.release_recording_gate(time.perf_counter_ns() + interval_ns // 2)
             # -----------------------------
             
             self.preview_tab.btn_record_live.configure(text="⏹ STOP RECORDING", fg_color="red", hover_color="darkred")
@@ -186,75 +206,98 @@ class MoCapSyncApp(ctk.CTk):
                 self.arduino.stop_trigger()
                 time.sleep(0.2) # Allow PyAV to fetch the final frames
                 
-            # stop_recording() now returns {cam_idx: (path, frames)} for post-trim
+            # stop_recording() returns {cam_idx: RecordingResult} for verification
             results = self.recorder.stop_recording()
-            
+
             if trigger_was_running:
                 self.arduino.start_trigger() # Resume preview
             # ----------------------------
 
             self.preview_tab.btn_record_live.configure(text="⏺ START RECORDING", fg_color="darkred", hover_color="red")
-            self.preview_tab.lbl_live_warning.configure(text="")
-            self.log("Recording stopped. Trimming clips to equal length...")
+            self.log("Recording stopped. Verifying clip synchronization...")
 
-            # Trim in a background thread so the UI stays responsive.
-            # The user can start the next take immediately; trim runs in parallel.
-            def _do_trim(trim_results):
-                final_counts = self.recorder.trim_clips_to_min_frames(trim_results)
-                if final_counts:
-                    counts_str = ", ".join(
-                        f"Cam {idx}: {n} frames"
-                        for idx, n in sorted(final_counts.items())
-                    )
-                    self.after(0, lambda: self.log(f"✅ Clips synchronized — {counts_str}", "success"))
+            # Verify/align in a background thread so the UI stays responsive.
+            def _finalize(clip_results, fps, hardware_trigger):
+                try:
+                    _, messages = finalize_clips(clip_results, fps, hardware_trigger)
+                except Exception as e:
+                    messages = [("error", f"Clip verification failed: {e}")]
+                for level, text in messages:
+                    self.after(0, lambda t=text, l=level: self.log(t, l))
 
-            threading.Thread(target=_do_trim, args=(results,), daemon=True).start()
+            threading.Thread(target=_finalize,
+                             args=(results, self.record_fps, self.record_hardware_trigger),
+                             daemon=True).start()
 
     def update_preview(self):
         self.ui_tick += 1
         
-        # Check Arduino connection loss during trigger
-        if self.arduino.is_running and not self.arduino.is_connected:
-            self.preview_tab.lbl_live_warning.configure(text="⚠️ ARDUINO DISCONNECTED!")
-            self.arduino.is_running = False
-        
-        if self.ui_tick % 40 == 0:
-            if self.arduino.is_connected:
-                if not self.arduino.ping():
-                    self.preview_tab.lbl_live_warning.configure(text="⚠️ ARDUINO DISCONNECTED!")
-                    self.log("Arduino ping failed! Disconnected.", "error")
-                    
+        warnings = []
+
+        # --- Arduino health (time-based, independent of UI frame rate) ---
+        now = time.time()
+        if self.arduino.is_connected:
+            self.arduino_was_connected = True
+            if now - self.last_ping_sent >= 1.0:
+                self.arduino.ping()
+                self.last_ping_sent = now
+            responsive = self.arduino.is_responsive()
+            if responsive is False:
+                warnings.append("⚠️ TRIGGER-BOX ANTWORTET NICHT")
+                if not self.arduino_unresponsive_logged:
+                    self.log("Arduino does not answer PING (>5 s). Connection is kept - check USB cable.", "error")
+                    self.arduino_unresponsive_logged = True
+            elif responsive:
+                if self.arduino_unresponsive_logged:
+                    self.log("Arduino responds again.", "success")
+                self.arduino_unresponsive_logged = False
+        elif self.arduino_was_connected:
+            # Serial port failed (cable unplugged etc.): the trigger is really gone.
+            warnings.append("⚠️ ARDUINO DISCONNECTED!")
+            if self.arduino.is_running:
+                self.arduino.is_running = False
+                self.log("Arduino serial connection lost!", "error")
+
         if self.ui_tick % 20 == 0 or self.ui_tick == 1:
             self.last_free_space = self.get_free_space()
-            
-            if self.recorder.is_recording and self.last_free_space < 2:
+
+            if self.recorder.is_recording and self.last_free_space is not None and self.last_free_space < 2:
                 self.log("CRITICAL: Less than 2 GB free! Auto-stopping recording.", "error")
                 self.toggle_record()
-                
-            if not self.recorder.is_recording:
-                space_str = f"Space: {self.last_free_space} GB"
-                color = "red" if self.last_free_space < 20 else ("white" if ctk.get_appearance_mode() == "Dark" else "black")
-                self.preview_tab.lbl_live_stats.configure(text=f"Ready | {space_str}", text_color=color)
 
-        if self.recorder.is_recording:
+        free = self.last_free_space
+        space_str = f"Space: {free} GB" if free is not None else "Space: ? GB"
+        low_space = free is not None and free < 20
+        color = "red" if low_space else ("white" if ctk.get_appearance_mode() == "Dark" else "black")
+
+        if not self.recorder.is_recording:
+            if self.ui_tick % 20 == 0 or self.ui_tick == 1:
+                self.preview_tab.lbl_live_stats.configure(text=f"Ready | {space_str}", text_color=color)
+        else:
             elapsed = time.time() - self.record_start_time
             mins, secs = divmod(int(elapsed), 60)
-            
-            frame_counts = [w.frames_recorded for w in self.recorder.workers.values()]
+
+            # Only cameras that take part in this recording
+            recording = self.recorder.recording_workers()
+            frame_counts = [w.frames_recorded for w in recording.values()]
             max_frames = max(frame_counts) if frame_counts else 0
             min_frames = min(frame_counts) if frame_counts else 0
-            
+            lost = sum(w.lost_frames for w in recording.values())
+
+            if lost:
+                warnings.append(f"⚠️ {lost} Frame(s) verloren (durch Kopien ersetzt)")
             if max_frames - min_frames > 5:
-                self.preview_tab.lbl_live_warning.configure(text=f"⚠️ SYNC WARNING: Frame drop! (Delta: {max_frames - min_frames})")
-            elif not (self.arduino.is_running and not self.arduino.is_connected):
-                self.preview_tab.lbl_live_warning.configure(text="")
-                
-            space_str = f"Space: {self.last_free_space} GB"
-            color = "red" if self.last_free_space < 20 else ("white" if ctk.get_appearance_mode() == "Dark" else "black")
-            if self.last_free_space < 20:
-                space_str = f"⚠️ LOW SPACE: {self.last_free_space} GB"
-                
+                warnings.append(f"⚠️ SYNC WARNING: Frame drop! (Delta: {max_frames - min_frames})")
+
+            if low_space:
+                space_str = f"⚠️ LOW SPACE: {free} GB"
+
             self.preview_tab.lbl_live_stats.configure(text=f"Recording 🔴 | {mins:02d}:{secs:02d} | Frames: {max_frames} | {space_str}", text_color=color)
+
+        warning_text = " | ".join(warnings)
+        if warning_text != self.last_warning_text:
+            self.preview_tab.lbl_live_warning.configure(text=warning_text)
+            self.last_warning_text = warning_text
 
         # Update UI with latest frames
         frames = self.recorder.get_latest_frames()

@@ -1,9 +1,23 @@
 # Changelog
 
-**Current Status:** System is at v1.4.8. Comprehensive empirical validation of InnoMaker OV9281 trigger timing characteristics (50 FPS physical ceiling in hardware trigger mode), Smart Auto USB Polling, removal of artificial red UI warnings, and dedicated hardware benchmarking tools.
-**Last Modified:** 2026-08-31 14:10:00
+**Current Status:** v1.5.0 in development. Frame-accurate clip verification & repair, robust Arduino connection monitoring and trigger firmware fixes.
+**Last Modified:** 2026-10-02
 
 ---
+
+- **2026-10-02 (v1.5.0, in development):** **Sync Reliability: every clip starts on the same pulse, ends on the same pulse and has the same length**:
+  - **Bug fix – clip trimming never worked:** `trim_clips_to_min_frames()` wrote to `camX.avi.trimming.tmp`; PyAV picks the muxer from the file extension and failed with `Could not determine output format`. The error was swallowed and the UI still reported "Clips synchronized". Trimming is replaced by `clip_sync.finalize_clips()` (see below).
+  - **New `clip_sync.py` – post-recording verification:** After every take, all clips are checked using per-frame timestamps. Frames a camera never delivered (gap in the DirectShow sample time) are filled with a copy of the previous frame when the evidence is unambiguous (missing frames == frame deficit vs. the longest clip, hardware-trigger mode only). Only then, as a last resort, clips are trimmed to equal length. All findings are written to the UI log instead of the (invisible in the EXE) console.
+  - **Per-frame timestamps:** Every take now contains `timestamps/camX_timestamps.csv` (`frame_index, arrival_ns, device_time_s, filler`).
+  - **Lost frames keep their slot:** Packets dropped because the write queue was full, or that failed to mux, are replaced by a copy of the previous frame instead of silently shifting every following frame.
+  - **Stale frames at start:** In hardware-trigger mode, recording is held until the trigger has been restarted; packets that arrive before the first new pulse can have been exposed are discarded, so frame 0 is the same pulse on every camera.
+  - **Recorder:** One `RecordingSession` object per take; the writer thread closes its own files, so a slow writer can no longer be cut off (old 2 s join timeout) or write into the next take. All cameras stop at the same moment and drain in parallel.
+  - **Bug fix – MKV frame rate:** `.mkv` recordings were tagged as 24 FPS (no `rate` on the output stream), which OpenCV/FreeMoCap read as the clip FPS.
+  - **Bug fix – false "ARDUINO DISCONNECTED":** The PING check depended on the UI tick rate and permanently stopped the serial reader thread on a single late PONG. The app then skipped the trigger stop/restart around recordings without notice. Now pings are time-based (1 s); a missing PONG only shows a warning, and the trigger box counts as disconnected only on a real serial port error.
+  - **Bug fix – sync warning with disabled cameras:** The frame delta now only compares cameras that take part in the recording.
+  - **`trigger_firmware.ino` (re-flash required):** Commands sent in quick succession are no longer merged (previously e.g. `<START>` after `<FPS:50>` could be lost). Pulse width uses a `micros()` loop (accurate beyond 16 ms). No burst of catch-up pulses after a delayed loop. New `<VERSION>` command; the app warns if the flashed firmware is outdated.
+  - **Misc:** "Initialize System" is blocked while recording; unknown free disk space no longer auto-stops a recording.
+  - **Tests:** New hardware-free test suite (`python -m unittest discover tests`) covering trimming, gap detection/repair, the writer and the recording pipeline with simulated cameras.
 
 - **2026-08-31 (v1.4.8):** Version bump to v1.4.8. **InnoMaker OV9281 Trigger Characterization, Smart Auto USB Polling & UI Clean-up**:
   - **Empirical Hardware Trigger Characterization (50 FPS Physical Limit)**:
