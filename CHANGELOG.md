@@ -12,6 +12,7 @@
   - **Bug fix – "Send to FreeMoCap":** It wrote the wrong key into `most_recent_recording.toml` (FreeMoCap 1.x), and in the EXE `sys.executable` is MoCapSTR itself, so trying to launch FreeMoCap started another MoCapSTR instance. The bridge now targets FreeMoCap 2: it launches the installed `FreeMoCap.exe` and, for recordings stored elsewhere, copies (hard-links) exactly one video per camera plus timestamps into FreeMoCap's folder.
   - **Single instance:** Starting MoCapSTR a second time no longer kills the running instance (and every Python process with `main.py` in its command line). A dialog asks first; only the exact process recorded in the instance PID file is ended, and only on "Yes".
   - **Build:** Removed unused `screeninfo` hidden import from `MoCapSTR.spec`.
+  - **Docs:** Blackmagic SDI mode marked as currently broken in the README (it fails since the PyAV switch: PyAV has no `decklink` input, plus an `UnboundLocalError`). Restoration plan and decisions in `BLACKMAGIC_SDI_PLAN.md` (planned for v1.6.0).
 
 - **2026-10-02 (v1.5.0, in development):** **Sync Reliability: every clip starts on the same pulse, ends on the same pulse and has the same length**:
   - **Bug fix – clip trimming never worked:** `trim_clips_to_min_frames()` wrote to `camX.avi.trimming.tmp`; PyAV picks the muxer from the file extension and failed with `Could not determine output format`. The error was swallowed and the UI still reported "Clips synchronized". Trimming is replaced by `clip_sync.finalize_clips()` (see below).

@@ -14,7 +14,10 @@
 
 > **Disclaimer:** MoCapSTR is an independent open-source companion tool and is not officially affiliated with the FreeMoCap project.
 
-MoCapSTR is an open-source multi-camera recording tool designed to capture frame-accurate, hardware-synchronized video datasets for [FreeMoCap](https://github.com/freemocap/freemocap). It synchronizes global-shutter USB cameras (e.g. Innomaker OV9281, tested up to 50 FPS hardware-synced / 120 FPS free-run) via an Arduino trigger signal, and also supports Blackmagic SDI capture cards.
+MoCapSTR is an open-source multi-camera recording tool designed to capture frame-accurate, hardware-synchronized video datasets for [FreeMoCap](https://github.com/freemocap/freemocap). It synchronizes global-shutter USB cameras (e.g. Innomaker OV9281, tested up to 50 FPS hardware-synced / 120 FPS free-run) via an Arduino trigger signal. Support for Blackmagic SDI capture cards is planned (see below).
+
+> [!WARNING]
+> **Blackmagic SDI mode is currently broken.** The "Blackmagic SDI" workflow in the Setup tab does not work since the switch to the PyAV backend. Its restoration (uncompressed or GPU-encoded recording, interlace/PsF detection, frame alignment without trigger) is planned for v1.6.0 – see [BLACKMAGIC_SDI_PLAN.md](BLACKMAGIC_SDI_PLAN.md) (German).
 
 ---
 
@@ -76,7 +79,7 @@ Extensive empirical benchmark sweeping has characterized the InnoMaker OV9281 US
 > **Pre-built Executable:** A ready-to-run `.exe` is available under [Releases](https://github.com/ZClassified/MoCapSTR/releases).
 
 ### Running from Source
-- **Requirements:** Python 3.10+ (and [Blackmagic Desktop Video Drivers](https://www.blackmagicdesign.com/support/) if using SDI).
+- **Requirements:** Python 3.10+ (and [Blackmagic Desktop Video Drivers](https://www.blackmagicdesign.com/support/) for the planned SDI mode).
 
 ```bash
 git clone https://github.com/ZClassified/MoCapSTR.git
@@ -128,7 +131,10 @@ GPL-3.0 License. See [LICENSE](LICENSE) for details.
 
 > **Hinweis:** MoCapSTR ist ein unabhängiges Open-Source Companion-Tool und steht nicht in offizieller Verbindung mit dem FreeMoCap-Projekt.
 
-MoCapSTR ist eine Multi-Kamera-Aufnahmesoftware zur Erstellung synchroner, frame-genauer Datensätze für [FreeMoCap](https://github.com/freemocap/freemocap). Sie synchronisiert Global-Shutter USB-Kameras (z. B. Innomaker OV9281, getestet bis 50 FPS Hardware-Sync / 120 FPS Free-Run) über ein Arduino-Triggersignal und unterstützt zusätzlich Blackmagic SDI Capture Cards.
+MoCapSTR ist eine Multi-Kamera-Aufnahmesoftware zur Erstellung synchroner, frame-genauer Datensätze für [FreeMoCap](https://github.com/freemocap/freemocap). Sie synchronisiert Global-Shutter USB-Kameras (z. B. Innomaker OV9281, getestet bis 50 FPS Hardware-Sync / 120 FPS Free-Run) über ein Arduino-Triggersignal. Unterstützung für Blackmagic SDI Capture Cards ist geplant (siehe unten).
+
+> [!WARNING]
+> **Der Blackmagic-SDI-Modus ist aktuell nicht funktionsfähig.** Der Workflow "Blackmagic SDI" im Setup-Tab funktioniert seit der Umstellung auf das PyAV-Backend nicht mehr. Die Instandsetzung (unkomprimierte oder GPU-kodierte Aufnahme, Interlace/PsF-Erkennung, Frame-Ausrichtung ohne Trigger) ist für v1.6.0 geplant – siehe [BLACKMAGIC_SDI_PLAN.md](BLACKMAGIC_SDI_PLAN.md).
 
 > [!WARNING]
 > **Projektstatus (Beta / Prototyp):**
@@ -194,7 +200,7 @@ Umfassende Benchmark-Messreihen haben das Verhalten der InnoMaker OV9281 USB-Kam
 > **Fertige EXE:** Eine ausführbare Windows-Datei (`.exe`) steht unter [Releases](https://github.com/ZClassified/MoCapSTR/releases) zum Download bereit.
 
 ### Start aus dem Quellcode
-- **Voraussetzungen:** Python 3.10+ (und [Blackmagic Desktop Video Treiber](https://www.blackmagicdesign.com/support/) für SDI).
+- **Voraussetzungen:** Python 3.10+ (und [Blackmagic Desktop Video Treiber](https://www.blackmagicdesign.com/support/) für den geplanten SDI-Modus).
 
 ```bash
 git clone https://github.com/ZClassified/MoCapSTR.git
