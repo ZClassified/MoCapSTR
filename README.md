@@ -18,7 +18,7 @@
 MoCapSTR is an open-source multi-camera recording tool designed to capture frame-accurate, hardware-synchronized video datasets for [FreeMoCap](https://github.com/freemocap/freemocap). It synchronizes global-shutter USB cameras (e.g. Innomaker OV9281, tested up to 50 FPS hardware-synced / 120 FPS free-run) via an Arduino trigger signal. Support for Blackmagic SDI capture cards is planned (see below).
 
 > [!WARNING]
-> **Blackmagic SDI mode is currently broken.** The "Blackmagic SDI" workflow in the Setup tab does not work since the switch to the PyAV backend. Its restoration (uncompressed or GPU-encoded recording, interlace/PsF detection, frame alignment without trigger) is planned for v1.6.0 – see [BLACKMAGIC_SDI_PLAN.md](BLACKMAGIC_SDI_PLAN.md) (German).
+> **Blackmagic SDI mode is currently broken.** The "Blackmagic SDI" workflow in the Setup tab does not work since the switch to the PyAV backend. Its restoration (uncompressed or GPU-encoded recording, interlace/PsF detection, frame alignment without trigger) is planned for v2.0, once the webcam + Arduino base runs stable – see [BLACKMAGIC_SDI_PLAN.md](BLACKMAGIC_SDI_PLAN.md) (German).
 
 ---
 
@@ -137,7 +137,7 @@ GPL-3.0 License. See [LICENSE](LICENSE) for details.
 MoCapSTR ist eine Multi-Kamera-Aufnahmesoftware zur Erstellung synchroner, frame-genauer Datensätze für [FreeMoCap](https://github.com/freemocap/freemocap). Sie synchronisiert Global-Shutter USB-Kameras (z. B. Innomaker OV9281, getestet bis 50 FPS Hardware-Sync / 120 FPS Free-Run) über ein Arduino-Triggersignal. Unterstützung für Blackmagic SDI Capture Cards ist geplant (siehe unten).
 
 > [!WARNING]
-> **Der Blackmagic-SDI-Modus ist aktuell nicht funktionsfähig.** Der Workflow "Blackmagic SDI" im Setup-Tab funktioniert seit der Umstellung auf das PyAV-Backend nicht mehr. Die Instandsetzung (unkomprimierte oder GPU-kodierte Aufnahme, Interlace/PsF-Erkennung, Frame-Ausrichtung ohne Trigger) ist für v1.6.0 geplant – siehe [BLACKMAGIC_SDI_PLAN.md](BLACKMAGIC_SDI_PLAN.md).
+> **Der Blackmagic-SDI-Modus ist aktuell nicht funktionsfähig.** Der Workflow "Blackmagic SDI" im Setup-Tab funktioniert seit der Umstellung auf das PyAV-Backend nicht mehr. Die Instandsetzung (unkomprimierte oder GPU-kodierte Aufnahme, Interlace/PsF-Erkennung, Frame-Ausrichtung ohne Trigger) ist für v2.0 geplant, sobald die Basis mit Webcams und Arduino stabil läuft – siehe [BLACKMAGIC_SDI_PLAN.md](BLACKMAGIC_SDI_PLAN.md).
 
 > [!WARNING]
 > **Projektstatus (Beta / Prototyp):**

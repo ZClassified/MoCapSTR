@@ -1,4 +1,6 @@
-# Blackmagic SDI-Modus: Instandsetzung (geplant für v1.6.0)
+# Blackmagic SDI-Modus: Instandsetzung (geplant für v2.0)
+
+Kommt erst, wenn die Basis mit USB-Kameras und Arduino-Trigger stabil läuft.
 
 **Status (v1.5.1):** Der Modus "Blackmagic SDI" ist **aktuell nicht funktionsfähig**.
 Dieses Dokument hält Ursache, getroffene Entscheidungen und den Arbeitsplan fest, damit die Instandsetzung später direkt starten kann.
