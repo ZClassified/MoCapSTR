@@ -405,15 +405,6 @@ class MultiCamManager:
         self.workers = {} # idx -> CameraWorker
         self.is_recording = False
 
-    def get_stalled_cameras(self, timeout_sec=2.0):
-        """Returns list of camera indices that haven't received a frame for > timeout_sec."""
-        now = time.time()
-        stalled = []
-        for idx, worker in self.workers.items():
-            if now - worker.last_packet_time > timeout_sec:
-                stalled.append(idx)
-        return stalled
-
     def get_supported_codecs(self):
         return {
             "MJPG (.avi) - Fast & Zero Copy": ("mjpeg", ".avi"),

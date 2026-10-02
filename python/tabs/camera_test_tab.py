@@ -4,6 +4,8 @@ import cv2
 import threading
 import time
 
+from camera_manager import dshow_device_number
+
 class CameraTestTab(ctk.CTkFrame):
     def __init__(self, master, app):
         super().__init__(master, fg_color="transparent")
@@ -177,7 +179,9 @@ class CameraTestTab(ctk.CTkFrame):
         options = {
             'video_size': f'{w}x{h}',
             'framerate': str(fps),
-            'vcodec': vcodec
+            'vcodec': vcodec,
+            # Without this, identically named cameras always open the first one
+            'video_device_number': str(dshow_device_number(device_names, idx)),
         }
         if fourcc_str == "YUY2":
             options['pixel_format'] = 'yuyv422'

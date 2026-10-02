@@ -1,6 +1,16 @@
 import av
 import time
 
+
+def dshow_device_number(device_names, index):
+    """
+    DirectShow addresses devices by name. With several identical names (e.g. four
+    "USB Camera"), FFmpeg needs `video_device_number` = how many devices with the
+    same name come before this one.
+    """
+    return device_names[:index].count(device_names[index])
+
+
 class CameraManager:
     def __init__(self):
         self.cameras = {} # Dictionary mapping index to av.container.InputContainer
@@ -84,6 +94,7 @@ class CameraManager:
 
         for i, cam_name in valid_indices:
             try:
+                device_number = dshow_device_number(self.device_names, i)
                 if camera_type == "Blackmagic SDI":
                     # PyAV Decklink format
                     print(f"Setting Blackmagic SDI format to {target_w}x{target_h} @ {target_fps}fps on index {i}")
@@ -104,7 +115,6 @@ class CameraManager:
                         pixel_format = 'yuvj422p' # Common for MJPEG
                         
                     # Calculate video_device_number for duplicate names (e.g. multiple "USB Camera"s)
-                    device_number = self.device_names[:i].count(cam_name)
                     
                     options = {
                         'video_size': f'{target_w}x{target_h}',
@@ -224,114 +234,3 @@ class CameraManager:
     def reset_hardware_trigger_mode(self):
         """Resets all connected cameras back to free-run mode (AutoFocus=0) so they don't remain locked."""
         self.set_trigger_mode(False)
-            
-
-    def apply_settings(self, index, width=1280, height=800, fps=50, format_str="MJPG", exposure_value=None, gain_value=None, wb_value=None):
-        """
-        Applies settings by reopening the PyAV container with new options.
-        Note: Exposure/Gain control is currently limited with PyAV dshow backend.
-        """
-        if index in self.cameras and index in self.camera_info:
-            info = self.camera_info[index]
-            
-            # Check if we need a full restart
-            needs_reopen = (info["width"] != width or 
-                            info["height"] != height or 
-                            abs(info["fps"] - fps) > 1.0 or 
-                            info["format"] != format_str)
-            
-            if needs_reopen:
-                print(f"Format change detected for Cam {index}. Reopening PyAV container...")
-                self.close_camera(index)
-                
-                cam_name = info["name"]
-                camera_type = info["camera_type"]
-                
-                try:
-                    if camera_type == "Blackmagic SDI":
-                        options = {'video_size': f'{width}x{height}', 'framerate': str(fps)}
-                        container = av.open(cam_name, format='decklink', options=options)
-                    else:
-                        vcodec = 'mjpeg' if format_str == "MJPG" else 'rawvideo'
-                        
-                        device_number = info.get("device_number", 0)
-                        
-                        options = {
-                            'video_size': f'{width}x{height}',
-                            'framerate': str(fps),
-                            'vcodec': vcodec,
-                            'rtbufsize': '256M',
-                            'video_device_number': str(device_number)
-                        }
-                        if format_str == "YUY2":
-                            options['pixel_format'] = 'yuyv422'
-                            
-                        container = av.open(f'video={cam_name}', format='dshow', options=options)
-                        
-                    stream = container.streams.video[0]
-                    # verify
-                    packet_found = False
-                    for packet in container.demux(stream):
-                        if packet.size > 0:
-                            packet_found = True
-                            break
-                            
-                    if packet_found:
-                        self.cameras[index] = container
-                        self.camera_info[index] = {
-                            "name": cam_name,
-                            "camera_type": camera_type,
-                            "format": format_str,
-                            "width": width,
-                            "height": height,
-                            "fps": fps,
-                            "stream": stream
-                        }
-                    else:
-                        container.close()
-                        return None
-                except Exception as e:
-                    print(f"Failed to reopen Cam {index}: {e}")
-                    return None
-                    
-            if exposure_value is not None or gain_value is not None or wb_value is not None:
-                print(f"Warning: Exposure/Gain control not supported directly through PyAV dshow. Skipping.")
-                
-            info = self.camera_info[index]
-            return {
-                "format": info["format"],
-                "width": info["width"],
-                "height": info["height"],
-                "fps": info["fps"],
-                "exposure": None,
-                "gain": None,
-                "wb": None
-            }
-        return None
-        
-    def get_frame(self, index):
-        """Used mainly for quick preview. Decodes one frame."""
-        if index in self.cameras:
-            try:
-                container = self.cameras[index]
-                stream = self.camera_info[index]["stream"]
-                for frame in container.decode(stream):
-                    # Convert to numpy bgr24 for UI/OpenCV compatibility
-                    return frame.to_ndarray(format='bgr24')
-            except Exception as e:
-                pass
-        return None
-
-
-
-if __name__ == "__main__":
-    # Test script
-    cam_mgr = CameraManager()
-    cams = cam_mgr.find_and_open_cameras(2)
-    if cams:
-        print("Cameras found:", cams)
-        idx = cams[0]
-        frame = cam_mgr.get_frame(idx)
-        if frame is not None:
-            print("Successfully captured a frame of shape:", frame.shape)
-        cam_mgr.close_all()

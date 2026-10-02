@@ -531,10 +531,13 @@ class ExportTab(ctk.CTkFrame):
         self.after(0, self._conversion_finished)
 
     def _convert_single_file(self, input_path, output_path, rot_choice):
+        input_container = None
+        output_container = None
         try:
             input_container = av.open(input_path)
             if not input_container.streams.video:
                 self.main_app.log(f"No video stream found in {input_path}", "error")
+                input_container.close()
                 return False
                 
             in_stream = input_container.streams.video[0]
@@ -603,12 +606,14 @@ class ExportTab(ctk.CTkFrame):
             return True
             
         except Exception as e:
+            # Close both files - an open input would block moving/deleting the original later
+            for container in (output_container, input_container):
+                if container is not None:
+                    try:
+                        container.close()
+                    except Exception:
+                        pass
             # Clean up output file if it was partially created
-            if 'output_container' in dir() and output_container:
-                try:
-                    output_container.close()
-                except Exception:
-                    pass
             if os.path.exists(output_path):
                 try:
                     os.remove(output_path)
