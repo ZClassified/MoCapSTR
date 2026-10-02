@@ -4,7 +4,7 @@
 [![Backend: PyAV (FFmpeg)](https://img.shields.io/badge/Backend-PyAV_(FFmpeg)-55a000?logo=ffmpeg&logoColor=white)](https://pyav.org/)
 [![Hardware Sync: Arduino](https://img.shields.io/badge/Hardware_Sync-Arduino-00979D?logo=arduino&logoColor=white)](https://www.arduino.cc/)
 [![Platform: Windows](https://img.shields.io/badge/Platform-Windows-0078D6?logo=windows&logoColor=white)](#)
-[![Version](https://img.shields.io/badge/Version-1.5.0-orange)](https://github.com/ZClassified/MoCapSTR/releases)
+[![Version](https://img.shields.io/badge/Version-1.5.1-orange)](https://github.com/ZClassified/MoCapSTR/releases)
 [![License: GPL v3](https://img.shields.io/badge/License-GPL_v3-007EC6.svg)](LICENSE)
 [![FreeMoCap](https://img.shields.io/badge/FreeMoCap-Compatible-7952B3?logo=github)](https://github.com/freemocap/freemocap)
 
@@ -52,8 +52,8 @@ Extensive empirical benchmark sweeping has characterized the InnoMaker OV9281 US
 - **Hardware Camera Synchronization:** Synchronous frame capture across all OV9281 cameras via Arduino FSIN pin (with auto-fallback to free-run mode if disconnected).
 - **Zero-Copy PyAV Backend:** Writes raw MJPEG streams directly to disk via FFmpeg/PyAV without CPU decoding, minimizing frame drops.
 - **Live Preview & Charuco Calibration:** Multi-camera live view with per-camera rotation (0°, 90°, 180°, 270°) and live `cv2.aruco` Charuco board detection overlay.
-- **FreeMoCap Folder Structure:** Direct export into FreeMoCap's expected `synchronized_videos/` structure with matching frame counts.
-- **Built-in Offline Converter:** Batch-converts raw `.avi` recordings into compatible H.264 (`.mp4`) files.
+- **Records straight into FreeMoCap 2:** Every take and calibration is saved as its own recording in FreeMoCap's `recordings/` folder (`synchronized_videos/` + timestamps), with identical frame counts on all cameras. FreeMoCap 2 picks up the real frame rate from the timestamps.
+- **Built-in Offline Converter:** Optional conversion of raw `.avi`/`.mkv` recordings into H.264 (`.mp4`) with per-camera rotation. FreeMoCap 2 also reads the raw files directly.
 - **Hardware Diagnostics:** Built-in Camera Test tab to scan connected cameras for supported resolutions, framerates, and pixel formats.
 
 ---
@@ -96,11 +96,11 @@ python -m unittest discover tests
 
 ## Recording Workflow
 
-1. **Setup Tab:** Choose project name and save folder (`~/Videos/MoCap_Projects/`). Select resolution, target FPS, and the Arduino COM port. Click **Initialize System & Start Preview**.
+1. **Setup Tab:** Choose a project name. Recordings are saved to FreeMoCap's recordings folder (`~/freemocap_data/recordings`, or the data folder chosen in FreeMoCap's settings). Select resolution, target FPS, and the Arduino COM port. Click **Initialize System & Start Preview**.
 2. **Live Preview Tab:** Verify all camera feeds and rotations. Enable **Show Calibration (Auto-Detect)** when recording a Charuco calibration take.
 3. **Record:** Start/Stop recording via the UI button or the physical button on the trigger box.
-4. **Export & Convert Tab:** Batch-convert raw takes into FreeMoCap-compatible H.264 (`.mp4`) files.
-5. **Import into FreeMoCap:** In FreeMoCap, select "Process Pre-recorded Data", navigate to your project folder (`calibration` or `takes/take_...`), and start tracking.
+4. **Export & Convert Tab (optional):** Convert raw takes to H.264 (`.mp4`), e.g. to apply camera rotation. Originals are moved to `original_videos/` so FreeMoCap sees exactly one video per camera.
+5. **FreeMoCap 2:** Click **Open in FreeMoCap** (or start FreeMoCap yourself). Recordings are named `<date>_<time>_<project>_<take>`; calibration recordings end in `_calibration`.
 
 ---
 
@@ -170,8 +170,8 @@ Umfassende Benchmark-Messreihen haben das Verhalten der InnoMaker OV9281 USB-Kam
 - **Hardware-Kamera-Synchronisation:** Zeitgleiche Auslösung aller OV9281-Kameras über den Arduino FSIN-Pin (automatischer Fallback auf Free-Run bei getrenntem Arduino).
 - **Zero-Copy PyAV Backend:** Schreibt rohe MJPEG-Streams via FFmpeg/PyAV ohne CPU-Decodierung direkt auf die Festplatte, um Frame-Drops zu vermeiden.
 - **Live Preview mit Charuco-Erkennung:** Multi-Kamera-Vorschau mit individueller Bildrotation (0°, 90°, 180°, 270°) und zuschaltbarem `cv2.aruco` Charuco-Erkennungs-Overlay.
-- **FreeMoCap-Ordnerstruktur:** Speichert direkt in `synchronized_videos/` mit identischer Frame-Anzahl über alle Kameras.
-- **Integrierter Offline-Konverter:** Stapelverarbeitung zur Umwandlung von `.avi`-Aufnahmen in hochkompatible H.264-Videos (`.mp4`).
+- **Nimmt direkt für FreeMoCap 2 auf:** Jede Aufnahme und jede Kalibrierung wird als eigene Recording im `recordings/`-Ordner von FreeMoCap gespeichert (`synchronized_videos/` + Zeitstempel), mit identischer Frame-Anzahl über alle Kameras. FreeMoCap 2 übernimmt die echte Bildrate aus den Zeitstempeln.
+- **Integrierter Offline-Konverter:** Optionale Umwandlung von `.avi`/`.mkv`-Aufnahmen in H.264 (`.mp4`) mit Rotation pro Kamera. FreeMoCap 2 liest die Rohdateien auch direkt.
 - **Hardware-Diagnose:** Kamera-Test-Tab zum automatischen Prüfen aller unterstützten Auflösungen, Frameraten und Formate verbundener Kameras.
 
 ---
@@ -214,11 +214,11 @@ python -m unittest discover tests
 
 ## Aufnahme-Workflow
 
-1. **Setup Tab:** Projektname und Speicherordner wählen. Auflösung, Ziel-FPS und Arduino COM-Port einstellen. Auf **Initialize System & Start Preview** klicken.
+1. **Setup Tab:** Projektnamen wählen. Aufnahmen landen im Recordings-Ordner von FreeMoCap (`~/freemocap_data/recordings` bzw. der in FreeMoCap eingestellte Datenordner). Auflösung, Ziel-FPS und Arduino COM-Port einstellen. Auf **Initialize System & Start Preview** klicken.
 2. **Live Preview Tab:** Kamera-Feeds und Rotation prüfen. Bei der Kalibrierungsaufnahme **Show Calibration (Auto-Detect)** aktivieren.
 3. **Aufnahme:** Aufnahme über den Software-Button oder den physischen Taster an der Trigger-Box starten/stoppen.
-4. **Export & Convert Tab:** Aufnahmen gesammelt in H.264 (`.mp4`) für FreeMoCap umwandeln.
-5. **Import in FreeMoCap:** In FreeMoCap "Process Pre-recorded Data" wählen, den Projektordner auswählen und das Tracking starten.
+4. **Export & Convert Tab (optional):** Aufnahmen in H.264 (`.mp4`) umwandeln, z. B. um die Kamera-Rotation anzuwenden. Die Originale werden nach `original_videos/` verschoben, damit FreeMoCap genau ein Video pro Kamera sieht.
+5. **FreeMoCap 2:** Auf **Open in FreeMoCap** klicken (oder FreeMoCap selbst starten). Aufnahmen heißen `<Datum>_<Uhrzeit>_<Projekt>_<Take>`, Kalibrierungen enden auf `_calibration`.
 
 ---
 

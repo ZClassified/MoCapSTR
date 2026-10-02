@@ -7,22 +7,22 @@ import glob
 import cv2
 import json
 import re
+import shutil
 from PIL import Image
 
-try:
-    from freemocap_bridge import FreeMoCapBridge
-except ImportError:
-    try:
-        from python.freemocap_bridge import FreeMoCapBridge
-    except ImportError:
-        FreeMoCapBridge = None
+import freemocap_bridge
+from freemocap_bridge import SYNCHRONIZED_VIDEOS_FOLDER
+
+RAW_VIDEO_EXTENSIONS = (".avi", ".mkv")   # as written by the recorder (MJPEG stream copy)
+ORIGINALS_FOLDER = "original_videos"      # converted originals are moved here (outside synchronized_videos/)
 
 class ExportTab(ctk.CTkFrame):
     def __init__(self, master, main_app):
         super().__init__(master)
         self.main_app = main_app
         
-        self.avi_files = []
+        self.recordings = []   # recording folders of the current project
+        self.raw_files = []    # .avi/.mkv in synchronized_videos/
         self.mp4_files = []
         self.detected_cam_ids = []
         self.is_converting = False
@@ -36,7 +36,6 @@ class ExportTab(ctk.CTkFrame):
         self.cam_rotations = {}       # cam_id (str) -> rotation choice
         self.global_saved_rot = "None"
         
-        self.bridge = FreeMoCapBridge() if FreeMoCapBridge else None
         self.settings_file = "export_settings.json"
         
         self.load_settings()
@@ -80,7 +79,8 @@ class ExportTab(ctk.CTkFrame):
         self.lbl_header.pack(pady=(10, 5))
         
         # Info text
-        info_text = "Scan the current project for recordings. Convert raw .avi files to high-quality H.264 .mp4 with per-camera rotation or export directly to FreeMoCap."
+        info_text = ("Scan the current project for recordings. FreeMoCap 2 reads the raw .avi/.mkv files directly - "
+                     "conversion to H.264 .mp4 is only needed for rotation or smaller files.")
         self.lbl_info = ctk.CTkLabel(self, text=info_text, wraplength=650)
         self.lbl_info.pack(pady=5)
         
@@ -96,7 +96,7 @@ class ExportTab(ctk.CTkFrame):
         
         # Options: Delete original
         self.delete_original_var = ctk.BooleanVar(value=False)
-        self.chk_delete = ctk.CTkCheckBox(self, text="Delete original .avi after successful conversion", variable=self.delete_original_var)
+        self.chk_delete = ctk.CTkCheckBox(self, text="Delete originals after conversion (otherwise moved to original_videos/)", variable=self.delete_original_var)
         self.chk_delete.pack(pady=4)
         
         # --- PER-CAMERA ROTATION & PREVIEW CONTAINER ---
@@ -159,7 +159,7 @@ class ExportTab(ctk.CTkFrame):
         
         self.btn_freemocap = ctk.CTkButton(
             self.btn_container,
-            text="🚀 Convert & Send to FreeMoCap",
+            text="🚀 Open in FreeMoCap",
             command=self.start_freemocap_workflow,
             state="disabled",
             fg_color="#2e7d32",
@@ -176,35 +176,41 @@ class ExportTab(ctk.CTkFrame):
         self.progressbar.set(0.0)
 
     def scan_files(self):
-        if not self.main_app.proj_mgr.current_project:
-            self.lbl_progress.configure(text="No active project selected. Please initialize the system first.")
+        project = self.main_app.proj_mgr.current_project or self.main_app.setup_tab.proj_name_entry.get().strip()
+        if not project:
+            self.lbl_progress.configure(text="Enter a project name in the Setup tab first.")
             return
-        project_dir = os.path.join(
-            self.main_app.proj_mgr.base_path,
-            self.main_app.proj_mgr.current_project
-        )
-        if not os.path.exists(project_dir):
-            self.lbl_progress.configure(text=f"Project folder not found: {project_dir}")
-            return
+        project_dir = self.main_app.proj_mgr.base_path
+        self.recordings = self.main_app.proj_mgr.find_recordings(project)
 
-        # Recursive search — files are nested in takes/take_XYZ/synchronized_videos/
-        self.avi_files = glob.glob(os.path.join(project_dir, "**", "*.avi"), recursive=True)
-        self.mp4_files = glob.glob(os.path.join(project_dir, "**", "*.mp4"), recursive=True)
-        
+        self.raw_files = []
+        self.mp4_files = []
+        for recording in self.recordings:
+            folder = os.path.join(recording, SYNCHRONIZED_VIDEOS_FOLDER)
+            for name in sorted(os.listdir(folder)):
+                path = os.path.join(folder, name)
+                ext = os.path.splitext(name)[1].lower()
+                if not os.path.isfile(path):
+                    continue
+                if ext in RAW_VIDEO_EXTENSIONS:
+                    self.raw_files.append(path)
+                elif ext == ".mp4":
+                    self.mp4_files.append(path)
+
         self.txt_files.configure(state="normal")
         self.txt_files.delete("1.0", tk.END)
         
-        if not self.avi_files and not self.mp4_files:
-            self.txt_files.insert(tk.END, f"No .avi or .mp4 files found in: {project_dir}\n")
+        if not self.raw_files and not self.mp4_files:
+            self.txt_files.insert(tk.END, f"No recordings of project '{project}' found in: {project_dir}\n")
             self.btn_convert.configure(state="disabled")
             self.btn_freemocap.configure(state="disabled")
             self.lbl_progress.configure(text="No video files found.")
             self.detected_cam_ids = []
             self.update_camera_grid_ui()
         else:
-            if self.avi_files:
-                self.txt_files.insert(tk.END, f"Found {len(self.avi_files)} .avi files (need conversion):\n")
-                for f in self.avi_files:
+            if self.raw_files:
+                self.txt_files.insert(tk.END, f"Found {len(self.raw_files)} raw files (.avi/.mkv, usable by FreeMoCap):\n")
+                for f in self.raw_files:
                     self.txt_files.insert(tk.END, f"  • {os.path.basename(f)}  ({os.path.relpath(f, project_dir)})\n")
                 self.btn_convert.configure(state="normal")
             else:
@@ -217,14 +223,14 @@ class ExportTab(ctk.CTkFrame):
                     
             self.btn_freemocap.configure(state="normal")
             
-            if self.avi_files:
-                self.lbl_progress.configure(text=f"Found {len(self.avi_files)} raw AVIs ready for processing.")
+            if self.raw_files:
+                self.lbl_progress.configure(text=f"{len(self.recordings)} recording(s), {len(self.raw_files)} raw file(s).")
             else:
                 self.lbl_progress.configure(text=f"All files converted ({len(self.mp4_files)} MP4s ready).")
                 
             # Extract unique camera IDs from all found files
             found_ids = set()
-            for f in (self.avi_files + self.mp4_files):
+            for f in (self.raw_files + self.mp4_files):
                 cid = self._get_cam_id_from_path(f)
                 if cid is not None:
                     found_ids.add(cid)
@@ -246,7 +252,7 @@ class ExportTab(ctk.CTkFrame):
         # For each detected camera ID, find the first available video file
         for cid in self.detected_cam_ids:
             cam_file = None
-            for f in self.avi_files:
+            for f in self.raw_files:
                 if self._get_cam_id_from_path(f) == cid:
                     cam_file = f
                     break
@@ -267,8 +273,8 @@ class ExportTab(ctk.CTkFrame):
                     self.main_app.log(f"Could not load preview frame for Cam {cid}: {e}", "error")
 
         # Fallback if no specific cam_id was parsed but files exist
-        if not self.preview_frames_bgr and (self.avi_files or self.mp4_files):
-            fallback_file = self.avi_files[0] if self.avi_files else self.mp4_files[0]
+        if not self.preview_frames_bgr and (self.raw_files or self.mp4_files):
+            fallback_file = self.raw_files[0] if self.raw_files else self.mp4_files[0]
             try:
                 container = av.open(fallback_file)
                 if container.streams.video:
@@ -436,14 +442,14 @@ class ExportTab(ctk.CTkFrame):
         self.cam_preview_labels[cam_id].image = ctk_img
 
     def start_conversion(self):
-        if not self.avi_files or self.is_converting:
+        if not self.raw_files or self.is_converting:
             return
         self._start_workflow(send_to_freemocap=False)
         
     def start_freemocap_workflow(self):
         if self.is_converting:
             return
-        if not self.avi_files and not self.mp4_files:
+        if not self.recordings:
             return
         self._start_workflow(send_to_freemocap=True)
         
@@ -460,66 +466,71 @@ class ExportTab(ctk.CTkFrame):
             
         threading.Thread(target=self._worker_thread, args=(send_to_freemocap,), daemon=True).start()
         
+    def _rotation_for(self, path):
+        return self.cam_rotations.get(self._get_cam_id_from_path(path), self.global_rot_var.get())
+
+    def _retire_original(self, raw_path):
+        """After a successful conversion only the .mp4 may stay in synchronized_videos/:
+        FreeMoCap counts every video file there as a separate camera."""
+        try:
+            if self.delete_original_var.get():
+                os.remove(raw_path)
+                self.main_app.log(f"Deleted original file: {os.path.basename(raw_path)}")
+            else:
+                recording_dir = os.path.dirname(os.path.dirname(raw_path))
+                target_dir = os.path.join(recording_dir, ORIGINALS_FOLDER)
+                os.makedirs(target_dir, exist_ok=True)
+                target = os.path.join(target_dir, os.path.basename(raw_path))
+                if os.path.exists(target):
+                    os.remove(target)
+                shutil.move(raw_path, target)
+        except OSError as e:
+            self.main_app.log(f"Could not move/delete original {os.path.basename(raw_path)}: {e}", "error")
+
     def _worker_thread(self, send_to_freemocap=False):
-        # Step 1: Convert any unconverted AVIs with individual rotations
-        total_files = len(self.avi_files)
-        
-        for idx, input_path in enumerate(self.avi_files):
+        # Step 1: Convert raw files. When sending to FreeMoCap, only cameras that need
+        # a rotation are converted - FreeMoCap 2 reads the raw .avi/.mkv files directly.
+        if send_to_freemocap:
+            to_convert = [f for f in self.raw_files if self._rotation_for(f) != "None"]
+        else:
+            to_convert = list(self.raw_files)
+        total_files = len(to_convert)
+
+        for idx, input_path in enumerate(to_convert):
             filename = os.path.basename(input_path)
             output_filename = filename.rsplit('.', 1)[0] + '.mp4'
             output_path = os.path.join(os.path.dirname(input_path), output_filename)
-            
-            cam_id = self._get_cam_id_from_path(input_path)
-            rot_choice = self.cam_rotations.get(cam_id, self.global_rot_var.get())
-            
+
+            rot_choice = self._rotation_for(input_path)
+
             msg = f"Converting ({idx+1}/{total_files}): {filename} [Rot: {rot_choice}] -> {output_filename}"
             self.after(0, lambda t=msg: self.lbl_progress.configure(text=t))
             self.after(0, self.progressbar.set, 0.0)
-            
-            success = self._convert_single_file(input_path, output_path, rot_choice)
-            
-            if success and self.delete_original_var.get():
+
+            if self._convert_single_file(input_path, output_path, rot_choice):
+                self._retire_original(input_path)
+
+        # Step 2: Make the recordings available in FreeMoCap and start it
+        if send_to_freemocap:
+            self.after(0, lambda: self.lbl_progress.configure(text="Opening FreeMoCap..."))
+            for recording in self.recordings:
                 try:
-                    os.remove(input_path)
-                    self.main_app.log(f"Deleted original file: {filename}")
-                except Exception as e:
-                    self.main_app.log(f"Could not delete original {filename}: {e}", "error")
-                    
-        # Step 2: If FreeMoCap workflow is requested, bridge to FreeMoCap
-        if send_to_freemocap and self.bridge:
-            self.after(0, lambda: self.lbl_progress.configure(text="Exporting session to FreeMoCap..."))
-            self.main_app.log("Exporting recordings to FreeMoCap data directory...")
-            
-            project_dir = os.path.join(
-                self.main_app.proj_mgr.base_path,
-                self.main_app.proj_mgr.current_project
-            )
-            
-            # Find all take / calibration directories containing MP4s
-            mp4_list = glob.glob(os.path.join(project_dir, "**", "*.mp4"), recursive=True)
-            sync_dirs = sorted(list(set(os.path.dirname(p) for p in mp4_list)), key=lambda p: os.path.getmtime(p) if os.path.exists(p) else 0)
-            
-            last_session = None
-            for s_dir in sync_dirs:
-                take_folder = os.path.dirname(s_dir) if os.path.basename(s_dir) == "synchronized_videos" else s_dir
-                session_path = self.bridge.export_take_to_freemocap(take_folder)
-                if session_path:
-                    last_session = session_path
-                    self.main_app.log(f"Created FreeMoCap session: {os.path.basename(session_path)}", "success")
-                    
-            if last_session:
-                self.bridge.update_most_recent_recording(last_session)
-                self.main_app.log(f"Updated most_recent_recording.toml -> {os.path.basename(last_session)}", "success")
-                
-                # Check if FreeMoCap is installed and launch
-                if self.bridge.is_freemocap_installed():
-                    self.main_app.log("Launching FreeMoCap...")
-                    self.bridge.launch_freemocap(last_session)
-                else:
-                    self.main_app.log("FreeMoCap executable not found in PATH. Session is ready in ~/freemocap_data", "info")
-                    
+                    target = freemocap_bridge.export_recording(recording)
+                except OSError as e:
+                    self.main_app.log(f"Export of {os.path.basename(recording)} failed: {e}", "error")
+                    continue
+                if target and os.path.normcase(target) != os.path.normcase(recording):
+                    self.main_app.log(f"Copied to FreeMoCap: {os.path.basename(target)}", "success")
+
+            recordings_folder = freemocap_bridge.get_freemocap_recordings_folder()
+            if freemocap_bridge.launch_freemocap():
+                self.main_app.log(f"FreeMoCap started. Recordings are in {recordings_folder}", "success")
+            else:
+                self.main_app.log("FreeMoCap 2 not found (expected in %LOCALAPPDATA%\\Programs\\freemocap). "
+                                  f"Recordings are ready in {recordings_folder}", "info")
+
         self.after(0, self._conversion_finished)
-        
+
     def _convert_single_file(self, input_path, output_path, rot_choice):
         try:
             input_container = av.open(input_path)

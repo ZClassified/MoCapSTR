@@ -1,9 +1,17 @@
 # Changelog
 
-**Current Status:** v1.5.0 in development. Frame-accurate clip verification & repair, robust Arduino connection monitoring and trigger firmware fixes.
+**Current Status:** v1.5.1 in development. Recordings go straight into FreeMoCap 2; v1.5.0 brought frame-accurate clip verification & repair, robust Arduino monitoring and one-click firmware flashing.
 **Last Modified:** 2026-10-02
 
 ---
+
+- **2026-10-02 (v1.5.1, in development):** **FreeMoCap 2 integration (verified against FreeMoCap v2.0.0-alpha.25)**:
+  - **Records straight into FreeMoCap 2:** The default save location is FreeMoCap's `recordings/` folder (`~/freemocap_data/recordings`, or the data folder chosen in FreeMoCap's settings, read from `%APPDATA%/freemocap/freemocap-config.json`). Each take and each calibration is its own recording folder `<date>_<time>_<project>_<take>/synchronized_videos/`, so recordings appear in FreeMoCap without any export step and calibrations no longer overwrite each other. `session_info.json` now stores project, take and recording type; the Export tab finds a project's recordings through it (recordings of v1.5.0 and older are still found).
+  - **Timestamps in FreeMoCap format:** Per-camera CSVs moved to `synchronized_videos/timestamps/` with the columns FreeMoCap 2 reads: `timestamp_s` for playback and `from_previous.framerate.hz`, from which FreeMoCap derives the real frame rate for its post-processing filter (otherwise it assumes 30 FPS). A CSV with the wrong columns in that folder would crash FreeMoCap's pipeline - covered by a test that replicates FreeMoCap's parsers.
+  - **Export tab:** Finds `.avi` and `.mkv`. FreeMoCap 2 reads raw MJPEG files directly, so conversion to `.mp4` is optional; "Open in FreeMoCap" only converts cameras that need a rotation. After a conversion the original is moved to `original_videos/` (or deleted), because FreeMoCap counts every video in `synchronized_videos/` as a camera.
+  - **Bug fix – "Send to FreeMoCap":** It wrote the wrong key into `most_recent_recording.toml` (FreeMoCap 1.x), and in the EXE `sys.executable` is MoCapSTR itself, so trying to launch FreeMoCap started another MoCapSTR instance. The bridge now targets FreeMoCap 2: it launches the installed `FreeMoCap.exe` and, for recordings stored elsewhere, copies (hard-links) exactly one video per camera plus timestamps into FreeMoCap's folder.
+  - **Single instance:** Starting MoCapSTR a second time no longer kills the running instance (and every Python process with `main.py` in its command line). A dialog asks first; only the exact process recorded in the instance PID file is ended, and only on "Yes".
+  - **Build:** Removed unused `screeninfo` hidden import from `MoCapSTR.spec`.
 
 - **2026-10-02 (v1.5.0, in development):** **Sync Reliability: every clip starts on the same pulse, ends on the same pulse and has the same length**:
   - **Bug fix – clip trimming never worked:** `trim_clips_to_min_frames()` wrote to `camX.avi.trimming.tmp`; PyAV picks the muxer from the file extension and failed with `Could not determine output format`. The error was swallowed and the UI still reported "Clips synchronized". Trimming is replaced by `clip_sync.finalize_clips()` (see below).

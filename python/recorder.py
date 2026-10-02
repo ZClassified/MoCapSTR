@@ -6,7 +6,8 @@ import queue
 import av
 import fractions
 
-from clip_sync import RecordingResult, TIMESTAMP_FIELDS, add_copy_stream
+from clip_sync import (RecordingResult, TIMESTAMP_FIELDS, TIMESTAMPS_FOLDER_NAME, add_copy_stream,
+                       format_timestamp_row)
 
 class PreviewWorker(threading.Thread):
     def __init__(self, camera_worker):
@@ -72,6 +73,7 @@ class RecordingSession:
         # Packet time base (frame index units). The muxer may use a different
         # stream time base (Matroska: 1/1000); PyAV rescales on mux().
         self.time_base = fractions.Fraction(1, int(round(fps)))
+        self.fps = int(round(fps))
         self.timestamps_path = timestamps_path
         self.timestamps_file = timestamps_file
         self.packet_queue = queue.Queue(maxsize=queue_size)
@@ -86,6 +88,7 @@ class RecordingSession:
         self.dropped_packets = 0
         self.mux_errors = 0
         self.pending_gap = 0  # packets dropped since the last enqueued one (demux thread only)
+        self.prev_device_time = None  # device time of the previously written frame (None after a filler)
 
 
 class CameraWorker(threading.Thread):
@@ -279,11 +282,10 @@ class CameraWorker(threading.Thread):
         session.container.mux(packet)
 
         if session.timestamps_file:
-            session.timestamps_file.write(
-                f"{session.frames_recorded},"
-                f"{'' if arrival_ns is None else arrival_ns},"
-                f"{'' if device_time is None else f'{device_time:.6f}'},"
-                f"{1 if filler else 0}\n")
+            session.timestamps_file.write(format_timestamp_row(
+                session.frames_recorded, session.fps, arrival_ns, device_time, filler,
+                session.prev_device_time))
+        session.prev_device_time = device_time
         session.frames_recorded += 1
         if filler:
             session.filled_frames += 1
@@ -465,7 +467,7 @@ class MultiCamManager:
 
         codecs = self.get_supported_codecs()
         fourcc_str, ext = codecs.get(codec_selection, ("mjpeg", ".avi"))
-        timestamps_folder = os.path.join(os.path.dirname(target_folder), "timestamps")
+        timestamps_folder = os.path.join(target_folder, TIMESTAMPS_FOLDER_NAME)
 
         # Shared gate: keeps all workers waiting until every container is ready.
         record_gate = threading.Event()

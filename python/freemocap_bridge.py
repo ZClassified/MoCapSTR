@@ -1,235 +1,180 @@
-import os
-import sys
+"""
+Bridge between MoCapSTR recordings and FreeMoCap 2.x.
+
+FreeMoCap 2 layout (verified against v2.0.0-alpha.25):
+
+    <base data folder>/recordings/<recording name>/
+        synchronized_videos/cam0.avi|.mkv|.mp4 ...     one video per camera
+        synchronized_videos/timestamps/cam0_timestamps.csv ...
+
+- The base data folder defaults to ~/freemocap_data. A folder chosen in
+  FreeMoCap's settings is stored in %APPDATA%/freemocap/freemocap-config.json
+  (key "baseDataFolder").
+- FreeMoCap reads .mp4, .avi and .mkv. Every file in synchronized_videos/ counts
+  as a camera, so there must never be two files for the same camera there.
+- The Windows installer puts the app in %LOCALAPPDATA%/Programs/freemocap.
+
+By default MoCapSTR records directly into the FreeMoCap recordings folder, so
+no export is needed. export_recording() covers recordings stored elsewhere.
+"""
+import argparse
 import glob
+import json
+import os
 import shutil
 import subprocess
-import argparse
-from datetime import datetime
+import sys
 
-class FreeMoCapBridge:
+RECORDINGS_SUBDIR = "recordings"
+SYNCHRONIZED_VIDEOS_FOLDER = "synchronized_videos"
+TIMESTAMPS_FOLDER = "timestamps"
+VIDEO_EXTENSIONS = (".mp4", ".avi", ".mkv")
+SESSION_INFO_FILENAME = "session_info.json"
+
+
+def get_freemocap_base_folder():
+    """FreeMoCap's base data folder: the user's choice in FreeMoCap settings, else ~/freemocap_data."""
+    config_path = os.path.join(os.environ.get("APPDATA", ""), "freemocap", "freemocap-config.json")
+    try:
+        with open(config_path, encoding="utf-8") as f:
+            stored = json.load(f).get("baseDataFolder")
+        if isinstance(stored, str) and stored.strip():
+            return stored
+    except (OSError, ValueError, AttributeError):
+        pass
+    return os.path.join(os.path.expanduser("~"), "freemocap_data")
+
+
+def get_freemocap_recordings_folder():
+    return os.path.join(get_freemocap_base_folder(), RECORDINGS_SUBDIR)
+
+
+def is_inside_freemocap_recordings(path):
+    """True if `path` is FreeMoCap's recordings folder (or inside it)."""
+    folder = os.path.normcase(os.path.abspath(get_freemocap_recordings_folder()))
+    target = os.path.normcase(os.path.abspath(path))
+    return target == folder or target.startswith(folder + os.sep)
+
+
+def find_freemocap_executable():
+    """Path of the installed FreeMoCap 2 desktop app, or None."""
+    candidates = [
+        os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "freemocap", "FreeMoCap.exe"),
+        os.path.join(os.environ.get("ProgramFiles", ""), "FreeMoCap", "FreeMoCap.exe"),
+    ]
+    for path in candidates:
+        if path and os.path.isfile(path):
+            return path
+    return None
+
+
+def launch_freemocap():
+    """Starts the FreeMoCap desktop app detached from MoCapSTR. Returns True on success."""
+    exe = find_freemocap_executable()
+    if not exe:
+        return False
+    try:
+        if os.name == "nt":
+            DETACHED_PROCESS = 0x00000008
+            CREATE_NEW_PROCESS_GROUP = 0x00000200
+            subprocess.Popen([exe], creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP,
+                             close_fds=True, cwd=os.path.dirname(exe))
+        else:
+            subprocess.Popen([exe], start_new_session=True)
+        return True
+    except OSError as e:
+        print(f"[FreeMoCapBridge] Failed to launch FreeMoCap: {e}")
+        return False
+
+
+def select_videos(video_folder):
     """
-    Bridge utility connecting MoCapSTR recordings directly with FreeMoCap.
-    
-    Provides:
-    - Auto-discovery of the default FreeMoCap data directory (~/freemocap_data).
-    - Creation of standardized FreeMoCap recording sessions.
-    - Video transfer using NTFS hardlinks (zero disk copy) or fallback copy.
-    - Updating FreeMoCap's active session tracker (most_recent_recording.toml).
-    - Launching FreeMoCap GUI / CLI automatically.
+    One video per camera: if a camera has several files (e.g. cam0.avi and the
+    converted cam0.mp4), the .mp4 wins, then .avi, then .mkv.
     """
-    
-    def __init__(self, base_freemocap_dir=None):
-        if base_freemocap_dir:
-            self.base_dir = os.path.abspath(base_freemocap_dir)
-        else:
-            self.base_dir = os.path.join(os.path.expanduser("~"), "freemocap_data")
-            
-        self.sessions_dir = os.path.join(self.base_dir, "recording_sessions")
-        self.settings_dir = os.path.join(self.base_dir, "logs_info_and_settings")
-        self.recent_recording_toml = os.path.join(self.settings_dir, "most_recent_recording.toml")
-        
-    def ensure_directories(self):
-        """Ensures the basic FreeMoCap folder hierarchy exists."""
-        os.makedirs(self.sessions_dir, exist_ok=True)
-        os.makedirs(self.settings_dir, exist_ok=True)
+    by_camera = {}
+    for path in sorted(glob.glob(os.path.join(video_folder, "*"))):
+        stem, ext = os.path.splitext(os.path.basename(path))
+        ext = ext.lower()
+        if ext not in VIDEO_EXTENSIONS or not os.path.isfile(path):
+            continue
+        current = by_camera.get(stem)
+        if current is None or VIDEO_EXTENSIONS.index(ext) < VIDEO_EXTENSIONS.index(os.path.splitext(current)[1].lower()):
+            by_camera[stem] = path
+    return [by_camera[stem] for stem in sorted(by_camera)]
 
-    def is_freemocap_installed(self):
-        """Checks if FreeMoCap is available in the current PATH or Python environment."""
-        # Check CLI command in PATH
-        if shutil.which("freemocap") is not None:
-            return True
-            
-        # Check if importable via Python
-        try:
-            res = subprocess.run(
-                [sys.executable, "-c", "import freemocap; print(freemocap.__file__)"],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
-            return res.returncode == 0
-        except Exception:
-            return False
 
-    def update_most_recent_recording(self, session_path):
-        """
-        Updates most_recent_recording.toml inside freemocap_data/logs_info_and_settings/
-        so FreeMoCap automatically selects this recording upon startup.
-        """
-        self.ensure_directories()
-        norm_path = os.path.abspath(session_path).replace("\\", "/")
-        
-        # FreeMoCap standard TOML format for most_recent_recording
-        toml_content = f'most_recent_recording = "{norm_path}"\n'
-        
-        try:
-            with open(self.recent_recording_toml, "w", encoding="utf-8") as f:
-                f.write(toml_content)
-            return True
-        except Exception as e:
-            print(f"[FreeMoCapBridge] Error writing most_recent_recording.toml: {e}")
-            return False
+def _link_or_copy(src, dst):
+    if os.path.exists(dst):
+        os.remove(dst)
+    try:
+        os.link(src, dst)  # same drive: instant, no extra disk space
+    except OSError:
+        shutil.copy2(src, dst)
 
-    def export_take_to_freemocap(self, take_dir, session_name=None, prefer_mp4=True, use_hardlinks=True):
-        """
-        Transfers a MoCapSTR take into a standardized FreeMoCap session folder.
-        
-        Args:
-            take_dir (str): Path to the take folder or take's synchronized_videos directory.
-            session_name (str, optional): Custom name for the session.
-            prefer_mp4 (bool): If True, looks for .mp4 files first.
-            use_hardlinks (bool): If True, creates instant hardlinks instead of copying files.
-            
-        Returns:
-            str: Path to the newly created FreeMoCap session, or None on failure.
-        """
-        self.ensure_directories()
-        take_dir = os.path.abspath(take_dir)
-        
-        # Locate video files
-        if os.path.basename(take_dir) == "synchronized_videos":
-            search_dir = take_dir
-            parent_take_name = os.path.basename(os.path.dirname(take_dir))
-        else:
-            sync_sub = os.path.join(take_dir, "synchronized_videos")
-            search_dir = sync_sub if os.path.exists(sync_sub) else take_dir
-            parent_take_name = os.path.basename(take_dir)
 
-        if prefer_mp4:
-            video_files = glob.glob(os.path.join(search_dir, "*.mp4"))
-            if not video_files:
-                video_files = glob.glob(os.path.join(search_dir, "*.avi"))
-        else:
-            video_files = glob.glob(os.path.join(search_dir, "*.avi"))
-            if not video_files:
-                video_files = glob.glob(os.path.join(search_dir, "*.mp4"))
+def export_recording(recording_dir, recordings_folder=None):
+    """
+    Makes a MoCapSTR recording available in FreeMoCap's recordings folder.
 
-        if not video_files:
-            print(f"[FreeMoCapBridge] No video files (.mp4 / .avi) found in {search_dir}")
-            return None
+    Args:
+        recording_dir:     folder containing synchronized_videos/
+        recordings_folder: target (default: FreeMoCap's recordings folder)
 
-        # Build session name
-        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        if not session_name:
-            if "take" in parent_take_name.lower() and "_" in parent_take_name:
-                session_name = f"session_{parent_take_name}"
-            else:
-                session_name = f"session_{timestamp}_{parent_take_name}"
-        elif not session_name.startswith("session_"):
-            session_name = f"session_{session_name}"
+    Returns:
+        Path of the recording inside FreeMoCap's folder, or None if there were no videos.
+    """
+    recording_dir = os.path.abspath(recording_dir)
+    recordings_folder = os.path.abspath(recordings_folder or get_freemocap_recordings_folder())
+    target_dir = os.path.join(recordings_folder, os.path.basename(recording_dir))
+    if os.path.normcase(target_dir) == os.path.normcase(recording_dir):
+        return recording_dir  # already where FreeMoCap looks
 
-        target_session_dir = os.path.join(self.sessions_dir, session_name)
-        target_sync_dir = os.path.join(target_session_dir, "synchronized_videos")
-        os.makedirs(target_sync_dir, exist_ok=True)
+    source_videos = os.path.join(recording_dir, SYNCHRONIZED_VIDEOS_FOLDER)
+    videos = select_videos(source_videos)
+    if not videos:
+        print(f"[FreeMoCapBridge] No videos found in {source_videos}")
+        return None
 
-        # Transfer video files into synchronized_videos
-        for vfile in video_files:
-            dest_file = os.path.join(target_sync_dir, os.path.basename(vfile))
-            if os.path.exists(dest_file):
-                try:
-                    os.remove(dest_file)
-                except Exception:
-                    pass
+    target_videos = os.path.join(target_dir, SYNCHRONIZED_VIDEOS_FOLDER)
+    os.makedirs(target_videos, exist_ok=True)
 
-            transferred = False
-            if use_hardlinks:
-                try:
-                    # Instant zero-copy link on Windows/Linux (same drive)
-                    os.link(vfile, dest_file)
-                    transferred = True
-                except Exception:
-                    transferred = False
+    # Never mix files of different exports/takes: FreeMoCap treats every video as a camera
+    for path in glob.glob(os.path.join(target_videos, "*")):
+        if os.path.isfile(path) and os.path.splitext(path)[1].lower() in VIDEO_EXTENSIONS:
+            os.remove(path)
+    for video in videos:
+        _link_or_copy(video, os.path.join(target_videos, os.path.basename(video)))
 
-            if not transferred:
-                try:
-                    shutil.copy2(vfile, dest_file)
-                except Exception as e:
-                    print(f"[FreeMoCapBridge] Failed to copy {vfile} to {dest_file}: {e}")
+    source_ts = os.path.join(source_videos, TIMESTAMPS_FOLDER)
+    if os.path.isdir(source_ts):
+        target_ts = os.path.join(target_videos, TIMESTAMPS_FOLDER)
+        os.makedirs(target_ts, exist_ok=True)
+        for csv_path in glob.glob(os.path.join(source_ts, "*.csv")):
+            shutil.copy2(csv_path, os.path.join(target_ts, os.path.basename(csv_path)))
 
-        # Also transfer session_info.json if present
-        info_source = os.path.join(take_dir, "session_info.json")
-        if not os.path.exists(info_source) and os.path.basename(take_dir) == "synchronized_videos":
-            info_source = os.path.join(os.path.dirname(take_dir), "session_info.json")
-            
-        if os.path.exists(info_source):
-            try:
-                shutil.copy2(info_source, os.path.join(target_session_dir, "session_info.json"))
-            except Exception:
-                pass
-
-        # Update most_recent_recording.toml
-        self.update_most_recent_recording(target_session_dir)
-
-        return target_session_dir
-
-    def launch_freemocap(self, session_path=None):
-        """
-        Launches FreeMoCap in the background as a detached process.
-        
-        Args:
-            session_path (str, optional): Target session to set as active before launch.
-            
-        Returns:
-            bool: True if process was started, False otherwise.
-        """
-        if session_path:
-            self.update_most_recent_recording(session_path)
-
-        # Check if 'freemocap' command exists in PATH
-        if shutil.which("freemocap"):
-            cmd = ["freemocap"]
-        else:
-            # Fallback to python -m freemocap
-            cmd = [sys.executable, "-m", "freemocap"]
-
-        try:
-            # Launch detached so it does not block MoCapSTR
-            if os.name == "nt":
-                DETACHED_PROCESS = 0x00000008
-                CREATE_NEW_PROCESS_GROUP = 0x00000200
-                subprocess.Popen(
-                    cmd,
-                    creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP,
-                    close_fds=True
-                )
-            else:
-                subprocess.Popen(
-                    cmd,
-                    start_new_session=True
-                )
-            return True
-        except Exception as e:
-            print(f"[FreeMoCapBridge] Failed to launch FreeMoCap: {e}")
-            return False
+    info = os.path.join(recording_dir, SESSION_INFO_FILENAME)
+    if os.path.exists(info):
+        shutil.copy2(info, os.path.join(target_dir, SESSION_INFO_FILENAME))
+    return target_dir
 
 
 def main():
-    parser = argparse.ArgumentParser(description="FreeMoCap Bridge CLI for MoCapSTR")
-    parser.add_argument("--take", type=str, help="Path to MoCapSTR take folder to export")
-    parser.add_argument("--session-name", type=str, default=None, help="Custom name for FreeMoCap session")
-    parser.add_argument("--launch", action="store_true", help="Launch FreeMoCap after export")
-    parser.add_argument("--freemocap-dir", type=str, default=None, help="Custom freemocap_data base directory")
-    
+    parser = argparse.ArgumentParser(description="FreeMoCap 2 bridge for MoCapSTR")
+    parser.add_argument("--recording", type=str, help="MoCapSTR recording folder to export")
+    parser.add_argument("--launch", action="store_true", help="Launch FreeMoCap afterwards")
     args = parser.parse_args()
-    
-    bridge = FreeMoCapBridge(base_freemocap_dir=args.freemocap_dir)
-    print(f"FreeMoCap Data Directory: {bridge.base_dir}")
-    print(f"FreeMoCap Installed: {bridge.is_freemocap_installed()}")
-    
-    if args.take:
-        print(f"Exporting take: {args.take}...")
-        session_path = bridge.export_take_to_freemocap(args.take, session_name=args.session_name)
-        if session_path:
-            print(f"Successfully created FreeMoCap session at: {session_path}")
-            if args.launch:
-                print("Launching FreeMoCap...")
-                bridge.launch_freemocap(session_path)
-        else:
-            print("Failed to export take.")
-            sys.exit(1)
-    elif args.launch:
-        print("Launching FreeMoCap...")
-        bridge.launch_freemocap()
+
+    print(f"FreeMoCap recordings folder: {get_freemocap_recordings_folder()}")
+    print(f"FreeMoCap executable:        {find_freemocap_executable() or 'not found'}")
+    if args.recording:
+        target = export_recording(args.recording)
+        if not target:
+            sys.exit("Export failed: no videos found.")
+        print(f"Recording available in FreeMoCap: {target}")
+    if args.launch and not launch_freemocap():
+        sys.exit("FreeMoCap executable not found.")
+
 
 if __name__ == "__main__":
     main()

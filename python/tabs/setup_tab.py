@@ -8,6 +8,7 @@ import time
 import gc
 
 from firmware_flasher import FlashError, bundled_firmware, flash_bundled_firmware, is_outdated
+from freemocap_bridge import get_freemocap_recordings_folder, is_inside_freemocap_recordings
 
 def get_recommended_usb_fps(target_fps: int) -> str:
     """
@@ -202,6 +203,10 @@ class SetupTab(ctk.CTkFrame):
             self.app.proj_mgr.set_base_path(new_dir)
             self.lbl_save_dir.configure(text=new_dir)
             self.app.log(f"Base save directory set to: {new_dir}")
+            if not is_inside_freemocap_recordings(new_dir):
+                self.app.log("Note: this is not FreeMoCap's recordings folder "
+                             f"({get_freemocap_recordings_folder()}). Use 'Open in FreeMoCap' in the "
+                             "Export tab to copy recordings there.")
 
     def update_exposure_label(self, value):
         val = int(round(float(value)))

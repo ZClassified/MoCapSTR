@@ -83,7 +83,7 @@ class RemuxTest(TempDirTest):
         clip = self.path("cam0.avi")
         ts = self.path("cam0_timestamps.csv")
         make_clip(clip, [i * 2 for i in range(10)])
-        write_timestamps(ts, timestamp_rows([i * DT for i in range(10)]))
+        write_timestamps(ts, timestamp_rows([i * DT for i in range(10)]), FPS)
 
         frames = remux_clip(clip, FPS, keep_frames=12, insert_before={4: 2}, timestamps_path=ts)
 
@@ -129,7 +129,7 @@ class FinalizeClipsTest(TempDirTest):
         clip = self.path(f"cam{idx}.avi")
         ts = self.path(f"cam{idx}_timestamps.csv")
         make_clip(clip, [int(round(t / DT)) * 2 for t in device_times])
-        write_timestamps(ts, timestamp_rows(device_times))
+        write_timestamps(ts, timestamp_rows(device_times), FPS)
         return RecordingResult(path=clip, frames=len(device_times), timestamps_path=ts)
 
     def test_equal_clips_untouched(self):

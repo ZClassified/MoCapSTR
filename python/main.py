@@ -9,6 +9,7 @@ from arduino_sync import ArduinoSync
 from project_manager import ProjectManager
 from recorder import MultiCamManager
 from clip_sync import finalize_clips
+from freemocap_bridge import SESSION_INFO_FILENAME
 from preset_manager import PresetManager
 import cv2
 from PIL import Image, ImageTk
@@ -19,6 +20,8 @@ from tabs.preview_tab import PreviewTab
 from tabs.camera_test_tab import CameraTestTab
 from tabs.export_tab import ExportTab
 
+APP_VERSION = "1.5.1"
+
 ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme("blue")
 
@@ -26,7 +29,7 @@ class MoCapSyncApp(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("MoCapSTR: Sync / Trigger / Record for FreeMoCap v1.5.0")
+        self.title(f"MoCapSTR: Sync / Trigger / Record for FreeMoCap v{APP_VERSION}")
         self.geometry("1100x800")
         
         # Set Window Icon
@@ -148,6 +151,11 @@ class MoCapSyncApp(ctk.CTk):
             # Generate session_info.json for FreeMoCap
             try:
                 session_info = {
+                    "mocapstr_version": APP_VERSION,
+                    "project": proj_name,
+                    "take": "calibration" if is_calib else take_name,
+                    "recording_type": "calibration" if is_calib else "mocap",
+                    "hardware_trigger": self.arduino.is_running,
                     "fps": fps,
                     "codec": codec,
                     "resolution": self.setup_tab.res_combo.get(),
@@ -157,7 +165,7 @@ class MoCapSyncApp(ctk.CTk):
                     "charuco_sq_size": float(self.preview_tab.charuco_sq_size.get()),
                     "charuco_marker_size": float(self.preview_tab.charuco_marker_size.get())
                 }
-                info_path = os.path.join(os.path.dirname(save_dir), "session_info.json")
+                info_path = os.path.join(os.path.dirname(save_dir), SESSION_INFO_FILENAME)
                 with open(info_path, 'w', encoding='utf-8') as f:
                     json.dump(session_info, f, indent=4)
                 self.log("Generated session_info.json", "success")
@@ -392,6 +400,7 @@ class MoCapSyncApp(ctk.CTk):
         except Exception as e:
             print(f"[Shutdown] Error during cleanup: {e}")
         finally:
+            remove_instance_pid()
             try:
                 self.destroy()
             except Exception:
@@ -401,53 +410,120 @@ class MoCapSyncApp(ctk.CTk):
             os._exit(0)
 
 _single_instance_mutex = None
+INSTANCE_PID_FILE = os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "MoCapSTR", "instance.pid")
 
-def cleanup_zombie_instances():
-    """
-    Kills any stale MoCapSTR background processes from previous crashes or unclosed sessions.
-    Leaves the current process untouched.
-    """
-    if sys.platform.startswith("win"):
-        try:
-            import subprocess
-            current_pid = os.getpid()
-            ps_cmd = (
-                f'Get-Process | Where-Object {{ ($_.ProcessName -match "mocapstr") -or ($_.ProcessName -match "python" -and $_.Id -ne {current_pid}) }} | '
-                f'ForEach-Object {{ '
-                f'  $proc = $_; '
-                f'  $cmd = (Get-CimInstance Win32_Process -Filter "ProcessId = $($proc.Id)").CommandLine; '
-                f'  if ($proc.ProcessName -match "mocapstr" -or ($cmd -match "main\\.py" -or $cmd -match "MoCapSTR")) {{ '
-                f'    Stop-Process -Id $proc.Id -Force '
-                f'  }} '
-                f'}}'
-            )
-            subprocess.run(["powershell", "-NoProfile", "-Command", ps_cmd], capture_output=True, timeout=3)
-        except Exception:
-            pass
+
+def _process_image_path(pid):
+    """Full executable path of a running process, or None if it does not exist."""
+    import ctypes
+    from ctypes import wintypes
+    PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+    kernel32 = ctypes.windll.kernel32
+    handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+    if not handle:
+        return None
+    try:
+        buf = ctypes.create_unicode_buffer(1024)
+        size = wintypes.DWORD(len(buf))
+        if kernel32.QueryFullProcessImageNameW(handle, 0, buf, ctypes.byref(size)):
+            return buf.value
+        return None
+    finally:
+        kernel32.CloseHandle(handle)
+
+
+def _running_instance_pid():
+    """PID of the other MoCapSTR instance (from its PID file), if it is still running."""
+    try:
+        with open(INSTANCE_PID_FILE, encoding="utf-8") as f:
+            pid = int(f.read().strip())
+    except (OSError, ValueError):
+        return None
+    if pid == os.getpid():
+        return None
+    image = _process_image_path(pid)
+    if not image:
+        return None
+    # Guard against PID reuse: only accept MoCapSTR.exe or a Python interpreter
+    name = os.path.basename(image).lower()
+    if not (name.startswith("mocapstr") or name in ("python.exe", "pythonw.exe")):
+        return None
+    return pid
+
+
+def _write_instance_pid():
+    try:
+        os.makedirs(os.path.dirname(INSTANCE_PID_FILE), exist_ok=True)
+        with open(INSTANCE_PID_FILE, "w", encoding="utf-8") as f:
+            f.write(str(os.getpid()))
+    except OSError as e:
+        print(f"[Startup] Could not write PID file: {e}")
+
+
+def remove_instance_pid():
+    try:
+        with open(INSTANCE_PID_FILE, encoding="utf-8") as f:
+            if f.read().strip() != str(os.getpid()):
+                return  # file belongs to another instance
+        os.remove(INSTANCE_PID_FILE)
+    except (OSError, ValueError):
+        pass
+
 
 def enforce_single_instance():
     """
-    Ensures single instance behavior using a Windows Named Mutex.
-    If another instance is detected, cleans up stale zombies to prevent exclusive USB camera locks.
+    Only one MoCapSTR may use the cameras. If another instance is running, the user
+    decides: quit this one, or end the other one (e.g. if it hangs). Only that exact
+    process (from its PID file) is ended - never other Python programs.
+    Returns False if this instance should exit.
     """
     global _single_instance_mutex
-    if sys.platform.startswith("win"):
-        try:
-            import ctypes
-            MUTEX_NAME = "Global\\MoCapSTR_Application_Singleton_Mutex_v1"
-            kernel32 = ctypes.windll.kernel32
-            mutex = kernel32.CreateMutexW(None, False, MUTEX_NAME)
-            last_error = kernel32.GetLastError()
-            if last_error == 183: # ERROR_ALREADY_EXISTS
-                print("[Startup] Existing instance or stale zombie detected. Cleaning up background instances...")
-                cleanup_zombie_instances()
-                time.sleep(0.5)
-            _single_instance_mutex = mutex
-        except Exception as e:
-            print(f"[Startup] Single instance check note: {e}")
+    if not sys.platform.startswith("win"):
+        return True
+    try:
+        import ctypes
+        MUTEX_NAME = "Global\\MoCapSTR_Application_Singleton_Mutex_v1"
+        kernel32 = ctypes.windll.kernel32
+        _single_instance_mutex = kernel32.CreateMutexW(None, False, MUTEX_NAME)
+        already_running = kernel32.GetLastError() == 183  # ERROR_ALREADY_EXISTS
+    except Exception as e:
+        print(f"[Startup] Single instance check note: {e}")
+        return True
+
+    if already_running:
+        from tkinter import messagebox
+        root = tk.Tk()
+        root.withdraw()
+        other_pid = _running_instance_pid()
+        if other_pid is None:
+            messagebox.showwarning(
+                "MoCapSTR läuft bereits",
+                "MoCapSTR läuft bereits (oder eine ältere Version hängt noch im Hintergrund).\n\n"
+                "Bitte die andere Instanz schließen, ggf. über den Task-Manager.",
+                parent=root)
+            root.destroy()
+            return False
+        end_other = messagebox.askyesno(
+            "MoCapSTR läuft bereits",
+            f"Eine andere MoCapSTR-Instanz läuft bereits (Prozess {other_pid}).\n\n"
+            "Nur falls diese hängt oder nicht mehr reagiert: Soll sie beendet und "
+            "MoCapSTR neu gestartet werden?\n\n"
+            "Achtung: Eine laufende Aufnahme in der anderen Instanz wird dabei abgebrochen.\n\n"
+            "Nein = diesen Start abbrechen.",
+            icon="warning", default="no", parent=root)
+        root.destroy()
+        if not end_other:
+            return False
+        import subprocess
+        subprocess.run(["taskkill", "/PID", str(other_pid), "/T", "/F"], capture_output=True, timeout=10)
+        time.sleep(1.0)  # let Windows release the camera and COM port handles
+
+    _write_instance_pid()
+    return True
 
 if __name__ == "__main__":
-    enforce_single_instance()
+    if not enforce_single_instance():
+        sys.exit(0)
     app = MoCapSyncApp()
     app.protocol("WM_DELETE_WINDOW", app.on_closing)
     app.mainloop()

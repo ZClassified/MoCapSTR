@@ -75,7 +75,7 @@ class MultiCamRecordingTest(unittest.TestCase):
             self.assertGreater(result.frames, 30)
             self.assertEqual(len(frame_values(result.path)), result.frames)
             self.assertEqual(len(read_timestamps(result.timestamps_path)), result.frames)
-            self.assertTrue(os.path.exists(os.path.join(self.dir, "take", "timestamps", f"cam{idx}_timestamps.csv")))
+            self.assertTrue(os.path.exists(os.path.join(self.take, "timestamps", f"cam{idx}_timestamps.csv")))
 
         counts, _ = finalize_clips(results, FPS, hardware_trigger=False)
         self.assertEqual(len(set(counts.values())), 1)

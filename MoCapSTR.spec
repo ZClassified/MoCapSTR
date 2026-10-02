@@ -11,7 +11,6 @@ hiddenimports = [
     'pygrabber',
     'pygrabber.dshow_graph',
     'comtypes',
-    'screeninfo',
     'PIL',
     'PIL.Image',
     'PIL.ImageTk',

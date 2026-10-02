@@ -1,15 +1,26 @@
 """
 Post-recording verification and alignment of multi-camera clips.
 
-Every recorded clip has a timestamps CSV next to it (written by CameraWorker):
+Every recorded clip has a timestamps CSV (written by CameraWorker) in
+synchronized_videos/timestamps/camX_timestamps.csv:
 
-    frame_index, arrival_ns, device_time_s, filler
+    frame_index, timestamp_s, from_previous.framerate.hz, arrival_ns, device_time_s, filler
 
+- timestamp_s:   nominal frame time (frame_index / fps) - identical on every
+                 camera, because frame N is trigger pulse N
+- from_previous.framerate.hz:
+                 1 / (device_time_s - previous device_time_s)
 - arrival_ns:    time.perf_counter_ns() when the packet left the demuxer
                  (same monotonic clock for all cameras of one recording)
 - device_time_s: DirectShow sample time of the packet (per-camera clock)
 - filler:        1 if the frame is a copy of the previous frame inserted to
                  keep the timeline aligned (e.g. after a queue overflow)
+
+FreeMoCap 2 reads this folder: the playback view uses the first column whose
+name contains "time" (timestamp_s), and the post-processing filter derives the
+recording's real frame rate from the median of `from_previous.framerate.hz`
+in the first *_timestamps.csv (without it, FreeMoCap assumes 30 FPS).
+Column order and names are therefore part of the FreeMoCap interface.
 
 finalize_clips() uses this data to
   1. detect frames the camera never delivered (gap in device_time_s),
@@ -26,7 +37,9 @@ from dataclasses import dataclass
 
 import av
 
-TIMESTAMP_FIELDS = ["frame_index", "arrival_ns", "device_time_s", "filler"]
+TIMESTAMP_FIELDS = ["frame_index", "timestamp_s", "from_previous.framerate.hz",
+                    "arrival_ns", "device_time_s", "filler"]
+TIMESTAMPS_FOLDER_NAME = "timestamps"  # inside synchronized_videos/, as FreeMoCap expects
 
 
 @dataclass
@@ -72,17 +85,27 @@ def read_timestamps(path):
     return rows
 
 
-def write_timestamps(path, rows):
+def format_timestamp_row(index, fps, arrival_ns, device_time, filler, prev_device_time):
+    """One CSV line in TIMESTAMP_FIELDS order. prev_device_time: device time of the
+    directly preceding frame, or None if that frame is a filler / does not exist."""
+    framerate = ""
+    if device_time is not None and prev_device_time is not None and device_time > prev_device_time:
+        framerate = f"{1.0 / (device_time - prev_device_time):.4f}"
+    return (f"{index},{index / fps:.6f},{framerate},"
+            f"{'' if arrival_ns is None else arrival_ns},"
+            f"{'' if device_time is None else f'{device_time:.6f}'},"
+            f"{1 if filler else 0}\n")
+
+
+def write_timestamps(path, rows, fps):
     with open(path, "w", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerow(TIMESTAMP_FIELDS)
+        f.write(",".join(TIMESTAMP_FIELDS) + "\n")
+        prev_device_time = None
         for i, row in enumerate(rows):
-            writer.writerow([
-                i,
-                "" if row["arrival_ns"] is None else row["arrival_ns"],
-                "" if row["device_time_s"] is None else f"{row['device_time_s']:.6f}",
-                1 if row["filler"] else 0,
-            ])
+            device_time = None if row["filler"] else row["device_time_s"]
+            f.write(format_timestamp_row(i, fps, row["arrival_ns"], device_time,
+                                         row["filler"], prev_device_time))
+            prev_device_time = device_time
 
 
 def find_missing_frames(rows):
@@ -185,7 +208,7 @@ def remux_clip(path, fps, keep_frames, insert_before=None, timestamps_path=None)
         raise
 
     if timestamps_path and src_rows:
-        write_timestamps(timestamps_path, new_rows)
+        write_timestamps(timestamps_path, new_rows, fps)
     return out_idx
 
 
