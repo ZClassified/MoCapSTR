@@ -16,6 +16,7 @@ from freemocap_bridge import SESSION_INFO_FILENAME
 from preset_manager import PresetManager
 from app_paths import data_dir, logs_dir
 from logging_setup import log_file_path, setup_logging
+from settings_store import SettingsStore
 import cv2
 from PIL import Image, ImageTk
 import time
@@ -59,7 +60,12 @@ class MoCapSyncApp(ctk.CTk):
         self.camera_indices = []
         self.preview_labels = {} # Grid for previews
         self.camera_enable_vars = {} # Stores IntVars for checkboxes
-        
+        self.rotation_menus = {}     # cam_idx -> rotation dropdown in the preview grid
+        # User choices that must survive rebuilding the preview grid and app restarts
+        self.saved_rotations = {}    # str(cam_idx) -> "0°" / "90° (Portrait)" / ...
+        self.saved_enabled = {}      # cam_idx -> 1/0 ("Enable Recording")
+        self.settings = SettingsStore()
+
         self.record_start_time = 0
         self.record_fps = 50
         self.record_hardware_trigger = False
@@ -74,6 +80,7 @@ class MoCapSyncApp(ctk.CTk):
         self._log_queue = queue.Queue()
 
         self.build_ui()
+        self.load_session_settings()
         self.after(50, self.update_preview) # Start preview loop
         self.after(100, self._drain_log_queue)
         self.log(f"MoCapSTR v{APP_VERSION} started. Log file: {log_file_path()}")
@@ -142,6 +149,44 @@ class MoCapSyncApp(ctk.CTk):
         logging.getLogger("ui").error("Exception in UI callback", exc_info=(exc_type, exc, tb))
         self.log(f"Unexpected error: {exc_type.__name__}: {exc} (details in the log file)", "error")
 
+    def load_session_settings(self):
+        """Restores project, save folder and setup of the last session."""
+        data = self.settings.data
+        if not data:
+            return
+        try:
+            self.setup_tab.apply_settings(data)
+            if data.get("project_name"):
+                self.setup_tab.proj_name_entry.delete(0, tk.END)
+                self.setup_tab.proj_name_entry.insert(0, data["project_name"])
+            if data.get("take_name"):
+                self.preview_tab.take_name_entry.delete(0, tk.END)
+                self.preview_tab.take_name_entry.insert(0, data["take_name"])
+            base_path = data.get("base_path")
+            if base_path and os.path.isdir(base_path):
+                self.proj_mgr.set_base_path(base_path)
+                self.setup_tab.lbl_save_dir.configure(text=base_path)
+            elif base_path:
+                self.log(f"Last save folder not found ({base_path}) - using {self.proj_mgr.base_path}.", "warning")
+        except Exception as e:
+            self.log(f"Could not restore the last settings: {e}", "warning")
+
+    def save_session_settings(self):
+        try:
+            data = self.setup_tab.collect_settings()
+            data["project_name"] = self.setup_tab.proj_name_entry.get()
+            data["take_name"] = self.preview_tab.take_name_entry.get()
+            data["base_path"] = self.proj_mgr.base_path
+            self.settings.save(data)
+        except Exception as e:
+            print(f"[Settings] Could not collect settings: {e}")
+
+    def apply_saved_rotations(self):
+        """Applies the remembered rotation to every running camera worker."""
+        for idx in self.recorder.workers:
+            choice = self.saved_rotations.get(str(idx), "0°")
+            self.recorder.set_camera_rotation(idx, int(choice.split('°')[0]))
+
     def get_free_space(self):
         try:
             import shutil
@@ -190,10 +235,7 @@ class MoCapSyncApp(ctk.CTk):
             take_name = self.preview_tab.take_name_entry.get()
             save_dir = self.proj_mgr.get_recording_folder(is_calib, take_name)
             
-            try:
-                fps = int(self.setup_tab.fps_entry.get())
-            except ValueError:
-                fps = 30  # Match the default shown in the FPS entry field
+            fps = self.setup_tab.get_target_fps()
             codec = self.setup_tab.codec_combo.get()
             
             enabled_cams = [idx for idx, var in self.camera_enable_vars.items() if var.get() == 1]
@@ -202,7 +244,8 @@ class MoCapSyncApp(ctk.CTk):
                 return
             
             self.log(f"Starting recording to: {save_dir}")
-            
+            self.save_session_settings()
+
             # Generate session_info.json for FreeMoCap
             try:
                 session_info = {
@@ -443,6 +486,7 @@ class MoCapSyncApp(ctk.CTk):
         self.after(50, self.update_preview) # ~20 FPS UI update
 
     def on_closing(self):
+        self.save_session_settings()
         try:
             print("[Shutdown] Stopping camera workers...")
             self.recorder.stop_workers()

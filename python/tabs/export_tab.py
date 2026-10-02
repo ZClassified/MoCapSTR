@@ -12,6 +12,7 @@ from PIL import Image
 
 import freemocap_bridge
 from freemocap_bridge import SYNCHRONIZED_VIDEOS_FOLDER
+from app_paths import config_file
 
 RAW_VIDEO_EXTENSIONS = (".avi", ".mkv")   # as written by the recorder (MJPEG stream copy)
 ORIGINALS_FOLDER = "original_videos"      # converted originals are moved here (outside synchronized_videos/)
@@ -36,7 +37,7 @@ class ExportTab(ctk.CTkFrame):
         self.cam_rotations = {}       # cam_id (str) -> rotation choice
         self.global_saved_rot = "None"
         
-        self.settings_file = "export_settings.json"
+        self.settings_file = config_file("export_settings.json")
         
         self.load_settings()
         self.build_ui()
@@ -393,11 +394,9 @@ class ExportTab(ctk.CTkFrame):
         }
         
         synced_count = 0
-        if hasattr(self.main_app, 'rotation_menus') and self.main_app.rotation_menus:
-            for cam_idx, menu in self.main_app.rotation_menus.items():
-                cid = str(cam_idx)
+        if self.main_app.saved_rotations:
+            for cid, val in self.main_app.saved_rotations.items():
                 try:
-                    val = menu.get()
                     export_val = preview_to_export_map.get(val, "None")
                     self.cam_rotations[cid] = export_val
                     if cid in self.cam_rot_vars:

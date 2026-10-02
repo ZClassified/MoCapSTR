@@ -10,6 +10,9 @@ import gc
 from firmware_flasher import FlashError, bundled_firmware, flash_bundled_firmware, is_outdated
 from freemocap_bridge import get_freemocap_recordings_folder, is_inside_freemocap_recordings
 
+DEFAULT_FPS = 50
+
+
 def get_recommended_usb_fps(target_fps: int) -> str:
     """
     Returns the default USB polling mode. 'Auto' dynamically uses 120 FPS in Hardware Trigger
@@ -108,7 +111,7 @@ class SetupTab(ctk.CTkFrame):
         fps_frame.grid(row=1, column=1, sticky="ew", padx=10, pady=4)
         
         self.fps_entry = ctk.CTkEntry(fps_frame, width=60)
-        self.fps_entry.insert(0, "50")
+        self.fps_entry.insert(0, str(DEFAULT_FPS))
         self.fps_entry.pack(side="left")
         self.fps_entry.bind("<FocusOut>", lambda e: self.on_fps_changed())
         self.fps_entry.bind("<Return>",   lambda e: self.on_fps_changed())
@@ -273,98 +276,102 @@ class SetupTab(ctk.CTkFrame):
             self.lbl_exposure_warn.configure(text="")
             self.lbl_exposure_warn.grid_remove()
 
-    def save_preset(self):
-        name = self.preset_name_entry.get()
-        if not name:
-            self.app.log("Please enter a preset name.", "error")
-            return
-            
+    def get_target_fps(self):
+        """Validated target FPS (1-240). Invalid input is reset to DEFAULT_FPS. Main thread only."""
+        try:
+            fps = int(self.fps_entry.get())
+            if 1 <= fps <= 240:
+                return fps
+        except ValueError:
+            pass
+        self.app.log(f"Invalid target FPS '{self.fps_entry.get()}' - using {DEFAULT_FPS}.", "warning")
+        self.fps_entry.delete(0, 'end')
+        self.fps_entry.insert(0, str(DEFAULT_FPS))
+        self.on_fps_changed()
+        return DEFAULT_FPS
+
+    def collect_settings(self):
+        """Current setup as dict - used for presets and for restoring the last session."""
         data = {
             "camera_type": self.workflow_var.get(),
             "resolution": self.res_combo.get(),
+            "codec": self.codec_combo.get(),
             "exposure": self.exposure_slider.get(),
             "uvc_trigger": self.chk_uvc_trigger_var.get(),
             "fps": self.fps_entry.get(),
             "usb_fps": self.usb_fps_combo.get(),
             "arduino_port": self.port_combo.get(),
-            # "arduino_auto_trigger" removed
+            "rotations": dict(self.app.saved_rotations),
         }
-        
-        # Charuco is moved to preview tab, we should still save it if possible, or let preview_tab handle its own preset. 
-        # For now, let's grab it from preview_tab if it exists.
         if hasattr(self.app, 'preview_tab'):
             data["charuco_dict"] = self.app.preview_tab.charuco_dict.get()
             data["charuco_x"] = self.app.preview_tab.charuco_x.get()
             data["charuco_y"] = self.app.preview_tab.charuco_y.get()
             data["charuco_sq_size"] = self.app.preview_tab.charuco_sq_size.get()
             data["charuco_marker_size"] = self.app.preview_tab.charuco_marker_size.get()
-            
-        if hasattr(self.app, 'rotation_menus'):
-            rotations = {}
-            for idx, menu in self.app.rotation_menus.items():
-                rotations[str(idx)] = menu.get()
-            data["rotations"] = rotations
-            
-        self.app.preset_mgr.save_preset(name, data)
+        return data
+
+    def apply_settings(self, data):
+        """Applies a dict from collect_settings(). Missing keys fall back to the defaults."""
+        self.workflow_var.set(data.get("camera_type", "USB Webcams"))
+        self.update_workflow_ui()
+
+        self.res_combo.set(data.get("resolution", "1280x720 (720p)"))
+        if data.get("codec") in self.codec_combo.cget("values"):
+            self.codec_combo.set(data["codec"])
+        self.chk_uvc_trigger_var.set(data.get("uvc_trigger", True))
+
+        self.fps_entry.delete(0, 'end')
+        self.fps_entry.insert(0, str(data.get("fps", DEFAULT_FPS)))
+        self.usb_fps_combo.set(data.get("usb_fps", "Auto"))
+
+        saved_exp = data.get("exposure", -9)
+        self.exposure_slider.set(saved_exp)
+        self.update_exposure_label(saved_exp)
+        self.on_fps_changed()
+
+        arduino_port = data.get("arduino_port", "")
+        if arduino_port and arduino_port in self.port_combo.cget("values"):
+            self.port_combo.set(arduino_port)
+
+        if hasattr(self.app, 'preview_tab'):
+            preview = self.app.preview_tab
+            preview.charuco_dict.set(data.get("charuco_dict", "DICT_4X4_50"))
+            for entry, key, default in ((preview.charuco_x, "charuco_x", "5"),
+                                        (preview.charuco_y, "charuco_y", "3"),
+                                        (preview.charuco_sq_size, "charuco_sq_size", "51"),
+                                        (preview.charuco_marker_size, "charuco_marker_size", "38")):
+                entry.delete(0, 'end')
+                entry.insert(0, str(data.get(key, default)))
+            preview.update_charuco_preview()
+
+        rotations = data.get("rotations", {})
+        if isinstance(rotations, dict):
+            self.app.saved_rotations.update({str(k): v for k, v in rotations.items()})
+            for idx_str, val in rotations.items():
+                idx = int(idx_str)
+                menu = self.app.rotation_menus.get(idx)
+                if menu is not None and menu.winfo_exists():
+                    menu.set(val)
+                    self.app.recorder.set_camera_rotation(idx, int(val.split('°')[0]))
+
+    def save_preset(self):
+        name = self.preset_name_entry.get()
+        if not name:
+            self.app.log("Please enter a preset name.", "error")
+            return
+        self.app.preset_mgr.save_preset(name, self.collect_settings())
         self.preset_combo.configure(values=["Default"] + self.app.preset_mgr.get_preset_names())
         self.preset_combo.set(name)
         self.app.log(f"Preset '{name}' saved.", "success")
-        
+
     def load_preset(self):
         name = self.preset_combo.get()
         if name == "Default" or not name:
             return
-            
         data = self.app.preset_mgr.get_preset(name)
         if data:
-            wf = data.get("camera_type", "USB Webcams")
-            self.workflow_var.set(wf)
-            self.update_workflow_ui()
-            
-            self.res_combo.set(data.get("resolution", "1280x720 (720p)"))
-            self.chk_uvc_trigger_var.set(data.get("uvc_trigger", True))
-
-            self.fps_entry.delete(0, 'end')
-            self.fps_entry.insert(0, data.get("fps", "30"))
-            
-            if "usb_fps" in data:
-                self.usb_fps_combo.set(data["usb_fps"])
-            else:
-                self.usb_fps_combo.set("60")
-
-            self._clamp_exposure_to_fps()
-            self._validate_usb_fps()
-            saved_exp = data.get("exposure", -8)
-            # Entferne den Zwang, wir setzen einfach den geladenen Wert.
-            self.exposure_slider.set(saved_exp)
-            self.update_exposure_label(saved_exp)
-            
-            arduino_port = data.get("arduino_port", "")
-            if arduino_port and arduino_port in self.port_combo._values:
-                self.port_combo.set(arduino_port)
-            # arduino_auto_trigger load removed
-            
-            if hasattr(self.app, 'preview_tab'):
-                self.app.preview_tab.charuco_dict.set(data.get("charuco_dict", "DICT_4X4_50"))
-                self.app.preview_tab.charuco_x.delete(0, 'end')
-                self.app.preview_tab.charuco_x.insert(0, data.get("charuco_x", "5"))
-                self.app.preview_tab.charuco_y.delete(0, 'end')
-                self.app.preview_tab.charuco_y.insert(0, data.get("charuco_y", "3"))
-                self.app.preview_tab.charuco_sq_size.delete(0, 'end')
-                self.app.preview_tab.charuco_sq_size.insert(0, data.get("charuco_sq_size", "51"))
-                self.app.preview_tab.charuco_marker_size.delete(0, 'end')
-                self.app.preview_tab.charuco_marker_size.insert(0, data.get("charuco_marker_size", "38"))
-                self.app.preview_tab.update_charuco_preview()
-            
-            rotations = data.get("rotations", {})
-            if hasattr(self.app, 'rotation_menus'):
-                for idx_str, val in rotations.items():
-                    idx = int(idx_str)
-                    if idx in self.app.rotation_menus:
-                        self.app.rotation_menus[idx].set(val)
-                        deg = int(val.split('°')[0])
-                        self.app.recorder.set_camera_rotation(idx, deg)
-            
+            self.apply_settings(data)
             self.app.log(f"Preset '{name}' loaded.", "success")
 
     def initialize_system_cmd(self):
@@ -372,21 +379,17 @@ class SetupTab(ctk.CTkFrame):
             self.app.log("Stop the recording before re-initializing the system.", "error")
             return
         self.app.log("Initializing System...")
+        target_fps = self.get_target_fps()  # validated here: init_task runs in a thread
         self.btn_init_system.configure(state="disabled", text="Initialisiere Hardware & Kameras...", fg_color="#555555")
         self.lbl_init_status.configure(text="⏳ Bereite System & Kameras vor...", text_color="#3a86ff")
-        
+
         def init_task():
             success = False
             error_msg = None
             try:
                 cam_type = self.workflow_var.get()
                 trigger_on = self.chk_uvc_trigger_var.get()
-                
-                try:
-                    target_fps = int(self.fps_entry.get())
-                except ValueError:
-                    target_fps = 30
-                    
+
                 # 1. Quiesce hardware: Stop Arduino trigger first if running to avoid sensor interrupts during reset
                 if self.app.arduino.is_running:
                     self.app.after(0, lambda: self.lbl_init_status.configure(text="⏳ Pausiere Trigger & setze Kameras zurück...", text_color="#3a86ff"))
@@ -469,6 +472,7 @@ class SetupTab(ctk.CTkFrame):
 
                     # 9. Start PyAV Workers
                     self.app.recorder.start_workers(self.app.cam_mgr.cameras, target_fps=target_fps)
+                    self.app.after(0, self.app.apply_saved_rotations)
                     self.app.log("Workers started. Go to Live Preview tab to see feeds.")
                     
                     # 10. Start Arduino trigger if trigger_on is requested

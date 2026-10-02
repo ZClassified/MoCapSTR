@@ -55,13 +55,14 @@ class PreviewTab(ctk.CTkFrame):
         grid_f = ctk.CTkFrame(self.sidebar, fg_color="transparent")
         grid_f.pack(fill="x", padx=10, pady=2)
         ctk.CTkLabel(grid_f, text="Squares X/Y:").pack(side="left")
-        self.charuco_x = ctk.CTkEntry(grid_f, width=40)
-        self.charuco_x.insert(0, "5")
-        self.charuco_x.pack(side="right")
-        ctk.CTkLabel(grid_f, text="x").pack(side="right", padx=5)
+        # Packed right-to-left: Y first, so the fields read "X x Y" like the label
         self.charuco_y = ctk.CTkEntry(grid_f, width=40)
         self.charuco_y.insert(0, "3")
         self.charuco_y.pack(side="right")
+        ctk.CTkLabel(grid_f, text="x").pack(side="right", padx=5)
+        self.charuco_x = ctk.CTkEntry(grid_f, width=40)
+        self.charuco_x.insert(0, "5")
+        self.charuco_x.pack(side="right")
         
         size_f = ctk.CTkFrame(self.sidebar, fg_color="transparent")
         size_f.pack(fill="x", padx=10, pady=2)
@@ -173,6 +174,10 @@ class PreviewTab(ctk.CTkFrame):
         is_popped_out = self.pop_win and self.pop_win.winfo_exists()
         target_container = self.pop_win if is_popped_out else self.preview_frame
         
+        # Keep the user's choices: the grid is rebuilt on pop-out/dock and re-init
+        for idx, var in self.app.camera_enable_vars.items():
+            self.app.saved_enabled[idx] = var.get()
+
         # Clear existing
         for widget in self.preview_frame.winfo_children():
             widget.destroy()
@@ -182,6 +187,7 @@ class PreviewTab(ctk.CTkFrame):
                 
         self.app.preview_labels.clear()
         self.app.camera_enable_vars.clear()
+        self.app.rotation_menus.clear()
         
         for i, idx in enumerate(self.app.camera_indices):
             row = i // 3
@@ -199,7 +205,7 @@ class PreviewTab(ctk.CTkFrame):
             self.app.preview_labels[idx] = lbl
             
             # Checkbox for enable/disable
-            enable_var = ctk.IntVar(value=1)
+            enable_var = ctk.IntVar(value=self.app.saved_enabled.get(idx, 1))
             self.app.camera_enable_vars[idx] = enable_var
             chk = ctk.CTkCheckBox(cam_frame, text="Enable Recording", variable=enable_var)
             chk.grid(row=1, column=0, pady=(5,0))
@@ -207,14 +213,14 @@ class PreviewTab(ctk.CTkFrame):
             # Rotation Dropdown
             def make_rot_callback(cam_id):
                 def callback(choice):
+                    self.app.saved_rotations[str(cam_id)] = choice
                     deg = int(choice.split('°')[0])
                     self.app.recorder.set_camera_rotation(cam_id, deg)
                 return callback
             
             rot_menu = ctk.CTkOptionMenu(cam_frame, values=["0°", "90° (Portrait)", "180°", "270° (Portrait)"], command=make_rot_callback(idx))
-            rot_menu.set("0°")
+            rotation = self.app.saved_rotations.get(str(idx), "0°")
+            rot_menu.set(rotation)
             rot_menu.grid(row=2, column=0, pady=5, sticky="ew")
-            
-            if not hasattr(self.app, 'rotation_menus'):
-                self.app.rotation_menus = {}
+            self.app.recorder.set_camera_rotation(idx, int(rotation.split('°')[0]))
             self.app.rotation_menus[idx] = rot_menu

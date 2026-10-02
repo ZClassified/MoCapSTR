@@ -1,9 +1,11 @@
 import json
 import os
 
+from app_paths import config_file
+
 class PresetManager:
-    def __init__(self, filepath="presets.json"):
-        self.filepath = filepath
+    def __init__(self, filepath=None):
+        self.filepath = filepath or config_file("presets.json")
         self.presets = {}
         self.load_presets_from_disk()
 
