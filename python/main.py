@@ -1,9 +1,12 @@
 import tkinter as tk
 import customtkinter as ctk
 import json
+import logging
 import os
+import queue
 import sys
 import threading
+from datetime import datetime
 from camera_manager import CameraManager
 from arduino_sync import ArduinoSync
 from project_manager import ProjectManager
@@ -11,6 +14,8 @@ from recorder import MultiCamManager
 from clip_sync import finalize_clips
 from freemocap_bridge import SESSION_INFO_FILENAME
 from preset_manager import PresetManager
+from app_paths import data_dir, logs_dir
+from logging_setup import log_file_path, setup_logging
 import cv2
 from PIL import Image, ImageTk
 import time
@@ -64,11 +69,15 @@ class MoCapSyncApp(ctk.CTk):
         self.arduino_was_connected = False
         self.arduino_unresponsive_logged = False
         self.last_warning_text = ""
-        self.txt_log = None # Injected by SetupTab
-        
+        self.txt_log = None
+        # app.log() may be called from any thread; only the Tk main thread touches the widget
+        self._log_queue = queue.Queue()
+
         self.build_ui()
         self.after(50, self.update_preview) # Start preview loop
-        
+        self.after(100, self._drain_log_queue)
+        self.log(f"MoCapSTR v{APP_VERSION} started. Log file: {log_file_path()}")
+
         # Reset any leftover hardware trigger modes on startup in background
         threading.Thread(target=self.cam_mgr.reset_hardware_trigger_mode, daemon=True).start()
         
@@ -77,9 +86,12 @@ class MoCapSyncApp(ctk.CTk):
         self.after(0, self.toggle_record)
         
     def build_ui(self):
+        # Log panel at the bottom, visible in every tab (packed first so it keeps its height)
+        self.build_log_panel()
+
         self.tabview = ctk.CTkTabview(self)
-        self.tabview.pack(fill="both", expand=True, padx=10, pady=10)
-        
+        self.tabview.pack(fill="both", expand=True, padx=10, pady=(10, 0))
+
         self.tab_setup_frame = self.tabview.add("1. Project & Setup")
         self.tab_preview_frame = self.tabview.add("2. Live Preview")
         self.tab_export_frame = self.tabview.add("3. Export & Convert")
@@ -97,6 +109,39 @@ class MoCapSyncApp(ctk.CTk):
         self.export_tab = ExportTab(self.tab_export_frame, self)
         self.export_tab.pack(fill="both", expand=True)
 
+    def build_log_panel(self):
+        panel = ctk.CTkFrame(self)
+        panel.pack(side="bottom", fill="x", padx=10, pady=(4, 10))
+
+        header = ctk.CTkFrame(panel, fg_color="transparent")
+        header.pack(fill="x", padx=8, pady=(4, 0))
+        ctk.CTkLabel(header, text="Log", font=ctk.CTkFont(weight="bold")).pack(side="left")
+        self.btn_log_toggle = ctk.CTkButton(header, text="▾ Ausblenden", width=110, height=24,
+                                            command=self.toggle_log_panel)
+        self.btn_log_toggle.pack(side="right")
+        ctk.CTkButton(header, text="📄 Log-Ordner öffnen", width=150, height=24,
+                      command=lambda: os.startfile(logs_dir())).pack(side="right", padx=(0, 8))
+
+        self.txt_log = ctk.CTkTextbox(panel, height=110, wrap="word")
+        self.txt_log.pack(fill="x", padx=8, pady=(4, 8))
+        self.txt_log.tag_config("success", foreground="#3ddc84")
+        self.txt_log.tag_config("error", foreground="#ff5c5c")
+        self.txt_log.tag_config("warning", foreground="#f4a261")
+        self.txt_log.configure(state="disabled")
+
+    def toggle_log_panel(self):
+        if self.txt_log.winfo_ismapped():
+            self.txt_log.pack_forget()
+            self.btn_log_toggle.configure(text="▸ Einblenden")
+        else:
+            self.txt_log.pack(fill="x", padx=8, pady=(4, 8))
+            self.btn_log_toggle.configure(text="▾ Ausblenden")
+
+    def report_callback_exception(self, exc_type, exc, tb):
+        """Exceptions in Tk callbacks: into the log file and visible in the UI log."""
+        logging.getLogger("ui").error("Exception in UI callback", exc_info=(exc_type, exc, tb))
+        self.log(f"Unexpected error: {exc_type.__name__}: {exc} (details in the log file)", "error")
+
     def get_free_space(self):
         try:
             import shutil
@@ -105,22 +150,32 @@ class MoCapSyncApp(ctk.CTk):
         except Exception:
             return None  # Unknown - must not trigger the low-space auto-stop
 
+    LOG_LEVELS = {"info": logging.INFO, "success": logging.INFO, "warning": logging.WARNING, "error": logging.ERROR}
+    MAX_LOG_LINES = 1000
+
     def log(self, message, level="info"):
-        if not self.txt_log:
-            print(message)
-            return
-            
-        tag = None
-        if level == "success":
-            tag = "success"
-        elif level == "error":
-            tag = "error"
-            
-        if tag:
-            self.txt_log.insert(tk.END, message + "\n", tag)
-        else:
-            self.txt_log.insert(tk.END, message + "\n")
-        self.txt_log.see(tk.END)
+        """Thread-safe: writes to the log file immediately, the UI log is updated by the main thread."""
+        logging.getLogger("app").log(self.LOG_LEVELS.get(level, logging.INFO), message)
+        self._log_queue.put((datetime.now().strftime("%H:%M:%S"), message, level))
+
+    def _drain_log_queue(self):
+        try:
+            if self.txt_log is not None and not self._log_queue.empty():
+                self.txt_log.configure(state="normal")
+                while True:
+                    try:
+                        stamp, message, level = self._log_queue.get_nowait()
+                    except queue.Empty:
+                        break
+                    tag = level if level in ("success", "error", "warning") else None
+                    self.txt_log.insert(tk.END, f"{stamp}  {message}\n", tag)
+                lines = int(self.txt_log.index("end-1c").split(".")[0])
+                if lines > self.MAX_LOG_LINES:
+                    self.txt_log.delete("1.0", f"{lines - self.MAX_LOG_LINES}.0")
+                self.txt_log.see(tk.END)
+                self.txt_log.configure(state="disabled")
+        finally:
+            self.after(100, self._drain_log_queue)
 
     def toggle_record(self):
         if not self.recorder.is_recording:
@@ -410,7 +465,7 @@ class MoCapSyncApp(ctk.CTk):
             os._exit(0)
 
 _single_instance_mutex = None
-INSTANCE_PID_FILE = os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "MoCapSTR", "instance.pid")
+INSTANCE_PID_FILE = os.path.join(data_dir(), "instance.pid")
 
 
 def _process_image_path(pid):
@@ -522,6 +577,7 @@ def enforce_single_instance():
     return True
 
 if __name__ == "__main__":
+    setup_logging()
     if not enforce_single_instance():
         sys.exit(0)
     app = MoCapSyncApp()
