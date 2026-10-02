@@ -21,6 +21,11 @@ from unittest import mock
 
 import cv2
 
+try:
+    import pandas  # FreeMoCap reads the timestamps with pandas; not a MoCapSTR dependency
+except ImportError:
+    pandas = None
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from test_clip_sync import DT, FPS, make_clip, timestamp_rows  # noqa: E402  (also sets sys.path)
 
@@ -31,7 +36,7 @@ from project_manager import ProjectManager, safe_name  # noqa: E402
 
 def freemocap_recording_framerate(recording_path):
     """recording_framerate.py: median of from_previous.framerate.hz in the first *_timestamps.csv."""
-    import pandas as pd
+    pd = pandas
     candidates = sorted(glob.glob(os.path.join(recording_path, "synchronized_videos", "timestamps", "*_timestamps.csv")))
     values = pd.read_csv(candidates[0], usecols=["from_previous.framerate.hz"])["from_previous.framerate.hz"].dropna()
     values = values[values > 0]
@@ -58,6 +63,7 @@ class TempDirTest(unittest.TestCase):
 
 
 class TimestampFormatTest(TempDirTest):
+    @unittest.skipIf(pandas is None, "pandas not installed (pip install pandas)")
     def test_freemocap_reads_framerate_and_timeline(self):
         recording = os.path.join(self.dir, "rec")
         ts_dir = os.path.join(recording, "synchronized_videos", "timestamps")

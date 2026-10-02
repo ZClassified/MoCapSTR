@@ -1,0 +1,29 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  unit-tests:
+    # Hardware-free test suite (simulated cameras / bootloader). Windows, because
+    # MoCapSTR is a Windows app (DirectShow, file locking behaviour).
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pandas
+      - name: Run tests
+        env:
+          PYTHONIOENCODING: utf-8
+        run: python -m unittest discover tests -v
