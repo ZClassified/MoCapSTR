@@ -42,7 +42,7 @@ Dieses Dokument hält Ursache, getroffene Entscheidungen und den Arbeitsplan fes
 - **Unkomprimiert:** Die Pakete von DirectShow (rawvideo) unverändert per Stream-Copy in `.avi`/`.mkv` schreiben, wie bisher bei MJPEG. Zu prüfen: Kann FreeMoCap (OpenCV) rawvideo-AVI in dieser Größe flüssig lesen? Bei AVI gibt es eine 4-GB-Grenze pro Datei → für unkomprimiert vermutlich **MKV**.
 - **GPU-Kodierung:** Frames dekodieren und mit dem Hardware-Encoder der Grafikkarte kodieren, pro Kamera ein eigener Thread.
   - Verfügbare Encoder beim Start ermitteln: Testweise öffnen und ein paar Frames kodieren. Nur was funktioniert, erscheint in der Auswahl.
-  - **DeckLink-PC: AMD Radeon RX 5600 XT** (VCN 2.0) → `h264_amf` oder `hevc_amf`. Kein AV1-Encoder, kein NVENC.
+  - **DeckLink-PC: AMD Radeon RX 5700 XT** (VCN 2.0) → `h264_amf` oder `hevc_amf`. Kein AV1-Encoder, kein NVENC.
   - Zu prüfen: Schafft der Encoder die Summe aller Kameras in Echtzeit (z. B. 4× 720p50 = 200 Bilder/s, 4× 1080p50 = 200 Bilder/s in Full HD)? Wie viele Encoder-Sitzungen laufen gleichzeitig stabil (bei NVIDIA-GeForce je nach Generation 3 bis 8), und wie hoch ist die Latenz?
   - Falls die GPU nicht reicht: Warnung vor der Aufnahme bzw. Rückfall auf unkomprimiert.
 - Die vorhandene Logik bleibt nutzbar: Aufnahme-Sessions, das Auffüllen verlorener Frames und die Zeitstempel-CSV im FreeMoCap-Format.
@@ -64,10 +64,10 @@ Dieses Dokument hält Ursache, getroffene Entscheidungen und den Arbeitsplan fes
 
 ### 3.5 Hardware-Hinweise
 
-- **DeckLink-PC (Testsystem):** DeckLink Duo 2, AMD Radeon RX 5600 XT, SSD. Python, IDE und Claude Code werden dort eingerichtet, sodass direkt am Gerät getestet und nachgebessert werden kann.
+- **DeckLink-PC (Testsystem):** DeckLink Duo 2, AMD Radeon RX 5700 XT, SSD. Python, IDE werden dort eingerichtet, sodass direkt am Gerät getestet und nachgebessert werden kann.
 - **DeckLink Duo 2:** 4 SDI-Anschlüsse, einzeln als Ein- oder Ausgang konfigurierbar (in "Blackmagic Desktop Video Setup"), Eingänge bis **1080p60 (3G-SDI), kein UHD**.
 - **Panasonic AG-HPX500 / AW-HE870** (vorhanden): liefern 1080PsF25 oder 720p50. **Für Mocap 720p50 empfehlen** (doppelte zeitliche Auflösung, PsF25 ist für schnelle Bewegungen grob).
-- **Blackmagic 12K / ARRI Alexa:** Den SDI-Ausgang an der Kamera auf **1080p** (progressiv) stellen, da die Duo 2 kein UHD/12G-SDI annimmt. Beide haben Genlock.
+- **Blackmagic 12K / ARRI Alexa etc:** Den SDI-Ausgang an der Kamera auf **1080p** (progressiv) stellen, da die Duo 2 kein UHD/12G-SDI annimmt. Beide haben Genlock.
 - Das Eingangsformat muss zum Signal passen. Zu prüfen: Erkennt der Treiber das Format automatisch, oder muss das Tool es vorgeben?
 
 ## 4. Arbeitsplan
