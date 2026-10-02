@@ -4,7 +4,8 @@
 [![Backend: PyAV (FFmpeg)](https://img.shields.io/badge/Backend-PyAV_(FFmpeg)-55a000?logo=ffmpeg&logoColor=white)](https://pyav.org/)
 [![Hardware Sync: Arduino](https://img.shields.io/badge/Hardware_Sync-Arduino-00979D?logo=arduino&logoColor=white)](https://www.arduino.cc/)
 [![Platform: Windows](https://img.shields.io/badge/Platform-Windows-0078D6?logo=windows&logoColor=white)](#)
-[![Version](https://img.shields.io/badge/Version-1.5.1-orange)](https://github.com/ZClassified/MoCapSTR/releases)
+[![Version](https://img.shields.io/badge/Version-1.5.2-orange)](https://github.com/ZClassified/MoCapSTR/releases)
+[![Tests](https://github.com/ZClassified/MoCapSTR/actions/workflows/tests.yml/badge.svg)](https://github.com/ZClassified/MoCapSTR/actions/workflows/tests.yml)
 [![License: GPL v3](https://img.shields.io/badge/License-GPL_v3-007EC6.svg)](LICENSE)
 [![FreeMoCap](https://img.shields.io/badge/FreeMoCap-Compatible-7952B3?logo=github)](https://github.com/freemocap/freemocap)
 
@@ -90,10 +91,12 @@ python python/main.py
 **Arduino firmware:** Connect the Arduino Nano/Uno, select its port in the Setup tab and click **Firmware aufspielen** – no Arduino IDE needed. The button turns orange when the firmware is missing or outdated (e.g. after updating MoCapSTR).
 *(Alternatively flash `arduino/trigger_firmware/trigger_firmware.ino` with the Arduino IDE. After changing the sketch, rebuild the bundled HEX with `python arduino/build_firmware.py`.)*
 
-**Running the tests** (no hardware needed):
+**Running the tests** (no hardware needed; `pip install pandas` additionally enables the FreeMoCap compatibility test):
 ```bash
 python -m unittest discover tests
 ```
+
+**Settings & log files:** Settings, presets and the last session are stored in `%APPDATA%\MoCapSTR`. The log file is `%LOCALAPPDATA%\MoCapSTR\logs\mocapstr.log` – use **Log-Ordner öffnen** in the log panel and attach it to bug reports.
 
 ---
 
@@ -211,10 +214,12 @@ python python/main.py
 **Arduino-Firmware:** Arduino Nano/Uno anschließen, im Setup-Tab den Port wählen und auf **Firmware aufspielen** klicken – keine Arduino IDE nötig. Der Button wird orange, wenn die Firmware fehlt oder veraltet ist (z. B. nach einem MoCapSTR-Update).
 *(Alternativ `arduino/trigger_firmware/trigger_firmware.ino` über die Arduino IDE flashen. Nach Änderungen am Sketch die mitgelieferte HEX-Datei mit `python arduino/build_firmware.py` neu bauen.)*
 
-**Tests ausführen** (ohne Hardware):
+**Tests ausführen** (ohne Hardware; mit `pip install pandas` läuft zusätzlich der FreeMoCap-Kompatibilitätstest):
 ```bash
 python -m unittest discover tests
 ```
+
+**Einstellungen & Log-Dateien:** Einstellungen, Presets und die letzte Sitzung liegen in `%APPDATA%\MoCapSTR`. Die Log-Datei ist `%LOCALAPPDATA%\MoCapSTR\logs\mocapstr.log` – über **Log-Ordner öffnen** im Log-Bereich erreichbar, bitte bei Fehlermeldungen mitschicken.
 
 ---
 

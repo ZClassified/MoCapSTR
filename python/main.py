@@ -26,7 +26,7 @@ from tabs.preview_tab import PreviewTab
 from tabs.camera_test_tab import CameraTestTab
 from tabs.export_tab import ExportTab
 
-APP_VERSION = "1.5.1"
+APP_VERSION = "1.5.2"
 
 ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme("blue")

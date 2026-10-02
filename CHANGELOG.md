@@ -1,9 +1,23 @@
 # Changelog
 
-**Current Status:** v1.5.1 in development. Recordings go straight into FreeMoCap 2; v1.5.0 brought frame-accurate clip verification & repair, robust Arduino monitoring and one-click firmware flashing.
+**Current Status:** v1.5.2 in development. Visible log again plus log file, settings that survive a restart, small fixes; v1.5.1 records straight into FreeMoCap 2; v1.5.0 brought frame-accurate clip verification & repair, robust Arduino monitoring and one-click firmware flashing.
 **Last Modified:** 2026-10-02
 
 ---
+
+- **2026-10-02 (v1.5.2, in development):** **Robustness & comfort (no hardware changes)**:
+  - **Bug fix – no visible log:** The log textbox was removed in the UI overhaul (commit `46cccf1`); since then every `app.log()` message (firmware warnings, clip verification, export results, errors) only went to `print()` – invisible in the EXE. New log panel below the tabs, visible in every tab: colour-coded, timestamps, collapsible, "Log-Ordner öffnen".
+  - **Thread-safe logging:** Messages from worker threads (initialization, export, firmware flashing) are queued and shown by the Tk main thread instead of touching widgets from other threads.
+  - **Log file:** `%LOCALAPPDATA%\MoCapSTR\logs\mocapstr.log` (rotating, 5×5 MB) captures `print()` output, stderr and uncaught exceptions (threads and UI callbacks).
+  - **Settings location:** `presets.json` and `export_settings.json` were written to the current working directory, so their location depended on how the EXE was started. They now live in `%APPDATA%\MoCapSTR`; existing files are copied over once.
+  - **Remembers the last session:** project name, save folder, take name, setup values, Arduino port, ChArUco settings and camera rotations are restored at start (saved on exit and on every recording start). Presets and session use the same code.
+  - **Bug fix – pop-out/dock and re-init reset the preview:** "Enable Recording" checkboxes and rotation menus are kept; remembered rotations are applied to newly started cameras.
+  - **Bug fix – camera tester:** identically named cameras were always tested as the first camera (`video_device_number` missing).
+  - **Bug fix – export:** a failed conversion left the source file open (could not be moved/deleted afterwards, WinError 32).
+  - **Bug fix – inconsistent FPS defaults:** invalid FPS input fell back to 30 in some places and 50 in others; now validated (1–240) with 50 as the single default. Presets without FPS/USB polling load 50/Auto.
+  - **Bug fix – ChArUco "Squares X/Y"** fields were displayed as Y x X.
+  - **Cleanup:** removed unused `apply_settings()`, `get_frame()`, `get_stalled_cameras()`.
+  - **CI:** GitHub Actions run the hardware-free test suite (Windows, Python 3.10 and 3.13). Verified locally: Python 3.10–3.13 and PyAV 12.0–18.0.
 
 - **2026-10-02 (v1.5.1, in development):** **FreeMoCap 2 integration (verified against FreeMoCap v2.0.0-alpha.25)**:
   - **Records straight into FreeMoCap 2:** The default save location is FreeMoCap's `recordings/` folder (`~/freemocap_data/recordings`, or the data folder chosen in FreeMoCap's settings, read from `%APPDATA%/freemocap/freemocap-config.json`). Each take and each calibration is its own recording folder `<date>_<time>_<project>_<take>/synchronized_videos/`, so recordings appear in FreeMoCap without any export step and calibrations no longer overwrite each other. `session_info.json` now stores project, take and recording type; the Export tab finds a project's recordings through it (recordings of v1.5.0 and older are still found).
