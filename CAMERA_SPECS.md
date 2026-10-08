@@ -1,6 +1,7 @@
 # Camera Specifications
 
-**Model:** Innomaker USB 2.0 UVC Camera Module (OV9281)
+**Model:** Innomaker USB 2.0 UVC Camera Module (OV9281), Board `U20CAM-9281M`  
+**Datenblatt:** [U20CAM-9281M-HW.pdf](https://www.inno-maker.com/wp-content/uploads/2023/11/U20CAM-9281M-HW.pdf) (Rev. 1.0)
 
 ## Sensor Details
 - **Sensor:** 1/4'' OV9281 CMOS Sensor, 1 Mega Pixel, 1280(H) x 800(V), 3μm*3μm
@@ -38,14 +39,25 @@
 
 ## Hardware & Connection
 - **Kabellänge:** 1M
+- **Versorgung:** 5 V, 86 mA (0,42 W)
+- **USB-Stecker auf der Platine:** 1,25 mm 5-polig (SHOU HAN ZZ-MS)
+
+  | Pin | Signal | Aderfarbe (Original-Kabel) |
+  | :---: | :--- | :--- |
+  | 1 | +5 V | Rot |
+  | 2 | D− | Weiß |
+  | 3 | D+ | Grün |
+  | 4 | GND | Schwarz |
+  | 5 | GND | Schwarz |
 - **Unterstützung OS:** WinXP/Vista/Win7/Win8/Win10, Linux mit UVC (über linux-2.6.26), MAC-OS X 10.4.8 oder höher, Android 4.0 oder höher mit UVC
 
 ## External Trigger & Strobe
 - **Externe Trigger:** Unterstützung (Aktivierung über UVC-Parameter `AutoFocus = 1` / `Focus = 0`)
 
 ### Pin-Beschreibung (Trigger)
-- **`FSIN +`** : Externer Trigger-Eingang (3,3 V–5 V) - *Direkt kompatibel mit 5V Arduino Ausgängen*
+- **`FSIN +`** : Externer Trigger-Eingang (3,3 V–5 V), Auslösung mit der steigenden Flanke
 - **`FSIN -`** : Externe Masse (GND)
+- **Eingangsschaltung:** Optokoppler-LED (Vf ≈ 1,25 V) mit 200 Ω Vorwiderstand auf der Platine. Der Eingang ist galvanisch von der Kamera getrennt, `FSIN -` ist also *nicht* mit USB-GND verbunden. Bei 5 V fließen ca. (5 − 1,25) / 200 ≈ 19 mA pro Kamera. Ein Arduino-Pin reicht für **eine** Kamera; für mehrere Kameras an einem Pin wird ein Treiber-IC benötigt (siehe [V2-Plan](3Dprint/v2_prototype/V2_ENTWICKLUNGSPLAN.md), Abschnitt 5B).
 
 ### Pin-Beschreibung (Strobe)
 - **`STROBE +`** : Sensor-STROB+ (Signal für externen Blitz)
