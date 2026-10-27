@@ -1,7 +1,7 @@
 # Changelog
 
 **Current Status:** v1.5.2 in development. Visible log again plus log file, settings that survive a restart, small fixes; v1.5.1 records straight into FreeMoCap 2; v1.5.0 brought frame-accurate clip verification & repair, robust Arduino monitoring and one-click firmware flashing.
-**Last Modified:** 2026-10-02
+**Last Modified:** 2026-10-27
 
 ---
 
@@ -18,6 +18,11 @@
   - **Bug fix – ChArUco "Squares X/Y"** fields were displayed as Y x X.
   - **Cleanup:** removed unused `apply_settings()`, `get_frame()`, `get_stalled_cameras()`.
   - **CI:** GitHub Actions run the hardware-free test suite (Windows, Python 3.10 and 3.13). Verified locally: Python 3.10–3.13 and PyAV 12.0–18.0.
+  - **Known issues (found 2026-10-27, not fixed yet):** Test takes at 30 FPS hardware trigger, 3× OV9281, 1280x720. Both takes had identical, untrimmed frame counts, no fillers and a constant inter-camera offset (median ~7 ms, max ~16 ms) - no frames were lost.
+    - **False "Mögliche Frame-Lücke(n)" warnings:** In trigger mode the cameras deliver frames on a ~16 ms grid (each camera with its own phase), so frame intervals are only 32 ms or 48 ms (10× 32 + 1× 48 ≈ 33.4 ms). `find_missing_frames()` compares against the *median* interval (32 ms); its threshold 1.5 × 32 = 48.0 ms sits exactly on the 48 ms intervals, so some of them are flagged at random. Using the mean interval would fix 30 FPS but not 50 FPS (16/32 ms pattern: a real missing frame can also show up as 32 ms). A robust fix detects a permanent step of one frame period in `device_time - index × mean interval` instead of single long intervals. Needs a 50 FPS test take first.
+    - **FreeMoCap gets the wrong frame rate:** The median of `from_previous.framerate.hz` is 1/32 ms = 31.25 Hz instead of the real ~29.9 Hz (~4 % off for FreeMoCap's post-processing filter). Fix: write the running average `frame_index / (t - t0)` in that column.
+    - **Arduino clock:** The trigger runs at 29.91 Hz instead of 30 Hz (~0.3 %, board oscillator tolerance). Harmless for sync; covered by the frame rate fix above.
+    - **Open question:** Whether only the delivery or also the exposure start is quantized to the 16 ms grid (up to 16 ms offset between cameras). Needs an image-based test (e.g. an LED switched by the Arduino).
 
 - **2026-10-02 (v1.5.1, in development):** **FreeMoCap 2 integration (verified against FreeMoCap v2.0.0-alpha.25)**:
   - **Records straight into FreeMoCap 2:** The default save location is FreeMoCap's `recordings/` folder (`~/freemocap_data/recordings`, or the data folder chosen in FreeMoCap's settings, read from `%APPDATA%/freemocap/freemocap-config.json`). Each take and each calibration is its own recording folder `<date>_<time>_<project>_<take>/synchronized_videos/`, so recordings appear in FreeMoCap without any export step and calibrations no longer overwrite each other. `session_info.json` now stores project, take and recording type; the Export tab finds a project's recordings through it (recordings of v1.5.0 and older are still found).
